@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 export default function WaitlistForm() {
   const [email, setEmail] = useState("");
-  const [source, setSource] = useState("");
+  const sourceRef = useRef<HTMLSelectElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [emailError, setEmailError] = useState(false);
@@ -20,10 +20,11 @@ export default function WaitlistForm() {
 
     setSubmitting(true);
     try {
+      const source = sourceRef.current?.value || null;
       const res = await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, source: source || null }),
+        body: JSON.stringify({ email, source }),
       });
       if (res.ok || res.status === 409) {
         setSubmitted(true);
@@ -86,10 +87,10 @@ export default function WaitlistForm() {
           <label htmlFor="source">How did you find us?</label>
           <select
             id="source"
-            value={source}
-            onChange={(e) => setSource(e.target.value)}
+            ref={sourceRef}
+            defaultValue=""
           >
-            <option value="" disabled>
+            <option value="" disabled hidden>
               Select an option
             </option>
             <option value="tiktok">TikTok</option>
