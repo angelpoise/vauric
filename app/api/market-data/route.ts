@@ -20,9 +20,17 @@ export interface MarketDataEntry {
   dailyMoveDollar: number;
 }
 
+// Steps back one or more days until landing on a weekday
 function prevWeekday(date: Date): Date {
   const d = new Date(date);
   do { d.setDate(d.getDate() - 1); } while (d.getDay() === 0 || d.getDay() === 6);
+  return d;
+}
+
+// Returns date unchanged if already a weekday; steps back to Friday if weekend
+function toWeekday(date: Date): Date {
+  const d = new Date(date);
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
   return d;
 }
 
@@ -51,12 +59,22 @@ export async function GET() {
     return NextResponse.json({ error: "POLYGON_API_KEY not set" }, { status: 500 });
   }
 
-  // Walk back up to 5 weekdays to find the most recent trading day with data
-  let currentDate = prevWeekday(new Date());
+  const now = new Date();
+  console.log(`[market-data] server UTC now: ${now.toISOString()} (day=${now.getUTCDay()})`);
+
+  // Start from today if it's already a weekday — do NOT subtract a day preemptively.
+  // The retry loop steps back only if the API returns no results for that date
+  // (e.g. today's session isn't processed yet, or it's a holiday).
+  let currentDate = toWeekday(now);
   let currentBars: Bar[] | null = null;
   for (let i = 0; i < 5; i++) {
+    console.log(`[market-data] trying current: ${fmt(currentDate)} (attempt ${i + 1})`);
     currentBars = await fetchBars(currentDate, apiKey);
-    if (currentBars) break;
+    if (currentBars) {
+      console.log(`[market-data] found ${currentBars.length} bars for ${fmt(currentDate)}`);
+      break;
+    }
+    console.log(`[market-data] no data for ${fmt(currentDate)}, stepping back`);
     currentDate = prevWeekday(currentDate);
   }
 
@@ -64,18 +82,22 @@ export async function GET() {
     return NextResponse.json({ error: "No market data available" }, { status: 503 });
   }
 
-  // Walk back from currentDate to find the previous trading day with data
+  // Previous trading day: step back once from whatever date worked above
   let prevDate = prevWeekday(currentDate);
   let prevBars: Bar[] | null = null;
   for (let i = 0; i < 5; i++) {
+    console.log(`[market-data] trying prev: ${fmt(prevDate)} (attempt ${i + 1})`);
     prevBars = await fetchBars(prevDate, apiKey);
-    if (prevBars) break;
+    if (prevBars) {
+      console.log(`[market-data] found ${prevBars.length} bars for ${fmt(prevDate)}`);
+      break;
+    }
     prevDate = prevWeekday(prevDate);
   }
 
   console.log(
-    `[market-data] current=${fmt(currentDate)} (${currentBars.length} bars),`,
-    `prev=${fmt(prevDate)} (${prevBars?.length ?? 0} bars)`
+    `[market-data] selected current=${fmt(currentDate)}, prev=${fmt(prevDate)}`,
+    `(prevBars: ${prevBars?.length ?? 0} bars)`
   );
 
   // Build prev-close lookup keyed by ticker
