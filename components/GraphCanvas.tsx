@@ -299,7 +299,7 @@ export default function GraphCanvas() {
 
         // Notification dots (stack vertically at top-right)
         node.notifications.forEach((notif, i) => {
-          const dotR = 4;
+          const dotR = 5.6;
           const dotX = r * 0.7;
           const dotY = -r * 0.7 - i * 10;
           ctx.beginPath();
@@ -448,7 +448,7 @@ export default function GraphCanvas() {
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
-      const factor = e.deltaY < 0 ? 1.08 : 0.93;
+      const factor = e.deltaY < 0 ? 1.032 : 0.968;
       const cam = cameraRef.current;
       const newScale = Math.max(0.15, Math.min(5, cam.scale * factor));
       const ratio = newScale / cam.scale;
