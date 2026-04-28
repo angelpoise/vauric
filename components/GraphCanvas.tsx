@@ -104,7 +104,18 @@ export default function GraphCanvas({ onHover }: Props) {
   const onHoverRef     = useRef(onHover);
   onHoverRef.current   = onHover;
 
+  interface LiveEntry { price: number; dailyMove: number; dailyMoveDollar: number; }
+  const liveDataRef = useRef<Record<string, LiveEntry>>({});
+
   const [hoverNode, setHoverNode] = useState<GNode | null>(null);
+
+  // Fetch real market data; silently falls back to placeholder on failure
+  useEffect(() => {
+    fetch("/api/market-data")
+      .then((r) => { if (r.ok) return r.json(); })
+      .then((data) => { if (data) liveDataRef.current = data; })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const canvas: HTMLCanvasElement = canvasRef.current!;
@@ -209,7 +220,8 @@ export default function GraphCanvas({ onHover }: Props) {
       for (const node of NODES) {
         const pos        = worldPos(node, t);
         const r          = nodeRadius(node);
-        const col        = moveColor(node.dailyMove);
+        const live       = liveDataRef.current[node.id];
+        const col        = moveColor(live?.dailyMove ?? node.dailyMove);
         const isHovered  = node.id === hid;
         const isNeighbor = hovNeighbors?.has(node.id) ?? false;
 
@@ -329,8 +341,17 @@ export default function GraphCanvas({ onHover }: Props) {
     // ── Event handlers ───────────────────────────────────────────────────────
 
     function setHover(node: GNode | null) {
-      setHoverNode(node);
-      onHoverRef.current?.(node);
+      if (node) {
+        const live = liveDataRef.current[node.id];
+        const merged: GNode = live
+          ? { ...node, price: live.price, dailyMove: live.dailyMove }
+          : node;
+        setHoverNode(merged);
+        onHoverRef.current?.(merged);
+      } else {
+        setHoverNode(null);
+        onHoverRef.current?.(null);
+      }
     }
 
     function onMouseMove(e: MouseEvent) {
