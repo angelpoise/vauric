@@ -234,6 +234,14 @@ export default function SectorDetail({ id }: { id: string }) {
 
   const [marketData, setMarketData] = useState<Record<string, LiveEntry> | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [fundamentalsData, setFundamentalsData] = useState<Record<string, { marketCap: number | null }> | null>(null);
+
+  useEffect(() => {
+    fetch("/api/fundamentals")
+      .then((r) => r.ok ? r.json() : null)
+      .then((json) => { if (json) setFundamentalsData(json); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const cached = getCachedMarketData();
@@ -371,7 +379,11 @@ export default function SectorDetail({ id }: { id: string }) {
             <div style={{ fontSize: 13, color: "#334155" }}>No tracked constituents for this sector yet.</div>
           ) : (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-              {[...sector.constituents].sort((a, b) => b.marketCap - a.marketCap).map((stock) => {
+              {[...sector.constituents].sort((a, b) => {
+                const capA = fundamentalsData?.[a.ticker]?.marketCap ?? a.marketCap;
+                const capB = fundamentalsData?.[b.ticker]?.marketCap ?? b.marketCap;
+                return capB - capA;
+              }).map((stock) => {
                 const liveMove = marketData?.[stock.ticker]?.dailyMove ?? stock.placeholderMove;
                 const liveLoaded = loaded;
                 const cardCol = liveLoaded ? moveColor(liveMove) : "rgb(100,116,139)";

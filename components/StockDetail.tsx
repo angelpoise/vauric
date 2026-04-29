@@ -748,12 +748,82 @@ function PlaceholderLink({ label }: { label: string }) {
 
 interface LiveEntry { price: number; dailyMove: number; dailyMoveDollar: number; }
 
+interface FundamentalsEntry {
+  marketCap:                    number | null;
+  previousClose:                number | null;
+  open:                         number | null;
+  dayLow:                       number | null;
+  dayHigh:                      number | null;
+  beta:                         number | null;
+  trailingPE:                   number | null;
+  forwardPE:                    number | null;
+  volume:                       number | null;
+  averageVolume:                number | null;
+  fiftyTwoWeekLow:              number | null;
+  fiftyTwoWeekHigh:             number | null;
+  priceToSalesTrailing12Months: number | null;
+  fiftyDayAverage:              number | null;
+  twoHundredDayAverage:         number | null;
+}
+
+function formatMarketCap(v: number): string {
+  if (v >= 1e12) return `$${(v / 1e12).toFixed(2)}T`;
+  if (v >= 1e9)  return `$${(v / 1e9).toFixed(1)}B`;
+  if (v >= 1e6)  return `$${(v / 1e6).toFixed(1)}M`;
+  return `$${(v / 1e3).toFixed(1)}K`;
+}
+
+function formatVolume(v: number): string {
+  if (v >= 1e9) return `${(v / 1e9).toFixed(2)}B`;
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
+  return v.toLocaleString("en-US");
+}
+
+interface MetricRow { label: string; value: string; color?: string; }
+
+function buildMetrics(f: FundamentalsEntry | null, live: LiveEntry | null): MetricRow[] {
+  const p = (v: number | null | undefined, fn: (n: number) => string): string =>
+    v != null ? fn(v) : "—";
+  const px = (v: number | null | undefined): string => p(v, (n) => `$${n.toFixed(2)}`);
+  const pe = (v: number | null | undefined): string => p(v, (n) => `${n.toFixed(2)}×`);
+
+  // Streak: derive from today's dailyMove only (1 day); improves with historical data.
+  let streakValue = "—";
+  let streakColor: string | undefined;
+  if (live != null) {
+    if (live.dailyMove > 0) {
+      streakValue = "1 up day";
+      streakColor = "#22c55e";
+    } else if (live.dailyMove < 0) {
+      streakValue = "1 down day";
+      streakColor = "#ef4444";
+    } else {
+      streakValue = "Flat";
+    }
+  }
+
+  return [
+    { label: "Market Cap",    value: p(f?.marketCap, formatMarketCap) },
+    { label: "Trailing P/E",  value: pe(f?.trailingPE) },
+    { label: "Forward P/E",   value: pe(f?.forwardPE) },
+    { label: "Price / Sales", value: pe(f?.priceToSalesTrailing12Months) },
+    { label: "Beta",          value: p(f?.beta, (n) => n.toFixed(2)) },
+    { label: "Avg Volume",    value: p(f?.averageVolume, formatVolume) },
+    { label: "52W High",      value: px(f?.fiftyTwoWeekHigh) },
+    { label: "52W Low",       value: px(f?.fiftyTwoWeekLow) },
+    { label: "50D Average",   value: px(f?.fiftyDayAverage) },
+    { label: "200D Average",  value: px(f?.twoHundredDayAverage) },
+    { label: "Streak",        value: streakValue, color: streakColor },
+  ];
+}
+
 export default function StockDetail({ ticker }: { ticker: string }) {
   const router = useRouter();
   const data = getStockData(ticker);
 
   const [live, setLive] = useState<LiveEntry | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [fundamentals, setFundamentals] = useState<FundamentalsEntry | null>(null);
   const [inWatchlist, setInWatchlist] = useState(false);
   const [wlFlash, setWlFlash] = useState<"added" | "duplicate" | "limit" | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -794,6 +864,13 @@ export default function StockDetail({ ticker }: { ticker: string }) {
       .catch(() => { setLoaded(true); });
   }, [ticker]);
 
+  useEffect(() => {
+    fetch("/api/fundamentals")
+      .then((r) => r.ok ? r.json() : null)
+      .then((json) => { if (json?.[ticker]) setFundamentals(json[ticker]); })
+      .catch(() => {});
+  }, [ticker]);
+
   const displayPrice     = live?.price     ?? data.price;
   const displayMove      = live?.dailyMove ?? data.dailyMove;
   const displayMoveDollar = live != null
@@ -803,6 +880,7 @@ export default function StockDetail({ ticker }: { ticker: string }) {
   const col     = moveColor(displayMove);
   const sign    = displayMove >= 0 ? "+" : "";
   const dolSign = displayMove >= 0 ? "+" : "−";
+  const sentimentCol = data.sentiment > 50 ? "#22c55e" : data.sentiment < 50 ? "#ef4444" : "#64748b";
 
   return (
     <div
@@ -1046,7 +1124,7 @@ export default function StockDetail({ ticker }: { ticker: string }) {
 
         <Section title="Key Metrics">
           <div style={{ display: "flex", flexWrap: "wrap", rowGap: 22 }}>
-            {data.metrics.map(({ label, value }) => (
+            {buildMetrics(fundamentals, live).map(({ label, value, color }) => (
               <div key={label} style={{ width: "33.333%", paddingRight: 24 }}>
                 <div
                   style={{
@@ -1060,7 +1138,7 @@ export default function StockDetail({ ticker }: { ticker: string }) {
                 >
                   {label}
                 </div>
-                <div style={{ fontSize: 15, color: "#e2e8f0", fontWeight: 500 }}>
+                <div style={{ fontSize: 15, color: color ?? "#e2e8f0", fontWeight: 500 }}>
                   {value}
                 </div>
               </div>
@@ -1089,8 +1167,8 @@ export default function StockDetail({ ticker }: { ticker: string }) {
                   width: 14,
                   height: 14,
                   borderRadius: "50%",
-                  background: col,
-                  boxShadow: `0 0 10px ${col}99`,
+                  background: "#3b82f6",
+                  boxShadow: "0 0 10px #3b82f699",
                   border: "2px solid #07090f",
                 }}
               />
@@ -1110,7 +1188,7 @@ export default function StockDetail({ ticker }: { ticker: string }) {
                 style={{
                   fontSize: 24,
                   fontWeight: 600,
-                  color: col,
+                  color: sentimentCol,
                   marginBottom: 6,
                 }}
               >

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export const MENU_COLLAPSED_W = 44;
 export const MENU_EXPANDED_W = 180;
@@ -96,6 +97,7 @@ const NAV_ITEMS = [
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function SideMenu({ expanded, onToggle, onSearchOpen }: Props) {
+  const router = useRouter();
   const [hovered, setHovered] = useState<number | null>(null);
 
   const itemBase: React.CSSProperties = {
@@ -161,7 +163,11 @@ export default function SideMenu({ expanded, onToggle, onSearchOpen }: Props) {
       {NAV_ITEMS.map(({ label, icon }, i) => (
         <button
           key={label}
-          onClick={label === "Search" ? onSearchOpen : undefined}
+          onClick={
+            label === "Search" ? onSearchOpen :
+            label === "News"   ? () => router.push("/news") :
+            undefined
+          }
           onMouseEnter={() => setHovered(i)}
           onMouseLeave={() => setHovered(null)}
           style={{
