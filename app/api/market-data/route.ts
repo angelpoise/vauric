@@ -7,7 +7,7 @@ import { NextResponse } from "next/server";
 // which is the true daily change, not the intraday-only (close - open) / open.
 
 const TICKERS = new Set([
-  "NVDA", "SMCI", "PLTR", "MSFT", "ARM",  "CRWD",
+  "NVDA", "SMCI", "PLTR", "MSFT", "ARM",  "CRWD", "AMD",
   "FANG", "MPC",  "SLB",  "XOM",  "HIMS", "RXRX",
   "INMD", "SOFI", "AFRM", "PYPL", "COIN", "WING",
 ]);

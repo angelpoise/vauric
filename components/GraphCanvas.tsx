@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   type GNode,
   type StockNode,
   type SectorNode,
   NOTIF,
   moveColor,
+  moveFill,
 } from "@/lib/graphTypes";
+import { getCachedMarketData, setCachedMarketData } from "@/lib/marketDataCache";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -30,6 +33,7 @@ const NODES: GNode[] = [
   { id: "PLTR", kind: "stock", ticker: "PLTR", name: "Palantir",           price:   24.38, dailyMove:  3.1, sectorId: "sec-tech",    x:  635, y: 260, notifications: [{ type: "news" }] },
   { id: "AMD",  kind: "stock", ticker: "AMD",  name: "AMD",                price:  172.84, dailyMove:  2.4, sectorId: "sec-tech",    x:  360, y: 510, notifications: [] },
   { id: "ARM",  kind: "stock", ticker: "ARM",  name: "Arm Holdings",       price:  118.62, dailyMove:  4.8, sectorId: "sec-tech",    x:  645, y: 495, notifications: [{ type: "earnings" }] },
+  { id: "SMCI", kind: "stock", ticker: "SMCI", name: "Super Micro Computer", price:  38.42, dailyMove:  2.8, sectorId: "sec-tech",  x:  175, y: 165, notifications: [{ type: "analyst" }] },
 
   // Energy
   { id: "XOM",  kind: "stock", ticker: "XOM",  name: "ExxonMobil",         price:  118.24, dailyMove: -1.2, sectorId: "sec-energy",  x:  920, y: 258, notifications: [{ type: "analyst" }] },
@@ -57,6 +61,8 @@ interface Edge { source: string; target: string; }
 
 const EDGES: Edge[] = [
   ...STOCK_NODES.map((n) => ({ source: n.id, target: n.sectorId })),
+  { source: "SMCI", target: "NVDA" },
+  { source: "SMCI", target: "ARM"  },
   { source: "NVDA", target: "AMD"  },
   { source: "NVDA", target: "ARM"  },
   { source: "AMD",  target: "ARM"  },
@@ -94,27 +100,47 @@ interface Camera { x: number; y: number; scale: number; }
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function GraphCanvas({ onHover }: Props) {
+  const router         = useRouter();
   const canvasRef      = useRef<HTMLCanvasElement>(null);
   const cameraRef      = useRef<Camera>({ x: 0, y: 0, scale: 1 });
   const hoveredIdRef   = useRef<string | null>(null);
   const animTRef       = useRef(0);
   const panningRef     = useRef(false);
   const lastMouseRef   = useRef({ x: 0, y: 0 });
+  const mouseDownPosRef = useRef({ x: 0, y: 0 });
   const initializedRef = useRef(false);
   const onHoverRef     = useRef(onHover);
   onHoverRef.current   = onHover;
+  const routerRef      = useRef(router);
+  routerRef.current    = router;
 
   interface LiveEntry { price: number; dailyMove: number; dailyMoveDollar: number; }
-  const liveDataRef = useRef<Record<string, LiveEntry>>({});
+  const liveDataRef      = useRef<Record<string, LiveEntry>>({});
+  const liveDataReadyRef = useRef(false);
 
   const [hoverNode, setHoverNode] = useState<GNode | null>(null);
 
-  // Fetch real market data; silently falls back to placeholder on failure
+  // Populate live data before the draw loop starts so nodes colour correctly on the first frame.
+  // The module-level cache persists across navigations; only fetches when empty or stale (>15 min).
   useEffect(() => {
+    const cached = getCachedMarketData();
+    if (cached) {
+      liveDataRef.current      = cached;
+      liveDataReadyRef.current = true;
+      return;
+    }
+
     fetch("/api/market-data")
-      .then((r) => { if (r.ok) return r.json(); })
-      .then((data) => { if (data) liveDataRef.current = data; })
-      .catch(() => {});
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data) {
+          setCachedMarketData(data);
+          liveDataRef.current = data;
+          console.log("[market-data] AMD entry:", data["AMD"] ?? "not present in API response");
+        }
+        liveDataReadyRef.current = true;
+      })
+      .catch(() => { liveDataReadyRef.current = true; });
   }, []);
 
   useEffect(() => {
@@ -220,8 +246,11 @@ export default function GraphCanvas({ onHover }: Props) {
       for (const node of NODES) {
         const pos        = worldPos(node, t);
         const r          = nodeRadius(node);
-        const live       = liveDataRef.current[node.id];
-        const col        = moveColor(live?.dailyMove ?? node.dailyMove);
+        const live     = liveDataRef.current[node.id];
+        // rawMove is forced to 0 (grey) until live data is ready, preventing placeholder colour flashes
+        const rawMove  = liveDataReadyRef.current ? (live?.dailyMove ?? node.dailyMove) : 0;
+        const col      = moveColor(rawMove);
+        const fillCol  = moveFill(rawMove);
         const isHovered  = node.id === hid;
         const isNeighbor = hovNeighbors?.has(node.id) ?? false;
 
@@ -240,7 +269,7 @@ export default function GraphCanvas({ onHover }: Props) {
         if (node.kind === "sector") {
           drawSectorNode(ctx, node, r, col, t);
         } else {
-          drawStockNode(ctx, node, r, col);
+          drawStockNode(ctx, node, r, col, fillCol);
         }
 
         // Notification dots
@@ -270,6 +299,13 @@ export default function GraphCanvas({ onHover }: Props) {
 
     // ── Node draw helpers ────────────────────────────────────────────────────
 
+    // Converts "rgb(r,g,b)" → "rgba(r,g,b,alpha)" for canvas colour operations
+    function withOpacity(col: string, alpha: number): string {
+      return col.startsWith("rgb(")
+        ? col.replace("rgb(", "rgba(").replace(")", `, ${alpha})`)
+        : col;
+    }
+
     function drawSectorNode(
       c: CanvasRenderingContext2D,
       node: SectorNode,
@@ -287,7 +323,7 @@ export default function GraphCanvas({ onHover }: Props) {
 
       c.beginPath();
       c.arc(0, 0, r * 0.55 * pulse, 0, Math.PI * 2);
-      c.strokeStyle = col + "40";
+      c.strokeStyle = withOpacity(col, 0.25);
       c.lineWidth   = 1;
       c.stroke();
 
@@ -298,7 +334,7 @@ export default function GraphCanvas({ onHover }: Props) {
       c.fillText(node.name, 0, r + 10);
 
       const sign = node.dailyMove >= 0 ? "+" : "";
-      c.fillStyle = col + "bb";
+      c.fillStyle = withOpacity(col, 0.73);
       c.font      = `300 9px "DM Sans", sans-serif`;
       c.fillText(`${node.etf}  ${sign}${node.dailyMove.toFixed(1)}%`, 0, r + 23);
     }
@@ -307,17 +343,12 @@ export default function GraphCanvas({ onHover }: Props) {
       c: CanvasRenderingContext2D,
       node: StockNode,
       r: number,
-      col: string
+      col: string,
+      fillCol: string
     ) {
-      const bgAlpha = 0.14;
       c.beginPath();
       c.arc(0, 0, r, 0, Math.PI * 2);
-      c.fillStyle =
-        col === "#22c55e"
-          ? `rgba(34,197,94,${bgAlpha})`
-          : col === "#ef4444"
-          ? `rgba(239,68,68,${bgAlpha})`
-          : `rgba(100,116,139,${bgAlpha})`;
+      c.fillStyle = fillCol;
       c.fill();
 
       c.beginPath();
@@ -377,12 +408,29 @@ export default function GraphCanvas({ onHover }: Props) {
 
     function onMouseDown(e: MouseEvent) {
       const rect = canvas.getBoundingClientRect();
-      panningRef.current   = true;
-      lastMouseRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-      canvas.style.cursor  = "grabbing";
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      panningRef.current    = true;
+      lastMouseRef.current  = { x: mx, y: my };
+      mouseDownPosRef.current = { x: mx, y: my };
+      canvas.style.cursor   = "grabbing";
     }
 
-    function onMouseUp() {
+    function onMouseUp(e: MouseEvent) {
+      panningRef.current  = false;
+      canvas.style.cursor = hoveredIdRef.current ? "pointer" : "grab";
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const dx = mx - mouseDownPosRef.current.x;
+      const dy = my - mouseDownPosRef.current.y;
+      if (dx * dx + dy * dy < 25) {
+        const hit = hitTest(mx, my);
+        if (hit?.kind === "stock") routerRef.current.push(`/stock/${hit.ticker}`);
+      }
+    }
+
+    function onWindowMouseUp() {
       panningRef.current  = false;
       canvas.style.cursor = hoveredIdRef.current ? "pointer" : "grab";
     }
@@ -417,7 +465,7 @@ export default function GraphCanvas({ onHover }: Props) {
     canvas.addEventListener("mouseup",    onMouseUp);
     canvas.addEventListener("wheel",      onWheel, { passive: false });
     canvas.addEventListener("mouseleave", onMouseLeave);
-    window.addEventListener("mouseup",    onMouseUp);
+    window.addEventListener("mouseup",    onWindowMouseUp);
 
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
@@ -431,7 +479,7 @@ export default function GraphCanvas({ onHover }: Props) {
       canvas.removeEventListener("mouseup",    onMouseUp);
       canvas.removeEventListener("wheel",      onWheel);
       canvas.removeEventListener("mouseleave", onMouseLeave);
-      window.removeEventListener("mouseup",    onMouseUp);
+      window.removeEventListener("mouseup",    onWindowMouseUp);
       ro.disconnect();
     };
   }, []);
