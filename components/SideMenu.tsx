@@ -10,6 +10,7 @@ interface Props {
   expanded: boolean;
   onToggle: () => void;
   onSearchOpen: () => void;
+  onFiltersOpen: () => void;
 }
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -96,7 +97,7 @@ const NAV_ITEMS = [
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function SideMenu({ expanded, onToggle, onSearchOpen }: Props) {
+export default function SideMenu({ expanded, onToggle, onSearchOpen, onFiltersOpen }: Props) {
   const router = useRouter();
   const [hovered, setHovered] = useState<number | null>(null);
 
@@ -164,8 +165,9 @@ export default function SideMenu({ expanded, onToggle, onSearchOpen }: Props) {
         <button
           key={label}
           onClick={
-            label === "Search" ? onSearchOpen :
-            label === "News"   ? () => router.push("/news") :
+            label === "Search"  ? onSearchOpen :
+            label === "Filters" ? onFiltersOpen :
+            label === "News"    ? () => router.push("/news") :
             undefined
           }
           onMouseEnter={() => setHovered(i)}

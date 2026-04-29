@@ -6,12 +6,16 @@ import SideMenu, { MENU_COLLAPSED_W, MENU_EXPANDED_W } from "@/components/SideMe
 import HoverBar from "@/components/HoverBar";
 import WatchlistPanel from "@/components/WatchlistPanel";
 import SearchPanel from "@/components/SearchPanel";
+import FiltersPanel from "@/components/FiltersPanel";
+import { type ActiveFilters, DEFAULT_FILTERS } from "@/lib/filtersTypes";
 import type { GNode } from "@/lib/graphTypes";
 
 export default function GraphLayout() {
   const [menuExpanded, setMenuExpanded] = useState(false);
   const [hoveredNode, setHoveredNode] = useState<GNode | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<ActiveFilters>(DEFAULT_FILTERS);
 
   const menuW = menuExpanded ? MENU_EXPANDED_W : MENU_COLLAPSED_W;
 
@@ -34,6 +38,7 @@ export default function GraphLayout() {
         expanded={menuExpanded}
         onToggle={() => setMenuExpanded((e) => !e)}
         onSearchOpen={() => setIsSearchOpen(true)}
+        onFiltersOpen={() => setIsFiltersOpen((o) => !o)}
       />
 
       {/* Canvas container shifts right to clear the menu */}
@@ -47,10 +52,17 @@ export default function GraphLayout() {
           transition: "left 0.22s ease",
         }}
       >
-        <GraphCanvas onHover={setHoveredNode} />
+        <GraphCanvas onHover={setHoveredNode} activeFilters={activeFilters} />
       </div>
 
-      <HoverBar node={hoveredNode} leftOffset={menuW} />
+      <HoverBar node={isFiltersOpen ? null : hoveredNode} leftOffset={menuW} />
+
+      <FiltersPanel
+        open={isFiltersOpen}
+        onClose={() => setIsFiltersOpen(false)}
+        filters={activeFilters}
+        onFiltersChange={setActiveFilters}
+      />
 
       <WatchlistPanel />
 

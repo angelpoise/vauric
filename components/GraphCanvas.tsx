@@ -11,11 +11,19 @@ import {
   moveFill,
 } from "@/lib/graphTypes";
 import { getCachedMarketData, setCachedMarketData } from "@/lib/marketDataCache";
+import {
+  type ActiveFilters,
+  DEFAULT_FILTERS,
+  ALL_NOTIF_TYPES,
+  ALL_CAP_TIERS,
+  ALL_52W_POS,
+} from "@/lib/filtersTypes";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface Props {
   onHover?: (node: GNode | null) => void;
+  activeFilters?: ActiveFilters;
 }
 
 // ─── Placeholder data ─────────────────────────────────────────────────────────
@@ -99,7 +107,17 @@ interface Camera { x: number; y: number; scale: number; }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function GraphCanvas({ onHover }: Props) {
+interface FundEntry {
+  marketCap: number | null;
+  trailingPE: number | null;
+  beta: number | null;
+  averageVolume: number | null;
+  volume: number | null;
+  fiftyTwoWeekHigh: number | null;
+  fiftyTwoWeekLow: number | null;
+}
+
+export default function GraphCanvas({ onHover, activeFilters }: Props) {
   const router         = useRouter();
   const canvasRef      = useRef<HTMLCanvasElement>(null);
   const cameraRef      = useRef<Camera>({ x: 0, y: 0, scale: 1 });
@@ -117,8 +135,23 @@ export default function GraphCanvas({ onHover }: Props) {
   interface LiveEntry { price: number; dailyMove: number; dailyMoveDollar: number; }
   const liveDataRef      = useRef<Record<string, LiveEntry>>({});
   const liveDataReadyRef = useRef(false);
+  const fundamentalsRef  = useRef<Record<string, FundEntry>>({});
+  const activeFiltersRef = useRef<ActiveFilters>(DEFAULT_FILTERS);
 
   const [hoverNode, setHoverNode] = useState<GNode | null>(null);
+
+  // Keep activeFilters ref in sync with prop (read by draw loop without re-creating the effect)
+  useEffect(() => {
+    activeFiltersRef.current = activeFilters ?? DEFAULT_FILTERS;
+  }, [activeFilters]);
+
+  // Fetch fundamentals data for filter calculations (market cap, beta, PE, etc.)
+  useEffect(() => {
+    fetch("/api/fundamentals")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) fundamentalsRef.current = data; })
+      .catch(() => {});
+  }, []);
 
   // Populate live data before the draw loop starts so nodes colour correctly on the first frame.
   // The module-level cache persists across navigations; only fetches when empty or stale (>15 min).
@@ -192,12 +225,111 @@ export default function GraphCanvas({ onHover }: Props) {
       const t = animTRef.current;
       for (const node of [...NODES].reverse()) {
         const pos = worldPos(node, t);
-        const r   = nodeRadius(node) + 6;
+        const r   = effectiveRadius(node) + 6;
         const dx  = w.x - pos.x;
         const dy  = w.y - pos.y;
         if (dx * dx + dy * dy <= r * r) return node;
       }
       return null;
+    }
+
+    // ── Filter helpers ───────────────────────────────────────────────────────
+
+    // Returns true if the node should be faded out by active filters.
+    // Sector nodes are never filtered.
+    function isNodeFiltered(node: GNode): boolean {
+      if (node.kind === "sector") return false;
+      const f    = activeFiltersRef.current;
+      const live = liveDataRef.current[node.ticker];
+      const fund = fundamentalsRef.current[node.ticker] as FundEntry | undefined;
+
+      // Sector membership
+      const sid = node.sectorId.replace("sec-", "");
+      if (!f.sectors.includes(sid)) return true;
+
+      // Notification presence / type
+      if (f.onlyWithNotifs && node.notifications.length === 0) return true;
+      if (f.notifTypes.length < ALL_NOTIF_TYPES.length && node.notifications.length > 0) {
+        const hasMatch = node.notifications.some((n) => (f.notifTypes as string[]).includes(n.type));
+        if (!hasMatch) return true;
+      }
+
+      // Daily move
+      const move = live?.dailyMove ?? 0;
+      if (f.dailyMove.min !== null && move < f.dailyMove.min) return true;
+      if (f.dailyMove.max !== null && move > f.dailyMove.max) return true;
+
+      // Price
+      const price = live?.price ?? 0;
+      if (f.price.min !== null && price < f.price.min) return true;
+      if (f.price.max !== null && price > f.price.max) return true;
+
+      // Market cap tier (only applied when not all tiers are selected)
+      if (f.marketCapTiers.length < ALL_CAP_TIERS.length) {
+        const cap = fund?.marketCap ?? null;
+        if (cap !== null) {
+          const tier = cap >= 200e9 ? "mega" : cap >= 10e9 ? "large" : cap >= 2e9 ? "mid" : "small";
+          if (!f.marketCapTiers.includes(tier)) return true;
+        }
+      }
+
+      // Trailing P/E
+      const pe = fund?.trailingPE ?? null;
+      if (f.trailingPE.min !== null && (pe === null || pe < f.trailingPE.min)) return true;
+      if (f.trailingPE.max !== null && (pe === null || pe > f.trailingPE.max)) return true;
+
+      // Beta
+      const beta = fund?.beta ?? null;
+      if (f.beta.min !== null && (beta === null || beta < f.beta.min)) return true;
+      if (f.beta.max !== null && (beta === null || beta > f.beta.max)) return true;
+
+      // Average volume
+      const avgVol = fund?.averageVolume ?? null;
+      if (f.avgVolumeMin !== null && (avgVol === null || avgVol < f.avgVolumeMin)) return true;
+
+      // 52-week position
+      if (f.fiftyTwoWeekPos.length < ALL_52W_POS.length) {
+        const hi = fund?.fiftyTwoWeekHigh ?? null;
+        const lo = fund?.fiftyTwoWeekLow  ?? null;
+        const p  = live?.price ?? null;
+        if (hi !== null && lo !== null && p !== null) {
+          const pos52 = p / lo <= 1.10 ? "low" : p / hi >= 0.90 ? "high" : "mid";
+          if (!f.fiftyTwoWeekPos.includes(pos52)) return true;
+        }
+      }
+
+      // Relative volume
+      if (f.relVolumeMin !== null) {
+        const vol  = fund?.volume ?? null;
+        const avgV = fund?.averageVolume ?? null;
+        if (vol !== null && avgV !== null && avgV > 0) {
+          if (vol / avgV < f.relVolumeMin) return true;
+        }
+      }
+
+      // Streak
+      if (f.streak !== "any") {
+        const m = live?.dailyMove ?? 0;
+        if (f.streak === "up"   && m <= 0) return true;
+        if (f.streak === "down" && m >= 0) return true;
+      }
+
+      return false;
+    }
+
+    // Node radius respecting the nodeSize filter toggle
+    function effectiveRadius(node: GNode): number {
+      if (node.kind === "sector") return 44;
+      if (activeFiltersRef.current.nodeSize === "marketcap") {
+        const cap = fundamentalsRef.current[node.ticker]?.marketCap ?? null;
+        if (cap !== null) {
+          if (cap >= 200e9) return 28;
+          if (cap >= 10e9)  return 22;
+          if (cap >= 2e9)   return 16;
+          return 11;
+        }
+      }
+      return nodeRadius(node);
     }
 
     // ── Draw loop ────────────────────────────────────────────────────────────
@@ -226,9 +358,10 @@ export default function GraphCanvas({ onHover }: Props) {
         const sp  = worldPos(src, t);
         const tp  = worldPos(tgt, t);
 
-        let alpha = 0.11;
-        let lineW = 0.8;
-        if (hid) {
+        const edgeFiltered = isNodeFiltered(src) || isNodeFiltered(tgt);
+        let alpha = edgeFiltered ? 0.018 : 0.11;
+        let lineW = edgeFiltered ? 0.4 : 0.8;
+        if (!edgeFiltered && hid) {
           const lit = edge.source === hid || edge.target === hid;
           alpha = lit ? 0.55 : 0.018;
           lineW = lit ? 1.6 : 0.5;
@@ -245,7 +378,7 @@ export default function GraphCanvas({ onHover }: Props) {
       // Nodes
       for (const node of NODES) {
         const pos        = worldPos(node, t);
-        const r          = nodeRadius(node);
+        const r          = effectiveRadius(node);
         // Sector nodes are keyed in the API response by their ETF ticker, not by node.id
         const liveKey  = node.kind === "sector" ? node.etf : node.id;
         const live     = liveDataRef.current[liveKey];
@@ -255,11 +388,14 @@ export default function GraphCanvas({ onHover }: Props) {
         const fillCol  = moveFill(rawMove);
         const isHovered  = node.id === hid;
         const isNeighbor = hovNeighbors?.has(node.id) ?? false;
+        const filtered   = isNodeFiltered(node);
 
         let globalAlpha = 1;
         let scale       = 1;
-        if (hid) {
-          if (isHovered)      scale       = 1.18;
+        if (filtered) {
+          globalAlpha = 0.03;
+        } else if (hid) {
+          if (isHovered)        scale       = 1.18;
           else if (!isNeighbor) globalAlpha = 0.07;
         }
 

@@ -22,12 +22,6 @@ type Tab = "all" | "watchlist" | "sector" | "search";
 
 // ─── Static data ──────────────────────────────────────────────────────────────
 
-const TICKER_SECTOR: Record<string, string> = {
-  NVDA: "tech",  MSFT: "tech",   PLTR: "tech",  AMD: "tech",  ARM: "tech",  SMCI: "tech",
-  XOM: "energy", CVX: "energy",  FANG: "energy", SLB: "energy",
-  HIMS: "health", RXRX: "health", LLY: "health", MRNA: "health",
-  SOFI: "finance", AFRM: "finance", PYPL: "finance", COIN: "finance", HOOD: "finance",
-};
 
 const SECTOR_LABELS: Record<string, string> = {
   tech: "Technology", energy: "Energy", health: "Healthcare",
