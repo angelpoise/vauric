@@ -246,7 +246,9 @@ export default function GraphCanvas({ onHover }: Props) {
       for (const node of NODES) {
         const pos        = worldPos(node, t);
         const r          = nodeRadius(node);
-        const live     = liveDataRef.current[node.id];
+        // Sector nodes are keyed in the API response by their ETF ticker, not by node.id
+        const liveKey  = node.kind === "sector" ? node.etf : node.id;
+        const live     = liveDataRef.current[liveKey];
         // rawMove is forced to 0 (grey) until live data is ready, preventing placeholder colour flashes
         const rawMove  = liveDataReadyRef.current ? (live?.dailyMove ?? node.dailyMove) : 0;
         const col      = moveColor(rawMove);
@@ -267,7 +269,7 @@ export default function GraphCanvas({ onHover }: Props) {
         ctx.scale(scale, scale);
 
         if (node.kind === "sector") {
-          drawSectorNode(ctx, node, r, col, t);
+          drawSectorNode(ctx, node, r, col, t, rawMove);
         } else {
           drawStockNode(ctx, node, r, col, fillCol);
         }
@@ -311,7 +313,8 @@ export default function GraphCanvas({ onHover }: Props) {
       node: SectorNode,
       r: number,
       col: string,
-      t: number
+      t: number,
+      move: number
     ) {
       const pulse = 1 + Math.sin(t * 0.7 + node.x * 0.012) * 0.03;
 
@@ -333,10 +336,10 @@ export default function GraphCanvas({ onHover }: Props) {
       c.textBaseline = "top";
       c.fillText(node.name, 0, r + 10);
 
-      const sign = node.dailyMove >= 0 ? "+" : "";
+      const sign = move >= 0 ? "+" : "";
       c.fillStyle = withOpacity(col, 0.73);
       c.font      = `300 9px "DM Sans", sans-serif`;
-      c.fillText(`${node.etf}  ${sign}${node.dailyMove.toFixed(1)}%`, 0, r + 23);
+      c.fillText(`${node.etf}  ${sign}${move.toFixed(1)}%`, 0, r + 23);
     }
 
     function drawStockNode(
@@ -373,7 +376,8 @@ export default function GraphCanvas({ onHover }: Props) {
 
     function setHover(node: GNode | null) {
       if (node) {
-        const live = liveDataRef.current[node.id];
+        const liveKey = node.kind === "sector" ? node.etf : node.id;
+        const live = liveDataRef.current[liveKey];
         const merged: GNode = live
           ? { ...node, price: live.price, dailyMove: live.dailyMove }
           : node;

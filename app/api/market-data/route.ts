@@ -10,6 +10,8 @@ const TICKERS = new Set([
   "NVDA", "SMCI", "PLTR", "MSFT", "ARM",  "CRWD", "AMD",
   "FANG", "MPC",  "SLB",  "XOM",  "HIMS", "RXRX",
   "INMD", "SOFI", "AFRM", "PYPL", "COIN", "WING",
+  // Sector ETFs
+  "XLK",  "XLE",  "XLV",  "XLF",  "XLY",
 ]);
 
 interface Bar { T: string; o: number; c: number; }
