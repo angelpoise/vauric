@@ -430,7 +430,8 @@ export default function GraphCanvas({ onHover }: Props) {
       const dy = my - mouseDownPosRef.current.y;
       if (dx * dx + dy * dy < 25) {
         const hit = hitTest(mx, my);
-        if (hit?.kind === "stock") routerRef.current.push(`/stock/${hit.ticker}`);
+        if (hit?.kind === "stock")  routerRef.current.push(`/stock/${hit.ticker}`);
+        if (hit?.kind === "sector") routerRef.current.push(`/sector/${hit.id.replace("sec-", "")}`);
       }
     }
 

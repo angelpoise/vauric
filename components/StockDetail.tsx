@@ -570,6 +570,21 @@ const STOCK_DB: Record<string, StockData> = {
   },
 };
 
+const STOCK_SECTOR: Record<string, string> = {
+  NVDA: "tech", MSFT: "tech", PLTR: "tech", AMD: "tech", ARM: "tech", SMCI: "tech",
+  XOM: "energy", CVX: "energy", FANG: "energy", SLB: "energy",
+  HIMS: "health", RXRX: "health", LLY: "health", MRNA: "health",
+  SOFI: "finance", AFRM: "finance", PYPL: "finance", COIN: "finance", HOOD: "finance",
+};
+
+const SECTOR_META: Record<string, { name: string; color: string }> = {
+  tech:     { name: "Technology",             color: "#3b82f6" },
+  energy:   { name: "Energy",                 color: "#f59e0b" },
+  health:   { name: "Healthcare",             color: "#22c55e" },
+  finance:  { name: "Finance",                color: "#a855f7" },
+  consumer: { name: "Consumer Discretionary", color: "#14b8a6" },
+};
+
 function getStockData(ticker: string): StockData {
   return (
     STOCK_DB[ticker] ?? {
@@ -901,6 +916,34 @@ export default function StockDetail({ ticker }: { ticker: string }) {
               <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
               Watchlist
             </button>
+
+            {(() => {
+              const sectorId = STOCK_SECTOR[ticker];
+              const meta = sectorId ? SECTOR_META[sectorId] : null;
+              if (!meta) return null;
+              return (
+                <button
+                  onClick={() => router.push(`/sector/${sectorId}`)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "7px 14px 7px 12px",
+                    background: `${meta.color}0a`,
+                    border: "1px solid rgba(255,255,255,0.09)",
+                    borderLeft: `2px solid ${meta.color}`,
+                    borderRadius: 8,
+                    color: "#94a3b8",
+                    fontSize: 13,
+                    fontWeight: 400,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  {meta.name}
+                </button>
+              );
+            })()}
 
             {data.notifications.map((n, i) => (
               <Chip key={i} type={n.type} />
