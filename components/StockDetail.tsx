@@ -1,9 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { type NotifType, NOTIF, moveColor } from "@/lib/graphTypes";
 import { getCachedMarketData, setCachedMarketData } from "@/lib/marketDataCache";
+import {
+  FREE_TIER_CAP,
+  WATCHLIST_EVENT,
+  getWatchlist,
+  addToWatchlist,
+} from "@/lib/watchlist";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -748,6 +754,27 @@ export default function StockDetail({ ticker }: { ticker: string }) {
 
   const [live, setLive] = useState<LiveEntry | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [inWatchlist, setInWatchlist] = useState(false);
+  const [wlFlash, setWlFlash] = useState<"added" | "duplicate" | "limit" | null>(null);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setInWatchlist(getWatchlist().includes(ticker));
+    const onUpdate = () => setInWatchlist(getWatchlist().includes(ticker));
+    window.addEventListener(WATCHLIST_EVENT, onUpdate);
+    window.addEventListener("storage", onUpdate);
+    return () => {
+      window.removeEventListener(WATCHLIST_EVENT, onUpdate);
+      window.removeEventListener("storage", onUpdate);
+    };
+  }, [ticker]);
+
+  function handleAddToWatchlist() {
+    const result = addToWatchlist(ticker);
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    setWlFlash(result);
+    flashTimer.current = setTimeout(() => setWlFlash(null), result === "limit" ? 3000 : 1800);
+  }
 
   useEffect(() => {
     const cached = getCachedMarketData();
@@ -897,25 +924,46 @@ export default function StockDetail({ ticker }: { ticker: string }) {
               flexWrap: "wrap",
             }}
           >
-            <button
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "7px 16px",
-                background: "rgba(59,130,246,0.07)",
-                border: "1px solid rgba(59,130,246,0.22)",
-                borderRadius: 8,
-                color: "#3b82f6",
-                fontSize: 13,
-                fontWeight: 400,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
-              Watchlist
-            </button>
+            {wlFlash === "limit" ? (
+              <span style={{ fontSize: 12, color: "#64748b", fontFamily: "inherit" }}>
+                Free tier limit ({FREE_TIER_CAP}/{FREE_TIER_CAP}). Upgrade to Pro for unlimited.
+              </span>
+            ) : (
+              <button
+                onClick={handleAddToWatchlist}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "7px 16px",
+                  background: inWatchlist ? "rgba(34,197,94,0.07)" : "rgba(59,130,246,0.07)",
+                  border: inWatchlist ? "1px solid rgba(34,197,94,0.28)" : "1px solid rgba(59,130,246,0.22)",
+                  borderRadius: 8,
+                  color: inWatchlist ? "#22c55e" : "#3b82f6",
+                  fontSize: 13,
+                  fontWeight: 400,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  transition: "background 0.15s, border-color 0.15s, color 0.15s",
+                }}
+              >
+                {wlFlash === "added" ? (
+                  "✓ Added"
+                ) : wlFlash === "duplicate" ? (
+                  "Already in watchlist"
+                ) : inWatchlist ? (
+                  <>
+                    <span style={{ fontSize: 13, lineHeight: 1 }}>✓</span>
+                    Watchlist
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
+                    Watchlist
+                  </>
+                )}
+              </button>
+            )}
 
             {(() => {
               const sectorId = STOCK_SECTOR[ticker];

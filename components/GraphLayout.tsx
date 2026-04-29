@@ -4,6 +4,7 @@ import { useState } from "react";
 import GraphCanvas from "@/components/GraphCanvas";
 import SideMenu, { MENU_COLLAPSED_W, MENU_EXPANDED_W } from "@/components/SideMenu";
 import HoverBar from "@/components/HoverBar";
+import WatchlistPanel from "@/components/WatchlistPanel";
 import type { GNode } from "@/lib/graphTypes";
 
 export default function GraphLayout() {
@@ -34,6 +35,8 @@ export default function GraphLayout() {
       </div>
 
       <HoverBar node={hoveredNode} leftOffset={menuW} />
+
+      <WatchlistPanel />
     </div>
   );
 }

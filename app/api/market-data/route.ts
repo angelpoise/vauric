@@ -6,14 +6,6 @@ import { NextResponse } from "next/server";
 //   dailyMove = (currentClose - prevClose) / prevClose × 100
 // which is the true daily change, not the intraday-only (close - open) / open.
 
-const TICKERS = new Set([
-  "NVDA", "SMCI", "PLTR", "MSFT", "ARM",  "CRWD", "AMD",
-  "FANG", "MPC",  "SLB",  "XOM",  "HIMS", "RXRX",
-  "INMD", "SOFI", "AFRM", "PYPL", "COIN", "WING",
-  // Sector ETFs
-  "XLK",  "XLE",  "XLV",  "XLF",  "XLY",
-]);
-
 interface Bar { T: string; o: number; c: number; }
 
 export interface MarketDataEntry {
@@ -106,11 +98,9 @@ export async function GET() {
   const prevClose: Record<string, number> = {};
   for (const b of prevBars ?? []) prevClose[b.T] = b.c;
 
-  // Build current-day lookup keyed by ticker
+  // Build current-day lookup keyed by ticker — no filter, include all traded symbols
   const currentByTicker: Record<string, Bar> = {};
-  for (const b of currentBars) {
-    if (TICKERS.has(b.T)) currentByTicker[b.T] = b;
-  }
+  for (const b of currentBars) currentByTicker[b.T] = b;
 
   // Log sample ticker for verification
   const sample = currentByTicker["NVDA"];
@@ -125,10 +115,7 @@ export async function GET() {
   }
 
   const result: Record<string, MarketDataEntry> = {};
-  for (const ticker of Array.from(TICKERS)) {
-    const cur = currentByTicker[ticker];
-    if (!cur) continue;
-
+  for (const [ticker, cur] of Object.entries(currentByTicker)) {
     const prev = prevClose[ticker];
     if (prev != null && prev > 0) {
       // True daily change: current close vs previous day's close
