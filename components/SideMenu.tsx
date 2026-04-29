@@ -8,6 +8,7 @@ export const MENU_EXPANDED_W = 180;
 interface Props {
   expanded: boolean;
   onToggle: () => void;
+  onSearchOpen: () => void;
 }
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -94,7 +95,7 @@ const NAV_ITEMS = [
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function SideMenu({ expanded, onToggle }: Props) {
+export default function SideMenu({ expanded, onToggle, onSearchOpen }: Props) {
   const [hovered, setHovered] = useState<number | null>(null);
 
   const itemBase: React.CSSProperties = {
@@ -160,6 +161,7 @@ export default function SideMenu({ expanded, onToggle }: Props) {
       {NAV_ITEMS.map(({ label, icon }, i) => (
         <button
           key={label}
+          onClick={label === "Search" ? onSearchOpen : undefined}
           onMouseEnter={() => setHovered(i)}
           onMouseLeave={() => setHovered(null)}
           style={{

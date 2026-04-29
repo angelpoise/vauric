@@ -386,7 +386,7 @@ export default function WatchlistPanel() {
                           style={{ accentColor: "#475569", width: 12, height: 12, cursor: "pointer" }}
                         />
                         <span style={{ fontSize: 11, color: "#334155", fontWeight: 300 }}>
-                          Don't ask again
+                          Don&apos;t ask again
                         </span>
                       </label>
                     </div>
