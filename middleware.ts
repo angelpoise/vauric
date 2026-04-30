@@ -1,7 +1,10 @@
-// Clerk middleware removed — admin protection handled in app/admin/layout.tsx
-// using Clerk's auth() server component helper in the Node.js runtime.
-export {};
+import { clerkMiddleware } from '@clerk/nextjs/server'
+
+// Runs passively on all routes to establish Clerk session context.
+// Does NOT protect any route — admin protection is handled in app/admin/layout.tsx.
+export default clerkMiddleware()
 
 export const config = {
-  matcher: [],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  runtime: 'nodejs',
 }
