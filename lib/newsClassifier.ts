@@ -31,8 +31,10 @@ const RULES: Rule[] = [
   },
   {
     // "delisting" covers acquisitions/mergers — labelled "Delisting / Acquisition" in the UI
+    // Headline-only: avoids "acquire" appearing in unrelated business contexts in summaries.
     type: "delisting",
     keywords: ["acquisition", "merger", "buyout", "takeover", "acquire"],
+    headlineOnly: true,
   },
   {
     // Strict IPO rule: headline-only, ticker must appear in the headline,
