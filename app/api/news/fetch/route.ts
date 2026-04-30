@@ -114,13 +114,23 @@ export async function GET(req: NextRequest) {
   // Note: Finnhub free tier returns predominantly Yahoo Finance sourced articles.
   // This is a known free tier limitation — paid plans unlock Reuters, Bloomberg, etc.
 
-  // Fetch all tickers in parallel
-  const fetched = await Promise.allSettled(
-    GRAPH_TICKERS.map(async (ticker) => {
-      const articles = await fetchTicker(ticker, twoDaysAgo, today, finnhubKey);
-      return { ticker, articles };
-    }),
-  );
+  // Fetch tickers in batches to avoid Finnhub free-tier rate limiting.
+  // Parallel bursts of all 19 tickers cause silent 429s; batches of 5 with a
+  // short delay between stay well within the rate limit.
+  const BATCH_SIZE = 5;
+  const BATCH_DELAY_MS = 700;
+  const fetched: Array<PromiseFulfilledResult<{ ticker: string; articles: FinnhubArticle[] }>> = [];
+
+  for (let i = 0; i < GRAPH_TICKERS.length; i += BATCH_SIZE) {
+    if (i > 0) await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
+    const batch = GRAPH_TICKERS.slice(i, i + BATCH_SIZE);
+    const results = await Promise.allSettled(
+      batch.map(async (ticker) => ({ ticker, articles: await fetchTicker(ticker, twoDaysAgo, today, finnhubKey) })),
+    );
+    for (const r of results) {
+      if (r.status === "fulfilled") fetched.push(r);
+    }
+  }
 
   // Flatten all articles and deduplicate by url within this batch
   interface Article { ticker: string; headline: string; summary: string; source: string; url: string; published_at: string; notification_type: string; }
@@ -128,7 +138,6 @@ export async function GET(req: NextRequest) {
   const seenUrls = new Set<string>();
 
   for (const r of fetched) {
-    if (r.status !== "fulfilled") continue;
     const { ticker, articles } = r.value;
     for (const a of articles) {
       if (!a.url || seenUrls.has(a.url)) continue;
