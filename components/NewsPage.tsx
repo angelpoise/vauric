@@ -20,108 +20,50 @@ interface NewsItem {
 
 type Tab = "all" | "watchlist" | "sector" | "search";
 
-// ─── Static data ──────────────────────────────────────────────────────────────
+// ─── Static helpers ───────────────────────────────────────────────────────────
 
+const TICKER_SECTOR: Record<string, string> = {
+  NVDA: "tech",  MSFT: "tech",   PLTR: "tech",  AMD: "tech",  ARM: "tech",  SMCI: "tech",
+  XOM: "energy", CVX: "energy",  FANG: "energy", SLB: "energy",
+  HIMS: "health", RXRX: "health", LLY: "health",  MRNA: "health",
+  SOFI: "finance", AFRM: "finance", PYPL: "finance", COIN: "finance", HOOD: "finance",
+};
 
 const SECTOR_LABELS: Record<string, string> = {
   tech: "Technology", energy: "Energy", health: "Healthcare",
   finance: "Finance", consumer: "Consumer",
 };
 
-const ALL_NEWS: NewsItem[] = [
-  {
-    id: 1, type: "earnings", ticker: "NVDA", sectorId: "tech",
-    headline: "NVIDIA Q1 earnings smash estimates; data centre revenue up 427% year-over-year",
-    summary: "NVIDIA reported $26.0 B in quarterly revenue, driven almost entirely by explosive demand for H100 and H200 GPUs from hyperscalers building out AI training infrastructure. Management guided Q2 revenue to $28.0 B, well ahead of the $24.6 B consensus.",
-    source: "Bloomberg", date: "Apr 28, 2026",
-  },
-  {
-    id: 2, type: "news", ticker: "HIMS", sectorId: "health",
-    headline: "Hims & Hers surges 31% after FDA signals support for GLP-1 compounding extension",
-    summary: "Shares of Hims & Hers rocketed after the FDA issued guidance suggesting it may allow compounding pharmacies to continue producing semaglutide formulations for an additional 18 months while supply shortages persist. The company is one of the largest compounding distributors of GLP-1 drugs.",
-    source: "Reuters", date: "Apr 28, 2026",
-  },
-  {
-    id: 3, type: "analyst", ticker: "PLTR", sectorId: "tech",
-    headline: "Morgan Stanley raises Palantir target to $38; cites accelerating government AI contract pipeline",
-    summary: "Analysts at Morgan Stanley upgraded their price target citing a 4× increase in AIP pilot programmes converting to full contracts and a growing backlog of US defence and intelligence agency deployments that peers cannot easily replicate.",
-    source: "Morgan Stanley", date: "Apr 27, 2026",
-  },
-  {
-    id: 4, type: "split", ticker: "COIN", sectorId: "finance",
-    headline: "Coinbase added to S&P 500; index inclusion to take effect May 19",
-    summary: "S&P Dow Jones Indices confirmed Coinbase will join the S&P 500 effective after the close on May 16. The inclusion is expected to trigger an estimated $10–12 B of passive buying from index-tracking funds, creating a structural demand event for the stock.",
-    source: "Bloomberg", date: "Apr 27, 2026",
-  },
-  {
-    id: 5, type: "analyst", ticker: "XOM", sectorId: "energy",
-    headline: "Goldman Sachs downgrades ExxonMobil to Neutral on Permian output plateau risk",
-    summary: "Goldman cited concerns that ExxonMobil's Permian Basin production growth is approaching a natural plateau as the highest-quality acreage is developed. The bank reduced its 12-month price target and flagged the risk of lower capital returns if Brent prices remain below $80.",
-    source: "Goldman Sachs", date: "Apr 26, 2026",
-  },
-  {
-    id: 6, type: "news", ticker: "AMD", sectorId: "tech",
-    headline: "AMD MI300X orders accelerate as hyperscalers diversify away from NVIDIA",
-    summary: "Multiple cloud providers have meaningfully increased purchase orders for AMD's MI300X accelerator as part of a deliberate strategy to reduce single-vendor dependency on NVIDIA. AMD management confirmed a new $1.5 B supply agreement with a major cloud customer during a recent industry conference.",
-    source: "Reuters", date: "Apr 26, 2026",
-  },
-  {
-    id: 7, type: "analyst", ticker: "RXRX", sectorId: "health",
-    headline: "Recursion Pharma secures $150 M NVIDIA collaboration expansion for AI drug discovery",
-    summary: "Recursion announced an expanded multi-year agreement with NVIDIA to access next-generation DGX systems for biological foundation model training. The partnership gives Recursion priority GPU access and joint go-to-market rights on enterprise AI drug discovery tooling.",
-    source: "STAT News", date: "Apr 25, 2026",
-  },
-  {
-    id: 8, type: "earnings", ticker: "SOFI", sectorId: "finance",
-    headline: "SoFi Technologies beats Q1 estimates; member count crosses 10 million milestone",
-    summary: "SoFi reported adjusted net revenue of $845 M, ahead of the $812 M consensus, with the personal loans segment benefiting from tightening bank credit standards pushing borrowers toward fintech alternatives. The company raised its full-year adjusted EBITDA guidance by $40 M.",
-    source: "Bloomberg", date: "Apr 25, 2026",
-  },
-  {
-    id: 9, type: "squeeze", ticker: "SLB", sectorId: "energy",
-    headline: "SLB short interest spikes to 18-month high ahead of earnings amid oil demand concerns",
-    summary: "Short interest in oilfield services giant SLB climbed to 9.2% of float, the highest level since late 2024, as investors position for potential revenue misses driven by international E&P spending cuts. Brent crude weakness has prompted several major operators to trim offshore project budgets.",
-    source: "Reuters", date: "Apr 24, 2026",
-  },
-  {
-    id: 10, type: "news", ticker: "MSFT", sectorId: "tech",
-    headline: "Microsoft Azure AI revenue grows 33% as enterprise Copilot adoption accelerates",
-    summary: "Microsoft disclosed that Azure AI services now represent 13% of total Azure revenue, up from 8% a year ago, with Copilot seat counts across Office 365 crossing 5 million paid users. Management highlighted strong cross-sell dynamics between Azure and the broader Microsoft 365 suite.",
-    source: "Bloomberg", date: "Apr 24, 2026",
-  },
-  {
-    id: 11, type: "earnings", ticker: "ARM", sectorId: "tech",
-    headline: "Arm Holdings raises FY2026 guidance; royalty revenue from AI chips accelerates sharply",
-    summary: "Arm reported royalty revenue growth of 37% year-over-year as its v9 architecture achieves deeper penetration in AI inference chips shipping from Qualcomm, Apple, and a range of custom silicon vendors. The company raised the midpoint of full-year royalty revenue guidance by 8%.",
-    source: "Reuters", date: "Apr 23, 2026",
-  },
-  {
-    id: 12, type: "news", ticker: "AFRM", sectorId: "finance",
-    headline: "Affirm expands to UK market with Apple Pay integration targeting 50 M new users",
-    summary: "Affirm announced its official UK launch in partnership with Apple Pay Later, giving it immediate distribution across Apple's UK device base. The company has secured agreements with five major UK retailers and expects the UK market to reach profitability within three years.",
-    source: "Bloomberg", date: "Apr 23, 2026",
-  },
-  {
-    id: 13, type: "analyst", ticker: "LLY", sectorId: "health",
-    headline: "JPMorgan raises Eli Lilly target to $975; Zepbound demand exceeds manufacturing capacity",
-    summary: "JPMorgan's healthcare team increased their price target after channel checks confirmed that Zepbound prescriptions continue to be supply-constrained rather than demand-constrained. The bank modelled an upside scenario where incremental manufacturing capacity unlocks an additional $6 B in annual revenue by 2027.",
-    source: "JPMorgan", date: "Apr 22, 2026",
-  },
-  {
-    id: 14, type: "news", ticker: "FANG", sectorId: "energy",
-    headline: "Diamondback Energy raises quarterly dividend 7% on record Permian free cash flow",
-    summary: "Diamondback declared a quarterly dividend of $0.94 per share, up from $0.88, after reporting record free cash flow generation from its Permian Basin operations. The company also announced a $2 B buyback programme, signalling confidence in sustained commodity prices and operational efficiency.",
-    source: "Reuters", date: "Apr 22, 2026",
-  },
-  {
-    id: 15, type: "delisting", ticker: "HOOD", sectorId: "finance",
-    headline: "Robinhood acquires TradePMR for $300 M to enter registered investment adviser market",
-    summary: "Robinhood announced the acquisition of TradePMR, a custodial platform serving over 350 registered investment advisers managing $40 B in assets. The move signals Robinhood's ambition to expand beyond retail brokerage into the lucrative wealth management and advisory services space.",
-    source: "Bloomberg", date: "Apr 21, 2026",
-  },
-];
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
 
-const FREE_TIER_LIMIT = 10;
+interface ApiArticle {
+  id: number;
+  ticker: string;
+  headline: string;
+  summary: string | null;
+  source: string | null;
+  published_at: string;
+  notification_type: string;
+}
+
+function mapArticle(a: ApiArticle): NewsItem {
+  return {
+    id:       a.id,
+    type:     (a.notification_type as NotifType) in {} ? (a.notification_type as NotifType) : "news",
+    headline: a.headline,
+    summary:  a.summary ?? "",
+    source:   a.source  ?? "",
+    date:     formatDate(a.published_at),
+    ticker:   a.ticker,
+    sectorId: TICKER_SECTOR[a.ticker] ?? "tech",
+  };
+}
+
+const CLEAR_LIMIT        = 10; // fully visible articles
+const BLUR_ABOVE_PROMPT  =  1; // blurred articles shown above the overlay prompt (article 11)
+const BLUR_BEHIND_PROMPT =  4; // blurred articles behind the overlay prompt (articles 12-15)
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -183,49 +125,45 @@ function NewsCard({ item, onTickerClick }: { item: NewsItem; onTickerClick: (t: 
   );
 }
 
-function ProGate() {
+function BlurredSection({ items }: { items: NewsItem[] }) {
+  if (items.length === 0) return null;
   return (
-    <div style={{ position: "relative", marginTop: -8 }}>
-      {/* Blurred preview */}
-      <div style={{ filter: "blur(4px)", opacity: 0.4, pointerEvents: "none", userSelect: "none" }}>
-        {ALL_NEWS.slice(FREE_TIER_LIMIT).map((item) => (
-          <div key={item.id} style={{ padding: "22px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-              <NotifChip type={item.type} />
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 500, color: "#e2e8f0", lineHeight: 1.5, marginBottom: 8 }}>
-              {item.headline}
-            </div>
+    <div style={{ filter: "blur(4px)", opacity: 0.4, pointerEvents: "none", userSelect: "none" }}>
+      {items.map((item) => (
+        <div key={item.id} style={{ padding: "22px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <NotifChip type={item.type} />
           </div>
-        ))}
-      </div>
-      {/* Lock overlay */}
-      <div style={{
-        position: "absolute", inset: 0,
-        background: "linear-gradient(to bottom, transparent 0%, #07090f 35%)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-      }}>
-        <div style={{
-          marginTop: 80, padding: "24px 32px", textAlign: "center",
-          background: "rgba(13,17,23,0.9)", border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: 12,
-        }}>
-          <div style={{ fontSize: 20, marginBottom: 10 }}>🔒</div>
-          <div style={{ fontSize: 14, fontWeight: 500, color: "#f1f5f9", marginBottom: 6 }}>
-            Free tier limit reached
+          <div style={{ fontSize: 15, fontWeight: 500, color: "#e2e8f0", lineHeight: 1.5, marginBottom: 8 }}>
+            {item.headline}
           </div>
-          <div style={{ fontSize: 12, color: "#475569", marginBottom: 16, fontWeight: 300 }}>
-            Showing {FREE_TIER_LIMIT} of {ALL_NEWS.length} stories
-          </div>
-          <button style={{
-            padding: "8px 20px", background: "#3b82f6", border: "none",
-            borderRadius: 7, color: "#fff", fontSize: 13, fontWeight: 500,
-            cursor: "pointer", fontFamily: "inherit",
-          }}>
-            Upgrade to Pro
-          </button>
         </div>
+      ))}
+    </div>
+  );
+}
+
+function UpgradePrompt({ total }: { total: number }) {
+  return (
+    <div style={{
+      padding: "24px 32px", textAlign: "center",
+      background: "rgba(13,17,23,0.95)", border: "1px solid rgba(255,255,255,0.08)",
+      borderRadius: 12,
+    }}>
+      <div style={{ fontSize: 20, marginBottom: 10 }}>🔒</div>
+      <div style={{ fontSize: 14, fontWeight: 500, color: "#f1f5f9", marginBottom: 6 }}>
+        Free tier limit reached
       </div>
+      <div style={{ fontSize: 12, color: "#475569", marginBottom: 16, fontWeight: 300 }}>
+        Showing {CLEAR_LIMIT} of {total} stories
+      </div>
+      <button style={{
+        padding: "8px 20px", background: "#3b82f6", border: "none",
+        borderRadius: 7, color: "#fff", fontSize: 13, fontWeight: 500,
+        cursor: "pointer", fontFamily: "inherit",
+      }}>
+        Upgrade to Pro
+      </button>
     </div>
   );
 }
@@ -239,14 +177,32 @@ function EmptyState({ message }: { message: string }) {
 }
 
 function NewsList({ items, onTickerClick }: { items: NewsItem[]; onTickerClick: (t: string) => void }) {
-  const visible = items.slice(0, FREE_TIER_LIMIT);
-  const locked  = items.length > FREE_TIER_LIMIT;
+  const clear       = items.slice(0, CLEAR_LIMIT);
+  const abovePrompt = items.slice(CLEAR_LIMIT, CLEAR_LIMIT + BLUR_ABOVE_PROMPT);
+  const behindPrompt = items.slice(CLEAR_LIMIT + BLUR_ABOVE_PROMPT, CLEAR_LIMIT + BLUR_ABOVE_PROMPT + BLUR_BEHIND_PROMPT);
+  const hasGate     = items.length > CLEAR_LIMIT;
   return (
     <>
-      {visible.map((item) => (
+      {clear.map((item) => (
         <NewsCard key={item.id} item={item} onTickerClick={onTickerClick} />
       ))}
-      {locked && <ProGate />}
+      {hasGate && (
+        <>
+          {/* Article 11: one blurred article visible above the prompt */}
+          <BlurredSection items={abovePrompt} />
+          {/* Articles 12-15: blurred backdrop; prompt floats on top as an overlay */}
+          <div style={{ position: "relative" }}>
+            <BlurredSection items={behindPrompt} />
+            <div style={{
+              position: "absolute", inset: 0,
+              background: "linear-gradient(to bottom, transparent 0%, rgba(7,9,15,0.85) 40%)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <UpgradePrompt total={items.length} />
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }
@@ -255,11 +211,13 @@ function NewsList({ items, onTickerClick }: { items: NewsItem[]; onTickerClick: 
 
 export default function NewsPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab]         = useState<Tab>("all");
+  const [activeTab, setActiveTab]           = useState<Tab>("all");
   const [selectedSector, setSelectedSector] = useState("tech");
-  const [searchQuery, setSearchQuery]     = useState("");
-  const [watchlist, setWatchlist]         = useState<string[]>([]);
-  const [showAiPop, setShowAiPop]         = useState(false);
+  const [searchQuery, setSearchQuery]       = useState("");
+  const [watchlist, setWatchlist]           = useState<string[]>([]);
+  const [showAiPop, setShowAiPop]           = useState(false);
+  const [newsItems, setNewsItems]           = useState<NewsItem[]>([]);
+  const [newsLoading, setNewsLoading]       = useState(true);
 
   useEffect(() => {
     setWatchlist(getWatchlist());
@@ -268,27 +226,37 @@ export default function NewsPage() {
     return () => window.removeEventListener(WATCHLIST_EVENT, onUpdate);
   }, []);
 
+  useEffect(() => {
+    fetch("/api/news")
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: ApiArticle[]) => {
+        setNewsItems(Array.isArray(data) ? data.map(mapArticle) : []);
+      })
+      .catch(() => { setNewsItems([]); })
+      .finally(() => { setNewsLoading(false); });
+  }, []);
+
   const watchlistNews = useMemo(
-    () => ALL_NEWS.filter((n) => watchlist.includes(n.ticker)),
-    [watchlist],
+    () => newsItems.filter((n) => watchlist.includes(n.ticker)),
+    [newsItems, watchlist],
   );
 
   const sectorNews = useMemo(
-    () => ALL_NEWS.filter((n) => n.sectorId === selectedSector),
-    [selectedSector],
+    () => newsItems.filter((n) => n.sectorId === selectedSector),
+    [newsItems, selectedSector],
   );
 
   const searchNews = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return [];
-    return ALL_NEWS.filter(
+    return newsItems.filter(
       (n) =>
         n.headline.toLowerCase().includes(q) ||
         n.summary.toLowerCase().includes(q)  ||
         n.ticker.toLowerCase().includes(q)   ||
         n.source.toLowerCase().includes(q),
     );
-  }, [searchQuery]);
+  }, [newsItems, searchQuery]);
 
   const TABS: { id: Tab; label: string }[] = [
     { id: "all",       label: "All News"   },
@@ -413,16 +381,20 @@ export default function NewsPage() {
 
         {/* All News */}
         {activeTab === "all" && (
-          <NewsList items={ALL_NEWS} onTickerClick={handleTickerClick} />
+          newsLoading
+            ? <EmptyState message="Loading news…" />
+            : newsItems.length === 0
+              ? <EmptyState message="No news available yet. The pipeline fetches stories hourly." />
+              : <NewsList items={newsItems} onTickerClick={handleTickerClick} />
         )}
 
         {/* Watchlist */}
         {activeTab === "watchlist" && (
-          watchlistNews.length === 0 ? (
-            <EmptyState message="Add stocks to your watchlist to see their news here." />
-          ) : (
-            <NewsList items={watchlistNews} onTickerClick={handleTickerClick} />
-          )
+          newsLoading
+            ? <EmptyState message="Loading news…" />
+            : watchlistNews.length === 0
+              ? <EmptyState message="Add stocks to your watchlist to see their news here." />
+              : <NewsList items={watchlistNews} onTickerClick={handleTickerClick} />
         )}
 
         {/* By Sector */}
@@ -450,11 +422,12 @@ export default function NewsPage() {
                 );
               })}
             </div>
-            {sectorNews.length === 0 ? (
-              <EmptyState message={`No news for ${SECTOR_LABELS[selectedSector]} yet.`} />
-            ) : (
-              <NewsList items={sectorNews} onTickerClick={handleTickerClick} />
-            )}
+            {newsLoading
+              ? <EmptyState message="Loading news…" />
+              : sectorNews.length === 0
+                ? <EmptyState message={`No news for ${SECTOR_LABELS[selectedSector]} yet.`} />
+                : <NewsList items={sectorNews} onTickerClick={handleTickerClick} />
+            }
           </>
         )}
 
@@ -482,13 +455,14 @@ export default function NewsPage() {
                 }}
               />
             </div>
-            {searchQuery.trim().length === 0 ? (
-              <EmptyState message="Type to search headlines, tickers, or sources." />
-            ) : searchNews.length === 0 ? (
-              <EmptyState message={`No results for "${searchQuery.trim()}".`} />
-            ) : (
-              <NewsList items={searchNews} onTickerClick={handleTickerClick} />
-            )}
+            {newsLoading
+              ? <EmptyState message="Loading news…" />
+              : searchQuery.trim().length === 0
+                ? <EmptyState message="Type to search headlines, tickers, or sources." />
+                : searchNews.length === 0
+                  ? <EmptyState message={`No results for "${searchQuery.trim()}".`} />
+                  : <NewsList items={searchNews} onTickerClick={handleTickerClick} />
+            }
           </>
         )}
       </div>

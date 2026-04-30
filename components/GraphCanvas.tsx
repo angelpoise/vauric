@@ -6,6 +6,7 @@ import {
   type GNode,
   type StockNode,
   type SectorNode,
+  type NotifType,
   NOTIF,
   moveColor,
   moveFill,
@@ -135,8 +136,9 @@ export default function GraphCanvas({ onHover, activeFilters }: Props) {
   interface LiveEntry { price: number; dailyMove: number; dailyMoveDollar: number; }
   const liveDataRef      = useRef<Record<string, LiveEntry>>({});
   const liveDataReadyRef = useRef(false);
-  const fundamentalsRef  = useRef<Record<string, FundEntry>>({});
-  const activeFiltersRef = useRef<ActiveFilters>(DEFAULT_FILTERS);
+  const fundamentalsRef    = useRef<Record<string, FundEntry>>({});
+  const activeFiltersRef   = useRef<ActiveFilters>(DEFAULT_FILTERS);
+  const notificationsRef   = useRef<Record<string, Array<{ type: NotifType }>>>({});
 
   const [hoverNode, setHoverNode] = useState<GNode | null>(null);
 
@@ -150,6 +152,28 @@ export default function GraphCanvas({ onHover, activeFilters }: Props) {
     fetch("/api/fundamentals")
       .then((r) => r.ok ? r.json() : null)
       .then((data) => { if (data) fundamentalsRef.current = data; })
+      .catch(() => {});
+  }, []);
+
+  // Fetch recent news to drive live notification dots on graph nodes.
+  // Nodes get a dot per distinct notification_type published in the last 24 hours.
+  useEffect(() => {
+    fetch("/api/news")
+      .then((r) => r.ok ? r.json() : null)
+      .then((articles: Array<{ ticker: string; notification_type: string; published_at: string }> | null) => {
+        if (!articles) return;
+        const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+        const map: Record<string, Array<{ type: NotifType }>> = {};
+        for (const a of articles) {
+          if (new Date(a.published_at).getTime() < cutoff) continue;
+          if (!map[a.ticker]) map[a.ticker] = [];
+          const t = a.notification_type as NotifType;
+          if (!map[a.ticker].some((n) => n.type === t)) {
+            map[a.ticker].push({ type: t });
+          }
+        }
+        notificationsRef.current = map;
+      })
       .catch(() => {});
   }, []);
 
@@ -247,10 +271,11 @@ export default function GraphCanvas({ onHover, activeFilters }: Props) {
       const sid = node.sectorId.replace("sec-", "");
       if (!f.sectors.includes(sid)) return true;
 
-      // Notification presence / type
-      if (f.onlyWithNotifs && node.notifications.length === 0) return true;
-      if (f.notifTypes.length < ALL_NOTIF_TYPES.length && node.notifications.length > 0) {
-        const hasMatch = node.notifications.some((n) => (f.notifTypes as string[]).includes(n.type));
+      // Notification presence / type — use live data if available, fall back to node placeholder
+      const notifs = notificationsRef.current[(node as StockNode).ticker] ?? node.notifications;
+      if (f.onlyWithNotifs && notifs.length === 0) return true;
+      if (f.notifTypes.length < ALL_NOTIF_TYPES.length && notifs.length > 0) {
+        const hasMatch = notifs.some((n) => (f.notifTypes as string[]).includes(n.type));
         if (!hasMatch) return true;
       }
 
@@ -410,8 +435,11 @@ export default function GraphCanvas({ onHover, activeFilters }: Props) {
           drawStockNode(ctx, node, r, col, fillCol);
         }
 
-        // Notification dots
-        node.notifications.forEach((notif, i) => {
+        // Notification dots — use live news data if available, fall back to placeholder
+        const liveNotifs = node.kind === "stock"
+          ? (notificationsRef.current[node.ticker] ?? node.notifications)
+          : node.notifications;
+        liveNotifs.forEach((notif, i) => {
           const dotR = 5.6;
           const dotX = r * 0.7;
           const dotY = -r * 0.7 - i * 10;
