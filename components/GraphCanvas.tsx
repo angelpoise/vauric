@@ -37,31 +37,31 @@ const NODES: GNode[] = [
   { id: "sec-finance", kind: "sector", name: "Finance",    etf: "XLF", price:  45.21, dailyMove:  0.7, x: 1155, y: 710, notifications: [] },
 
   // Technology
-  { id: "NVDA", kind: "stock", ticker: "NVDA", name: "NVIDIA",             price:  875.40, dailyMove:  5.2, sectorId: "sec-tech",    x:  305, y: 245, notifications: [{ type: "earnings" }] },
-  { id: "MSFT", kind: "stock", ticker: "MSFT", name: "Microsoft",          price:  415.26, dailyMove:  0.9, sectorId: "sec-tech",    x:  475, y: 200, notifications: [] },
-  { id: "PLTR", kind: "stock", ticker: "PLTR", name: "Palantir",           price:   24.38, dailyMove:  3.1, sectorId: "sec-tech",    x:  635, y: 260, notifications: [{ type: "news" }] },
-  { id: "AMD",  kind: "stock", ticker: "AMD",  name: "AMD",                price:  172.84, dailyMove:  2.4, sectorId: "sec-tech",    x:  360, y: 510, notifications: [] },
-  { id: "ARM",  kind: "stock", ticker: "ARM",  name: "Arm Holdings",       price:  118.62, dailyMove:  4.8, sectorId: "sec-tech",    x:  645, y: 495, notifications: [{ type: "earnings" }] },
-  { id: "SMCI", kind: "stock", ticker: "SMCI", name: "Super Micro Computer", price:  38.42, dailyMove:  2.8, sectorId: "sec-tech",  x:  175, y: 165, notifications: [{ type: "analyst" }] },
+  { id: "NVDA", kind: "stock", ticker: "NVDA", name: "NVIDIA",               price:  875.40, dailyMove:  5.2, sectorId: "sec-tech",    x:  305, y: 245, notifications: [] },
+  { id: "MSFT", kind: "stock", ticker: "MSFT", name: "Microsoft",            price:  415.26, dailyMove:  0.9, sectorId: "sec-tech",    x:  475, y: 200, notifications: [] },
+  { id: "PLTR", kind: "stock", ticker: "PLTR", name: "Palantir",             price:   24.38, dailyMove:  3.1, sectorId: "sec-tech",    x:  635, y: 260, notifications: [] },
+  { id: "AMD",  kind: "stock", ticker: "AMD",  name: "AMD",                  price:  172.84, dailyMove:  2.4, sectorId: "sec-tech",    x:  360, y: 510, notifications: [] },
+  { id: "ARM",  kind: "stock", ticker: "ARM",  name: "Arm Holdings",         price:  118.62, dailyMove:  4.8, sectorId: "sec-tech",    x:  645, y: 495, notifications: [] },
+  { id: "SMCI", kind: "stock", ticker: "SMCI", name: "Super Micro Computer", price:   38.42, dailyMove:  2.8, sectorId: "sec-tech",    x:  175, y: 165, notifications: [] },
 
   // Energy
-  { id: "XOM",  kind: "stock", ticker: "XOM",  name: "ExxonMobil",         price:  118.24, dailyMove: -1.2, sectorId: "sec-energy",  x:  920, y: 258, notifications: [{ type: "analyst" }] },
-  { id: "CVX",  kind: "stock", ticker: "CVX",  name: "Chevron",            price:  158.90, dailyMove: -0.9, sectorId: "sec-energy",  x: 1082, y: 200, notifications: [] },
-  { id: "FANG", kind: "stock", ticker: "FANG", name: "Diamondback Energy", price:  194.52, dailyMove:  2.1, sectorId: "sec-energy",  x: 1275, y: 278, notifications: [] },
-  { id: "SLB",  kind: "stock", ticker: "SLB",  name: "SLB",                price:   44.18, dailyMove: -1.8, sectorId: "sec-energy",  x: 1215, y: 178, notifications: [{ type: "squeeze" }] },
+  { id: "XOM",  kind: "stock", ticker: "XOM",  name: "ExxonMobil",          price:  118.24, dailyMove: -1.2, sectorId: "sec-energy",  x:  920, y: 258, notifications: [] },
+  { id: "CVX",  kind: "stock", ticker: "CVX",  name: "Chevron",              price:  158.90, dailyMove: -0.9, sectorId: "sec-energy",  x: 1082, y: 200, notifications: [] },
+  { id: "FANG", kind: "stock", ticker: "FANG", name: "Diamondback Energy",   price:  194.52, dailyMove:  2.1, sectorId: "sec-energy",  x: 1275, y: 278, notifications: [] },
+  { id: "SLB",  kind: "stock", ticker: "SLB",  name: "SLB",                  price:   44.18, dailyMove: -1.8, sectorId: "sec-energy",  x: 1215, y: 178, notifications: [] },
 
   // Healthcare
-  { id: "HIMS", kind: "stock", ticker: "HIMS", name: "Hims & Hers",        price:   21.44, dailyMove: 12.3, sectorId: "sec-health",  x:  258, y: 710, notifications: [{ type: "news" }, { type: "analyst" }] },
-  { id: "RXRX", kind: "stock", ticker: "RXRX", name: "Recursion Pharma",   price:    5.82, dailyMove:  4.1, sectorId: "sec-health",  x:  308, y: 858, notifications: [{ type: "analyst" }] },
-  { id: "LLY",  kind: "stock", ticker: "LLY",  name: "Eli Lilly",          price:  803.28, dailyMove: -0.6, sectorId: "sec-health",  x:  592, y: 832, notifications: [] },
-  { id: "MRNA", kind: "stock", ticker: "MRNA", name: "Moderna",            price:   75.60, dailyMove: -2.3, sectorId: "sec-health",  x:  502, y: 682, notifications: [] },
+  { id: "HIMS", kind: "stock", ticker: "HIMS", name: "Hims & Hers",          price:   21.44, dailyMove: 12.3, sectorId: "sec-health",  x:  258, y: 710, notifications: [] },
+  { id: "RXRX", kind: "stock", ticker: "RXRX", name: "Recursion Pharma",     price:    5.82, dailyMove:  4.1, sectorId: "sec-health",  x:  308, y: 858, notifications: [] },
+  { id: "LLY",  kind: "stock", ticker: "LLY",  name: "Eli Lilly",            price:  803.28, dailyMove: -0.6, sectorId: "sec-health",  x:  592, y: 832, notifications: [] },
+  { id: "MRNA", kind: "stock", ticker: "MRNA", name: "Moderna",              price:   75.60, dailyMove: -2.3, sectorId: "sec-health",  x:  502, y: 682, notifications: [] },
 
   // Finance
-  { id: "SOFI", kind: "stock", ticker: "SOFI", name: "SoFi Technologies",  price:    8.42, dailyMove:  4.2, sectorId: "sec-finance", x:  978, y: 682, notifications: [{ type: "news" }] },
-  { id: "AFRM", kind: "stock", ticker: "AFRM", name: "Affirm",             price:   35.18, dailyMove:  3.8, sectorId: "sec-finance", x: 1312, y: 622, notifications: [] },
-  { id: "PYPL", kind: "stock", ticker: "PYPL", name: "PayPal",             price:   63.44, dailyMove: -0.8, sectorId: "sec-finance", x: 1362, y: 782, notifications: [] },
-  { id: "COIN", kind: "stock", ticker: "COIN", name: "Coinbase",           price:  215.80, dailyMove:  6.1, sectorId: "sec-finance", x: 1082, y: 828, notifications: [{ type: "split" }] },
-  { id: "HOOD", kind: "stock", ticker: "HOOD", name: "Robinhood",          price:   22.36, dailyMove:  5.4, sectorId: "sec-finance", x: 1228, y: 868, notifications: [] },
+  { id: "SOFI", kind: "stock", ticker: "SOFI", name: "SoFi Technologies",    price:    8.42, dailyMove:  4.2, sectorId: "sec-finance", x:  978, y: 682, notifications: [] },
+  { id: "AFRM", kind: "stock", ticker: "AFRM", name: "Affirm",               price:   35.18, dailyMove:  3.8, sectorId: "sec-finance", x: 1312, y: 622, notifications: [] },
+  { id: "PYPL", kind: "stock", ticker: "PYPL", name: "PayPal",               price:   63.44, dailyMove: -0.8, sectorId: "sec-finance", x: 1362, y: 782, notifications: [] },
+  { id: "COIN", kind: "stock", ticker: "COIN", name: "Coinbase",             price:  215.80, dailyMove:  6.1, sectorId: "sec-finance", x: 1082, y: 828, notifications: [] },
+  { id: "HOOD", kind: "stock", ticker: "HOOD", name: "Robinhood",            price:   22.36, dailyMove:  5.4, sectorId: "sec-finance", x: 1228, y: 868, notifications: [] },
 ];
 
 const STOCK_NODES = NODES.filter((n): n is StockNode => n.kind === "stock");
@@ -158,7 +158,7 @@ export default function GraphCanvas({ onHover, activeFilters }: Props) {
   // Fetch recent news to drive live notification dots on graph nodes.
   // Nodes get a dot per distinct notification_type published in the last 24 hours.
   useEffect(() => {
-    fetch("/api/news")
+    fetch("/api/news?limit=200")
       .then((r) => r.ok ? r.json() : null)
       .then((articles: Array<{ ticker: string; notification_type: string; published_at: string }> | null) => {
         if (!articles) return;
@@ -540,11 +540,16 @@ export default function GraphCanvas({ onHover, activeFilters }: Props) {
 
     function setHover(node: GNode | null) {
       if (node) {
-        const liveKey = node.kind === "sector" ? node.etf : node.id;
-        const live = liveDataRef.current[liveKey];
-        const merged: GNode = live
-          ? { ...node, price: live.price, dailyMove: live.dailyMove }
-          : node;
+        const liveKey   = node.kind === "sector" ? node.etf : node.id;
+        const live      = liveDataRef.current[liveKey];
+        const liveNotifs = node.kind === "stock"
+          ? (notificationsRef.current[node.ticker] ?? node.notifications)
+          : node.notifications;
+        const merged: GNode = {
+          ...node,
+          ...(live ? { price: live.price, dailyMove: live.dailyMove } : {}),
+          notifications: liveNotifs,
+        };
         setHoverNode(merged);
         onHoverRef.current?.(merged);
       } else {

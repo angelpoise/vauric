@@ -824,6 +824,10 @@ export default function StockDetail({ ticker }: { ticker: string }) {
   const [live, setLive] = useState<LiveEntry | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [fundamentals, setFundamentals] = useState<FundamentalsEntry | null>(null);
+
+  interface ApiNewsItem { id: number; headline: string; source: string | null; published_at: string; notification_type: string; url: string; }
+  const [stockNews, setStockNews]           = useState<ApiNewsItem[]>([]);
+  const [stockNewsLoading, setStockNewsLoading] = useState(true);
   const [inWatchlist, setInWatchlist] = useState(false);
   const [wlFlash, setWlFlash] = useState<"added" | "duplicate" | "limit" | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -869,6 +873,16 @@ export default function StockDetail({ ticker }: { ticker: string }) {
       .then((r) => r.ok ? r.json() : null)
       .then((json) => { if (json?.[ticker]) setFundamentals(json[ticker]); })
       .catch(() => {});
+  }, [ticker]);
+
+  useEffect(() => {
+    setStockNews([]);
+    setStockNewsLoading(true);
+    fetch(`/api/news?ticker=${ticker}`)
+      .then((r) => r.ok ? r.json() : [])
+      .then((json) => { setStockNews(Array.isArray(json) ? json : []); })
+      .catch(() => { setStockNews([]); })
+      .finally(() => { setStockNewsLoading(false); });
   }, [ticker]);
 
   const displayPrice     = live?.price     ?? data.price;
@@ -1071,9 +1085,12 @@ export default function StockDetail({ ticker }: { ticker: string }) {
               );
             })()}
 
-            {data.notifications.map((n, i) => (
-              <Chip key={i} type={n.type} />
-            ))}
+            {(() => {
+              const seen = new Set<string>();
+              return stockNews
+                .filter(a => { if (seen.has(a.notification_type)) return false; seen.add(a.notification_type); return true; })
+                .map((a, i) => <Chip key={i} type={(a.notification_type as NotifType) || "news"} />);
+            })()}
 
             <button
               style={{
@@ -1202,42 +1219,35 @@ export default function StockDetail({ ticker }: { ticker: string }) {
         </Section>
 
         <Section title="News">
-          {data.news.length === 0 ? (
+          {stockNewsLoading ? (
+            <div style={{ fontSize: 13, color: "#334155" }}>Loading…</div>
+          ) : stockNews.length === 0 ? (
             <div style={{ fontSize: 13, color: "#334155" }}>No recent news available.</div>
           ) : (
             <div>
-              {data.news.map((item, i) => (
+              {stockNews.map((item, i) => (
                 <div
-                  key={i}
+                  key={item.id}
+                  onClick={() => item.url && window.open(item.url, "_blank", "noopener,noreferrer")}
                   style={{
                     display: "flex",
                     alignItems: "flex-start",
                     gap: 14,
-                    paddingBottom: i < data.news.length - 1 ? 18 : 0,
-                    marginBottom: i < data.news.length - 1 ? 18 : 0,
-                    borderBottom:
-                      i < data.news.length - 1
-                        ? "1px solid rgba(255,255,255,0.04)"
-                        : "none",
+                    paddingBottom: i < stockNews.length - 1 ? 18 : 0,
+                    marginBottom: i < stockNews.length - 1 ? 18 : 0,
+                    borderBottom: i < stockNews.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                    cursor: item.url ? "pointer" : "default",
                   }}
                 >
                   <div style={{ flexShrink: 0, paddingTop: 1 }}>
-                    <Chip type={item.type} />
+                    <Chip type={(item.notification_type as NotifType) || "news"} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        color: "#cbd5e1",
-                        lineHeight: 1.5,
-                        marginBottom: 5,
-                        fontWeight: 400,
-                      }}
-                    >
+                    <div style={{ fontSize: 14, color: "#cbd5e1", lineHeight: 1.5, marginBottom: 5, fontWeight: 400 }}>
                       {item.headline}
                     </div>
                     <div style={{ fontSize: 12, color: "#334155" }}>
-                      {item.source} · {item.date}
+                      {item.source ?? ""} · {new Date(item.published_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                     </div>
                   </div>
                 </div>

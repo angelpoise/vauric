@@ -16,6 +16,7 @@ interface NewsItem {
   date: string;
   ticker: string;
   sectorId: string;
+  url: string;
 }
 
 type Tab = "all" | "watchlist" | "sector" | "search";
@@ -44,6 +45,7 @@ interface ApiArticle {
   headline: string;
   summary: string | null;
   source: string | null;
+  url: string;
   published_at: string;
   notification_type: string;
 }
@@ -55,6 +57,7 @@ function mapArticle(a: ApiArticle): NewsItem {
     headline: a.headline,
     summary:  a.summary ?? "",
     source:   a.source  ?? "",
+    url:      a.url     ?? "",
     date:     formatDate(a.published_at),
     ticker:   a.ticker,
     sectorId: TICKER_SECTOR[a.ticker] ?? "tech",
@@ -104,10 +107,14 @@ function TickerTag({ ticker, onClick }: { ticker: string; onClick: () => void })
 
 function NewsCard({ item, onTickerClick }: { item: NewsItem; onTickerClick: (t: string) => void }) {
   return (
-    <div style={{
-      padding: "22px 0",
-      borderBottom: "1px solid rgba(255,255,255,0.05)",
-    }}>
+    <div
+      onClick={() => item.url && window.open(item.url, "_blank", "noopener,noreferrer")}
+      style={{
+        padding: "22px 0",
+        borderBottom: "1px solid rgba(255,255,255,0.05)",
+        cursor: item.url ? "pointer" : "default",
+      }}
+    >
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
         <NotifChip type={item.type} />
         <TickerTag ticker={item.ticker} onClick={() => onTickerClick(item.ticker)} />

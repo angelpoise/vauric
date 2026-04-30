@@ -18,8 +18,8 @@ const TTL_MS = 15 * 60 * 1000;
 let cachedAll: NewsRow[] | null = null;
 let cachedAt = 0;
 
-async function fetchAll(): Promise<NewsRow[]> {
-  if (cachedAll && Date.now() - cachedAt < TTL_MS) return cachedAll;
+async function fetchAll(bust = false): Promise<NewsRow[]> {
+  if (!bust && cachedAll && Date.now() - cachedAt < TTL_MS) return cachedAll;
 
   const { data, error } = await supabase
     .from("news")
@@ -36,13 +36,15 @@ async function fetchAll(): Promise<NewsRow[]> {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const ticker = searchParams.get("ticker")?.toUpperCase() ?? null;
-  const type   = searchParams.get("type") ?? null;
+  const ticker  = searchParams.get("ticker")?.toUpperCase() ?? null;
+  const type    = searchParams.get("type") ?? null;
+  const limit   = Math.min(200, Math.max(1, parseInt(searchParams.get("limit") ?? "0", 10) || (ticker ? 20 : 50)));
+  const nocache = searchParams.get("nocache") === "1";
 
-  let rows = await fetchAll();
+  let rows = await fetchAll(nocache);
 
-  if (ticker) rows = rows.filter((r) => r.ticker === ticker).slice(0, 20);
-  else        rows = rows.slice(0, 50);
+  if (ticker) rows = rows.filter((r) => r.ticker === ticker).slice(0, limit);
+  else        rows = rows.slice(0, limit);
 
   if (type) rows = rows.filter((r) => r.notification_type === type);
 

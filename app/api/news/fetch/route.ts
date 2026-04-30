@@ -142,7 +142,7 @@ export async function GET(req: NextRequest) {
         source:            a.source   ?? "",
         url:               a.url,
         published_at:      new Date(a.datetime * 1000).toISOString(),
-        notification_type: classifyNews(a.headline ?? "", a.summary ?? ""),
+        notification_type: classifyNews(a.headline ?? "", a.summary ?? "", ticker),
       });
     }
   }
