@@ -158,7 +158,7 @@ export default function GraphCanvas({ onHover, activeFilters }: Props) {
   // Fetch recent news to drive live notification dots on graph nodes.
   // Nodes get a dot per distinct notification_type published in the last 24 hours.
   useEffect(() => {
-    fetch("/api/news?limit=200")
+    fetch("/api/news?notifonly=1")
       .then((r) => r.ok ? r.json() : null)
       .then((articles: Array<{ ticker: string; notification_type: string; published_at: string }> | null) => {
         if (!articles) return;

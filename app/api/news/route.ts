@@ -49,24 +49,35 @@ function balanced(rows: NewsRow[], perTicker: number): NewsRow[] {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const ticker   = searchParams.get("ticker")?.toUpperCase() ?? null;
-  const type     = searchParams.get("type") ?? null;
-  const limit    = Math.min(1000, Math.max(1, parseInt(searchParams.get("limit") ?? "0", 10) || (ticker ? 20 : 50)));
-  const nocache  = searchParams.get("nocache") === "1";
+  const ticker    = searchParams.get("ticker")?.toUpperCase() ?? null;
+  const type      = searchParams.get("type") ?? null;
+  const limit     = Math.min(1000, Math.max(1, parseInt(searchParams.get("limit") ?? "0", 10) || (ticker ? 20 : 50)));
+  const nocache   = searchParams.get("nocache") === "1";
+  const notifonly = searchParams.get("notifonly") === "1";
 
-  let rows = await fetchAll(nocache);
+  const rows = await fetchAll(nocache);
 
-  if (ticker) {
-    rows = rows.filter((r) => r.ticker === ticker).slice(0, limit);
-  } else {
-    // Balance across tickers (15 per ticker) then apply the global limit.
-    // This ensures every ticker appears in the graph notification feed.
-    rows = balanced(rows, 15).slice(0, limit);
+  // Lightweight mode for graph notification dots: return all articles uncapped
+  // (just ticker/type/date) so every notification type is represented per ticker,
+  // matching what stock detail pages show.
+  if (notifonly) {
+    return NextResponse.json(
+      rows.map((r) => ({ ticker: r.ticker, notification_type: r.notification_type, published_at: r.published_at })),
+      { headers: { "Cache-Control": "s-maxage=900, stale-while-revalidate=1800" } },
+    );
   }
 
-  if (type) rows = rows.filter((r) => r.notification_type === type);
+  let filtered = rows;
+  if (ticker) {
+    filtered = filtered.filter((r) => r.ticker === ticker).slice(0, limit);
+  } else {
+    // Balance across tickers (15 per ticker) then apply the global limit.
+    filtered = balanced(filtered, 15).slice(0, limit);
+  }
 
-  return NextResponse.json(rows, {
+  if (type) filtered = filtered.filter((r) => r.notification_type === type);
+
+  return NextResponse.json(filtered, {
     headers: { "Cache-Control": "s-maxage=900, stale-while-revalidate=1800" },
   });
 }
