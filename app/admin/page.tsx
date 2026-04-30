@@ -1,5 +1,7 @@
 "use client";
 
+import { adminFetch } from "@/lib/adminFetch";
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
@@ -22,7 +24,7 @@ export default function AdminDashboard() {
   const [runResult, setRunResult] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/admin/overview")
+    adminFetch("/api/admin/overview")
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (d) setOverview(d); });
   }, []);
@@ -30,7 +32,7 @@ export default function AdminDashboard() {
   async function runPipeline() {
     setRunning(true);
     setRunResult(null);
-    const res = await fetch("/api/admin/pipeline", { method: "POST" });
+    const res = await adminFetch("/api/admin/pipeline", { method: "POST" });
     const json = await res.json();
     setRunResult(`Processed ${json.processed ?? "?"} · Inserted ${json.inserted ?? "?"} · Skipped ${json.skipped ?? "?"}`);
     setRunning(false);

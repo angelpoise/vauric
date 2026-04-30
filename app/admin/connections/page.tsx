@@ -1,5 +1,7 @@
 "use client";
 
+import { adminFetch } from "@/lib/adminFetch";
+
 import { useState, useEffect } from "react";
 
 const CARD: React.CSSProperties = { background: "#0d1117", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "20px 24px" };
@@ -18,7 +20,7 @@ export default function ConnectionsPage() {
   const [err, setErr] = useState<string | null>(null);
 
   async function load() {
-    const r = await fetch("/api/admin/connections");
+    const r = await adminFetch("/api/admin/connections");
     if (r.ok) setConnections(await r.json());
   }
 
@@ -27,7 +29,7 @@ export default function ConnectionsPage() {
   async function add() {
     setErr(null);
     if (!sourceId || !targetId) { setErr("Both nodes are required."); return; }
-    const r = await fetch("/api/admin/connections", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source_id: sourceId, target_id: targetId }) });
+    const r = await adminFetch("/api/admin/connections", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source_id: sourceId, target_id: targetId }) });
     if (!r.ok) { setErr((await r.json()).error); return; }
     setSourceId(""); setTargetId("");
     load();
@@ -35,7 +37,7 @@ export default function ConnectionsPage() {
 
   async function del(id: number) {
     if (!confirm("Remove this connection?")) return;
-    await fetch(`/api/admin/connections/${id}`, { method: "DELETE" });
+    await adminFetch(`/api/admin/connections/${id}`, { method: "DELETE" });
     load();
   }
 

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { isAdmin } from "@/lib/adminAuth";
+import { isAdminRequest } from "@/lib/adminSecret";
 
 export async function POST(req: NextRequest) {
-  if (!await isAdmin()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { news_pipeline_enabled } = await req.json();
   const { error } = await supabaseAdmin
     .from("pipeline_config")

@@ -1,5 +1,7 @@
 "use client";
 
+import { adminFetch } from "@/lib/adminFetch";
+
 import { useState, useEffect } from "react";
 
 const CARD: React.CSSProperties = { background: "#0d1117", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "24px" };
@@ -16,7 +18,7 @@ export default function PipelinePage() {
   const [toggling, setToggling] = useState(false);
 
   async function loadConfig() {
-    const r = await fetch("/api/admin/overview");
+    const r = await adminFetch("/api/admin/overview");
     if (r.ok) {
       const d = await r.json();
       setConfig({ news_pipeline_enabled: d.pipelineEnabled ?? true, last_run_at: d.lastRunAt });
@@ -29,7 +31,7 @@ export default function PipelinePage() {
     if (!config) return;
     setToggling(true);
     const next = !config.news_pipeline_enabled;
-    await fetch("/api/admin/pipeline-config", {
+    await adminFetch("/api/admin/pipeline-config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ news_pipeline_enabled: next }),
@@ -41,7 +43,7 @@ export default function PipelinePage() {
   async function run() {
     setRunning(true);
     setResult(null);
-    const r = await fetch("/api/admin/pipeline", { method: "POST" });
+    const r = await adminFetch("/api/admin/pipeline", { method: "POST" });
     const json = await r.json();
     if (json.error) {
       setResult(`Error: ${json.error}`);

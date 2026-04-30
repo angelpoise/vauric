@@ -1,12 +1,15 @@
 "use client";
 
+import { adminFetch } from "@/lib/adminFetch";
+
 import { useState, useEffect } from "react";
 
 const SECTORS = [
-  { id: "sec-tech",    name: "Technology" },
-  { id: "sec-energy",  name: "Energy"     },
-  { id: "sec-health",  name: "Healthcare" },
-  { id: "sec-finance", name: "Finance"    },
+  { id: "sec-tech",     name: "Technology" },
+  { id: "sec-energy",   name: "Energy"     },
+  { id: "sec-health",   name: "Healthcare" },
+  { id: "sec-finance",  name: "Finance"    },
+  { id: "sec-consumer", name: "Consumer"   },
 ];
 
 const CARD: React.CSSProperties = { background: "#0d1117", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "20px 24px" };
@@ -29,7 +32,7 @@ export default function NodesPage() {
   const [err, setErr] = useState<string | null>(null);
 
   async function load() {
-    const r = await fetch("/api/admin/stocks");
+    const r = await adminFetch("/api/admin/stocks");
     if (r.ok) setStocks(await r.json());
   }
 
@@ -37,20 +40,20 @@ export default function NodesPage() {
 
   async function add() {
     setErr(null);
-    const r = await fetch("/api/admin/stocks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+    const r = await adminFetch("/api/admin/stocks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
     if (!r.ok) { setErr((await r.json()).error); return; }
     setForm(blank);
     load();
   }
 
   async function save(id: number) {
-    const r = await fetch(`/api/admin/stocks/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(edits[id]) });
+    const r = await adminFetch(`/api/admin/stocks/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(edits[id]) });
     if (r.ok) { setEditingId(null); setEdits({}); load(); }
   }
 
   async function del(id: number) {
     if (!confirm("Remove this stock?")) return;
-    await fetch(`/api/admin/stocks/${id}`, { method: "DELETE" });
+    await adminFetch(`/api/admin/stocks/${id}`, { method: "DELETE" });
     load();
   }
 

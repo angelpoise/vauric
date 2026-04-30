@@ -1,5 +1,7 @@
 "use client";
 
+import { adminFetch } from "@/lib/adminFetch";
+
 import { useState, useEffect } from "react";
 
 const NOTIF_TYPES = ["news", "analyst", "squeeze", "delisting", "split", "earnings", "ipo"];
@@ -26,7 +28,7 @@ export default function NotificationsPage() {
   const [err, setErr] = useState<string | null>(null);
 
   async function load() {
-    const r = await fetch("/api/admin/notifications");
+    const r = await adminFetch("/api/admin/notifications");
     if (r.ok) setNotifs(await r.json());
   }
 
@@ -34,7 +36,7 @@ export default function NotificationsPage() {
 
   async function add() {
     setErr(null);
-    const r = await fetch("/api/admin/notifications", {
+    const r = await adminFetch("/api/admin/notifications", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ticker, notification_type: type, note: note || null }),
@@ -46,7 +48,7 @@ export default function NotificationsPage() {
 
   async function del(id: number) {
     if (!confirm("Remove this notification?")) return;
-    await fetch("/api/admin/notifications", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    await adminFetch("/api/admin/notifications", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
     load();
   }
 
