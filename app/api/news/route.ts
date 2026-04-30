@@ -13,7 +13,8 @@ interface NewsRow {
   created_at: string;
 }
 
-// Module-level 15-minute cache
+// Module-level 15-minute cache — fetches all recent articles, not just top-N,
+// so every ticker has representation regardless of coverage volume.
 const TTL_MS = 15 * 60 * 1000;
 let cachedAll: NewsRow[] | null = null;
 let cachedAt = 0;
@@ -25,7 +26,7 @@ async function fetchAll(bust = false): Promise<NewsRow[]> {
     .from("news")
     .select("id, ticker, headline, summary, url, source, published_at, notification_type, created_at")
     .order("published_at", { ascending: false })
-    .limit(200);
+    .limit(1000);
 
   if (error || !data) return cachedAll ?? [];
 
@@ -34,17 +35,34 @@ async function fetchAll(bust = false): Promise<NewsRow[]> {
   return cachedAll;
 }
 
+// Returns up to perTicker articles for each ticker, interleaved by recency.
+// Prevents one heavily-covered ticker from crowding out all others.
+function balanced(rows: NewsRow[], perTicker: number): NewsRow[] {
+  const counts: Record<string, number> = {};
+  const result: NewsRow[] = [];
+  for (const r of rows) {
+    counts[r.ticker] = (counts[r.ticker] ?? 0) + 1;
+    if (counts[r.ticker] <= perTicker) result.push(r);
+  }
+  return result;
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const ticker  = searchParams.get("ticker")?.toUpperCase() ?? null;
-  const type    = searchParams.get("type") ?? null;
-  const limit   = Math.min(200, Math.max(1, parseInt(searchParams.get("limit") ?? "0", 10) || (ticker ? 20 : 50)));
-  const nocache = searchParams.get("nocache") === "1";
+  const ticker   = searchParams.get("ticker")?.toUpperCase() ?? null;
+  const type     = searchParams.get("type") ?? null;
+  const limit    = Math.min(1000, Math.max(1, parseInt(searchParams.get("limit") ?? "0", 10) || (ticker ? 20 : 50)));
+  const nocache  = searchParams.get("nocache") === "1";
 
   let rows = await fetchAll(nocache);
 
-  if (ticker) rows = rows.filter((r) => r.ticker === ticker).slice(0, limit);
-  else        rows = rows.slice(0, limit);
+  if (ticker) {
+    rows = rows.filter((r) => r.ticker === ticker).slice(0, limit);
+  } else {
+    // Balance across tickers (15 per ticker) then apply the global limit.
+    // This ensures every ticker appears in the graph notification feed.
+    rows = balanced(rows, 15).slice(0, limit);
+  }
 
   if (type) rows = rows.filter((r) => r.notification_type === type);
 
