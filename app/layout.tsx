@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Serif_Display, DM_Sans } from "next/font/google";
-import { ClerkProvider, SignInButton, SignUpButton, Show, UserButton } from "@clerk/nextjs";
+import { ClerkProvider } from "@clerk/nextjs";
+import AuthHeader from "@/components/AuthHeader";
 import "./globals.css";
 
 const dmSerifDisplay = DM_Serif_Display({
@@ -32,13 +33,7 @@ export default function RootLayout({
       <body>
         <ClerkProvider>
           <header>
-            <Show when="signed-out">
-              <SignInButton />
-              <SignUpButton />
-            </Show>
-            <Show when="signed-in">
-              <UserButton />
-            </Show>
+            <AuthHeader />
           </header>
           {children}
         </ClerkProvider>
