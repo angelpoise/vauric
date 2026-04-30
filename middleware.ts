@@ -1,17 +1,7 @@
-import { clerkMiddleware } from '@clerk/nextjs/server'
-import { NextResponse } from 'next/server'
-
-export default clerkMiddleware(async (auth, req) => {
-  if (req.nextUrl.pathname.startsWith('/admin')) {
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.redirect(new URL('/', req.url))
-    }
-  }
-})
+// Clerk middleware removed — admin protection handled in app/admin/layout.tsx
+// using Clerk's auth() server component helper in the Node.js runtime.
+export {};
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico).*)',
-  ],
+  matcher: [],
 }
