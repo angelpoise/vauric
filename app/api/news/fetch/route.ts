@@ -1,3 +1,11 @@
+// CRON JOB CONFIG (add to vercel.json when upgrading to Vercel Pro):
+// {
+//   "crons": [{
+//     "path": "/api/news/fetch",
+//     "schedule": "0 * * * *"
+//   }]
+// }
+
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 import { classifyNews } from "@/lib/newsClassifier";
