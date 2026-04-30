@@ -11,12 +11,12 @@ const INPUT: React.CSSProperties = { background: "rgba(255,255,255,0.05)", borde
 const TH: React.CSSProperties = { fontSize: 10, color: "#475569", fontWeight: 500, letterSpacing: "0.07em", textTransform: "uppercase", padding: "0 16px 10px 0", textAlign: "left" };
 const TD: React.CSSProperties = { padding: "11px 16px 11px 0", borderBottom: "1px solid rgba(255,255,255,0.04)", fontSize: 13, color: "#e2e8f0" };
 
-interface Connection { id: number; source_id: string; target_id: string; }
+interface Connection { id: string; ticker_a: string; ticker_b: string; }
 
 export default function ConnectionsPage() {
   const [connections, setConnections] = useState<Connection[]>([]);
-  const [sourceId, setSourceId] = useState("");
-  const [targetId, setTargetId] = useState("");
+  const [tickerA, setTickerA] = useState("");
+  const [tickerB, setTickerB] = useState("");
   const [err, setErr] = useState<string | null>(null);
 
   async function load() {
@@ -28,14 +28,14 @@ export default function ConnectionsPage() {
 
   async function add() {
     setErr(null);
-    if (!sourceId || !targetId) { setErr("Both nodes are required."); return; }
-    const r = await adminFetch("/api/admin/connections", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source_id: sourceId, target_id: targetId }) });
+    if (!tickerA || !tickerB) { setErr("Both tickers are required."); return; }
+    const r = await adminFetch("/api/admin/connections", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker_a: tickerA, ticker_b: tickerB }) });
     if (!r.ok) { setErr((await r.json()).error); return; }
-    setSourceId(""); setTargetId("");
+    setTickerA(""); setTickerB("");
     load();
   }
 
-  async function del(id: number) {
+  async function del(id: string) {
     if (!confirm("Remove this connection?")) return;
     await adminFetch(`/api/admin/connections/${id}`, { method: "DELETE" });
     load();
@@ -49,12 +49,12 @@ export default function ConnectionsPage() {
         <div style={{ fontSize: 12, color: "#475569", fontWeight: 500, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 16 }}>Add connection</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 10, alignItems: "end" }}>
           <div>
-            <div style={{ fontSize: 11, color: "#475569", marginBottom: 5 }}>Node A (ticker or sector ID)</div>
-            <input style={INPUT} placeholder="e.g. NVDA or sec-tech" value={sourceId} onChange={e => setSourceId(e.target.value)} />
+            <div style={{ fontSize: 11, color: "#475569", marginBottom: 5 }}>Ticker A</div>
+            <input style={INPUT} placeholder="e.g. NVDA" value={tickerA} onChange={e => setTickerA(e.target.value.toUpperCase())} />
           </div>
           <div>
-            <div style={{ fontSize: 11, color: "#475569", marginBottom: 5 }}>Node B</div>
-            <input style={INPUT} placeholder="e.g. AMD" value={targetId} onChange={e => setTargetId(e.target.value)} />
+            <div style={{ fontSize: 11, color: "#475569", marginBottom: 5 }}>Ticker B</div>
+            <input style={INPUT} placeholder="e.g. AMD" value={tickerB} onChange={e => setTickerB(e.target.value.toUpperCase())} />
           </div>
           <button style={BTN} onClick={add}>Add</button>
         </div>
@@ -64,7 +64,7 @@ export default function ConnectionsPage() {
       <div style={CARD}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr>{["Source", "Target", ""].map(h => <th key={h} style={TH}>{h}</th>)}</tr>
+            <tr>{["Ticker A", "Ticker B", ""].map(h => <th key={h} style={TH}>{h}</th>)}</tr>
           </thead>
           <tbody>
             {connections.length === 0 && (
@@ -72,8 +72,8 @@ export default function ConnectionsPage() {
             )}
             {connections.map(c => (
               <tr key={c.id}>
-                <td style={TD}><code style={{ color: "#94a3b8", fontSize: 12 }}>{c.source_id}</code></td>
-                <td style={TD}><code style={{ color: "#94a3b8", fontSize: 12 }}>{c.target_id}</code></td>
+                <td style={TD}><code style={{ color: "#94a3b8", fontSize: 12 }}>{c.ticker_a}</code></td>
+                <td style={TD}><code style={{ color: "#94a3b8", fontSize: 12 }}>{c.ticker_b}</code></td>
                 <td style={TD}><button style={BTN_D} onClick={() => del(c.id)}>Remove</button></td>
               </tr>
             ))}
