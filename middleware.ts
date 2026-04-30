@@ -1,16 +1,13 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
-
-const isAdminRoute = createRouteMatcher(['/admin(.*)'])
+import { clerkMiddleware } from '@clerk/nextjs/server'
 
 export default clerkMiddleware(async (auth, req) => {
-  if (isAdminRoute(req)) {
+  // Only protect /admin routes — all other routes are fully public
+  if (req.nextUrl.pathname.startsWith('/admin')) {
     await auth.protect()
   }
 })
 
 export const config = {
-  matcher: [
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    '/(api|trpc)(.*)',
-  ],
+  // Run middleware only on /admin routes — nothing else
+  matcher: ['/admin', '/admin/(.*)'],
 }
