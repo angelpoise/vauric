@@ -27,36 +27,40 @@ interface Props {
   activeFilters?: ActiveFilters;
 }
 
-// ─── Placeholder data ─────────────────────────────────────────────────────────
+// ─── Static sector nodes (always hardcoded) ───────────────────────────────────
 
-const NODES: GNode[] = [
-  // Sectors
+const SECTOR_NODES: SectorNode[] = [
   { id: "sec-tech",    kind: "sector", name: "Technology", etf: "XLK", price: 224.18, dailyMove:  1.2, x:  500, y: 420, notifications: [] },
   { id: "sec-energy",  kind: "sector", name: "Energy",     etf: "XLE", price:  93.42, dailyMove: -0.8, x: 1100, y: 360, notifications: [] },
   { id: "sec-health",  kind: "sector", name: "Healthcare", etf: "XLV", price: 143.76, dailyMove:  0.3, x:  440, y: 750, notifications: [] },
   { id: "sec-finance", kind: "sector", name: "Finance",    etf: "XLF", price:  45.21, dailyMove:  0.7, x: 1155, y: 710, notifications: [] },
+];
 
-  // Technology
+const SECTOR_MAP: Record<string, string> = {
+  Technology: "sec-tech",
+  Energy:     "sec-energy",
+  Healthcare: "sec-health",
+  Finance:    "sec-finance",
+  Consumer:   "sec-consumer",
+};
+
+// ─── Fallback stock data (used if /api/graph fetch fails) ─────────────────────
+
+const FALLBACK_STOCK_NODES: StockNode[] = [
   { id: "NVDA", kind: "stock", ticker: "NVDA", name: "NVIDIA",               price:  875.40, dailyMove:  5.2, sectorId: "sec-tech",    x:  305, y: 245, notifications: [] },
   { id: "MSFT", kind: "stock", ticker: "MSFT", name: "Microsoft",            price:  415.26, dailyMove:  0.9, sectorId: "sec-tech",    x:  475, y: 200, notifications: [] },
   { id: "PLTR", kind: "stock", ticker: "PLTR", name: "Palantir",             price:   24.38, dailyMove:  3.1, sectorId: "sec-tech",    x:  635, y: 260, notifications: [] },
   { id: "AMD",  kind: "stock", ticker: "AMD",  name: "AMD",                  price:  172.84, dailyMove:  2.4, sectorId: "sec-tech",    x:  360, y: 510, notifications: [] },
   { id: "ARM",  kind: "stock", ticker: "ARM",  name: "Arm Holdings",         price:  118.62, dailyMove:  4.8, sectorId: "sec-tech",    x:  645, y: 495, notifications: [] },
   { id: "SMCI", kind: "stock", ticker: "SMCI", name: "Super Micro Computer", price:   38.42, dailyMove:  2.8, sectorId: "sec-tech",    x:  175, y: 165, notifications: [] },
-
-  // Energy
-  { id: "XOM",  kind: "stock", ticker: "XOM",  name: "ExxonMobil",          price:  118.24, dailyMove: -1.2, sectorId: "sec-energy",  x:  920, y: 258, notifications: [] },
+  { id: "XOM",  kind: "stock", ticker: "XOM",  name: "ExxonMobil",           price:  118.24, dailyMove: -1.2, sectorId: "sec-energy",  x:  920, y: 258, notifications: [] },
   { id: "CVX",  kind: "stock", ticker: "CVX",  name: "Chevron",              price:  158.90, dailyMove: -0.9, sectorId: "sec-energy",  x: 1082, y: 200, notifications: [] },
   { id: "FANG", kind: "stock", ticker: "FANG", name: "Diamondback Energy",   price:  194.52, dailyMove:  2.1, sectorId: "sec-energy",  x: 1275, y: 278, notifications: [] },
   { id: "SLB",  kind: "stock", ticker: "SLB",  name: "SLB",                  price:   44.18, dailyMove: -1.8, sectorId: "sec-energy",  x: 1215, y: 178, notifications: [] },
-
-  // Healthcare
   { id: "HIMS", kind: "stock", ticker: "HIMS", name: "Hims & Hers",          price:   21.44, dailyMove: 12.3, sectorId: "sec-health",  x:  258, y: 710, notifications: [] },
   { id: "RXRX", kind: "stock", ticker: "RXRX", name: "Recursion Pharma",     price:    5.82, dailyMove:  4.1, sectorId: "sec-health",  x:  308, y: 858, notifications: [] },
   { id: "LLY",  kind: "stock", ticker: "LLY",  name: "Eli Lilly",            price:  803.28, dailyMove: -0.6, sectorId: "sec-health",  x:  592, y: 832, notifications: [] },
   { id: "MRNA", kind: "stock", ticker: "MRNA", name: "Moderna",              price:   75.60, dailyMove: -2.3, sectorId: "sec-health",  x:  502, y: 682, notifications: [] },
-
-  // Finance
   { id: "SOFI", kind: "stock", ticker: "SOFI", name: "SoFi Technologies",    price:    8.42, dailyMove:  4.2, sectorId: "sec-finance", x:  978, y: 682, notifications: [] },
   { id: "AFRM", kind: "stock", ticker: "AFRM", name: "Affirm",               price:   35.18, dailyMove:  3.8, sectorId: "sec-finance", x: 1312, y: 622, notifications: [] },
   { id: "PYPL", kind: "stock", ticker: "PYPL", name: "PayPal",               price:   63.44, dailyMove: -0.8, sectorId: "sec-finance", x: 1362, y: 782, notifications: [] },
@@ -64,12 +68,7 @@ const NODES: GNode[] = [
   { id: "HOOD", kind: "stock", ticker: "HOOD", name: "Robinhood",            price:   22.36, dailyMove:  5.4, sectorId: "sec-finance", x: 1228, y: 868, notifications: [] },
 ];
 
-const STOCK_NODES = NODES.filter((n): n is StockNode => n.kind === "stock");
-
-interface Edge { source: string; target: string; }
-
-const EDGES: Edge[] = [
-  ...STOCK_NODES.map((n) => ({ source: n.id, target: n.sectorId })),
+const FALLBACK_EXTRA_EDGES: Array<{ source: string; target: string }> = [
   { source: "SMCI", target: "NVDA" },
   { source: "SMCI", target: "ARM"  },
   { source: "NVDA", target: "AMD"  },
@@ -85,21 +84,31 @@ const EDGES: Edge[] = [
   { source: "HIMS", target: "RXRX" },
 ];
 
-// ─── Precomputed lookups ──────────────────────────────────────────────────────
+// ─── Graph data assembly ──────────────────────────────────────────────────────
 
-const nodeById = new Map<string, GNode>(NODES.map((n) => [n.id, n]));
+interface Edge { source: string; target: string; }
 
-const adjacency = new Map<string, Set<string>>();
-NODES.forEach((n) => adjacency.set(n.id, new Set()));
-EDGES.forEach((e) => {
-  adjacency.get(e.source)!.add(e.target);
-  adjacency.get(e.target)!.add(e.source);
-});
+interface GraphData {
+  nodes: GNode[];
+  edges: Edge[];
+  nodeById: Map<string, GNode>;
+  adjacency: Map<string, Set<string>>;
+}
 
-function nodeRadius(n: GNode): number {
-  if (n.kind === "sector") return 44;
-  const conns = adjacency.get(n.id)?.size ?? 0;
-  return Math.min(28, 12 + conns * 2.2);
+function buildGraphData(stockNodes: StockNode[], extraEdges: Edge[]): GraphData {
+  const nodes: GNode[] = [...SECTOR_NODES, ...stockNodes];
+  const sectorEdges: Edge[] = stockNodes.map((n) => ({ source: n.id, target: n.sectorId }));
+  const edges: Edge[] = [...sectorEdges, ...extraEdges];
+
+  const nodeById = new Map<string, GNode>(nodes.map((n) => [n.id, n]));
+  const adjacency = new Map<string, Set<string>>();
+  nodes.forEach((n) => adjacency.set(n.id, new Set()));
+  edges.forEach((e) => {
+    adjacency.get(e.source)?.add(e.target);
+    adjacency.get(e.target)?.add(e.source);
+  });
+
+  return { nodes, edges, nodeById, adjacency };
 }
 
 // ─── Camera ───────────────────────────────────────────────────────────────────
@@ -118,6 +127,19 @@ interface FundEntry {
   fiftyTwoWeekLow: number | null;
 }
 
+interface DbStock {
+  ticker: string;
+  company_name: string;
+  sector: string;
+  x_position: number;
+  y_position: number;
+}
+
+interface DbConnection {
+  ticker_a: string;
+  ticker_b: string;
+}
+
 export default function GraphCanvas({ onHover, activeFilters }: Props) {
   const router         = useRouter();
   const canvasRef      = useRef<HTMLCanvasElement>(null);
@@ -133,6 +155,8 @@ export default function GraphCanvas({ onHover, activeFilters }: Props) {
   const routerRef      = useRef(router);
   routerRef.current    = router;
 
+  const graphDataRef = useRef<GraphData>(buildGraphData(FALLBACK_STOCK_NODES, FALLBACK_EXTRA_EDGES));
+
   interface LiveEntry { price: number; dailyMove: number; dailyMoveDollar: number; }
   const liveDataRef      = useRef<Record<string, LiveEntry>>({});
   const liveDataReadyRef = useRef(false);
@@ -146,6 +170,35 @@ export default function GraphCanvas({ onHover, activeFilters }: Props) {
   useEffect(() => {
     activeFiltersRef.current = activeFilters ?? DEFAULT_FILTERS;
   }, [activeFilters]);
+
+  // Fetch graph structure (stocks + connections) from database.
+  // Falls back to hardcoded data if the request fails.
+  useEffect(() => {
+    fetch("/api/graph")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data: { stocks: DbStock[]; connections: DbConnection[] } | null) => {
+        if (!data || !data.stocks?.length) return;
+        const stockNodes: StockNode[] = data.stocks.map((s) => ({
+          id:           s.ticker,
+          kind:         "stock" as const,
+          ticker:       s.ticker,
+          name:         s.company_name,
+          price:        0,
+          dailyMove:    0,
+          sectorId:     SECTOR_MAP[s.sector] ?? "sec-tech",
+          x:            s.x_position * 1600,
+          y:            s.y_position * 1100,
+          notifications: [],
+        }));
+        const extraEdges: Edge[] = (data.connections ?? []).map((c) => ({
+          source: c.ticker_a,
+          target: c.ticker_b,
+        }));
+        graphDataRef.current = buildGraphData(stockNodes, extraEdges);
+        console.log(`[graph] loaded ${stockNodes.length} stock nodes, ${extraEdges.length} connections`);
+      })
+      .catch((err) => console.error('[graph] fetch failed:', err));
+  }, []);
 
   // Fetch fundamentals data for filter calculations (market cap, beta, PE, etc.)
   useEffect(() => {
@@ -242,12 +295,20 @@ export default function GraphCanvas({ onHover, activeFilters }: Props) {
       };
     }
 
+    // ── Node radius ──────────────────────────────────────────────────────────
+
+    function nodeRadius(n: GNode): number {
+      if (n.kind === "sector") return 44;
+      const conns = graphDataRef.current.adjacency.get(n.id)?.size ?? 0;
+      return Math.min(28, 12 + conns * 2.2);
+    }
+
     // ── Hit testing ──────────────────────────────────────────────────────────
 
     function hitTest(mx: number, my: number): GNode | null {
       const w = toWorld(mx, my);
       const t = animTRef.current;
-      for (const node of [...NODES].reverse()) {
+      for (const node of [...graphDataRef.current.nodes].reverse()) {
         const pos = worldPos(node, t);
         const r   = effectiveRadius(node) + 6;
         const dx  = w.x - pos.x;
@@ -364,7 +425,8 @@ export default function GraphCanvas({ onHover, activeFilters }: Props) {
       const H   = canvas.clientHeight;
       const t   = animTRef.current;
       const hid = hoveredIdRef.current;
-      const hovNeighbors = hid ? adjacency.get(hid)! : null;
+      const gd  = graphDataRef.current;
+      const hovNeighbors = hid ? (gd.adjacency.get(hid) ?? null) : null;
       const cam = cameraRef.current;
       const d   = dpr();
 
@@ -377,9 +439,10 @@ export default function GraphCanvas({ onHover, activeFilters }: Props) {
       ctx.scale(cam.scale, cam.scale);
 
       // Edges
-      for (const edge of EDGES) {
-        const src = nodeById.get(edge.source)!;
-        const tgt = nodeById.get(edge.target)!;
+      for (const edge of gd.edges) {
+        const src = gd.nodeById.get(edge.source);
+        const tgt = gd.nodeById.get(edge.target);
+        if (!src || !tgt) continue;
         const sp  = worldPos(src, t);
         const tp  = worldPos(tgt, t);
 
@@ -401,7 +464,7 @@ export default function GraphCanvas({ onHover, activeFilters }: Props) {
       }
 
       // Nodes
-      for (const node of NODES) {
+      for (const node of gd.nodes) {
         const pos        = worldPos(node, t);
         const r          = effectiveRadius(node);
         // Sector nodes are keyed in the API response by their ETF ticker, not by node.id
