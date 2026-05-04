@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   type ActiveFilters,
   type FilterRange,
@@ -78,15 +78,29 @@ function RangeRow({ range, onChange, minPh, maxPh, step }: {
   );
 }
 
-function CheckRow({ checked, onChange, label, dot }: {
+function CheckRow({ checked, onChange, label, dot, disabled, disabledHint }: {
   checked: boolean; onChange: (v: boolean) => void; label: string; dot?: string;
+  disabled?: boolean; disabledHint?: string;
 }) {
   return (
-    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "4px 0", userSelect: "none" }}>
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)}
-        style={{ accentColor: "#3b82f6", width: 13, height: 13, cursor: "pointer", flexShrink: 0 }} />
-      {dot && <div style={{ width: 7, height: 7, borderRadius: "50%", background: dot, flexShrink: 0 }} />}
-      <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 300 }}>{label}</span>
+    <label style={{
+      display: "flex", alignItems: "flex-start", gap: 8,
+      cursor: disabled ? "default" : "pointer",
+      padding: "4px 0", userSelect: "none",
+      opacity: disabled ? 0.45 : 1,
+    }}>
+      <input
+        type="checkbox" checked={checked} disabled={disabled}
+        onChange={(e) => !disabled && onChange(e.target.checked)}
+        style={{ accentColor: "#3b82f6", width: 13, height: 13, cursor: disabled ? "default" : "pointer", flexShrink: 0, marginTop: 1 }}
+      />
+      {dot && <div style={{ width: 7, height: 7, borderRadius: "50%", background: dot, flexShrink: 0, marginTop: 3 }} />}
+      <span>
+        <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 300, display: "block" }}>{label}</span>
+        {disabledHint && (
+          <span style={{ fontSize: 10, color: "#334155", display: "block", marginTop: 1 }}>{disabledHint}</span>
+        )}
+      </span>
     </label>
   );
 }
@@ -151,6 +165,21 @@ interface Props {
 export default function FiltersPanel({ open, onClose, filters, onFiltersChange }: Props) {
   const activeCount = countActiveFilters(filters);
   const set = (partial: Partial<ActiveFilters>) => onFiltersChange({ ...filters, ...partial });
+
+  const [hiddenBySettings, setHiddenBySettings] = useState<NotifType[]>([]);
+
+  // Re-read graph settings from localStorage each time the panel opens so the
+  // disabled state is always fresh after the user changes graph settings.
+  useEffect(() => {
+    if (!open) return;
+    try {
+      const raw = localStorage.getItem("vauric_graph_settings");
+      const parsed = raw ? JSON.parse(raw) : {};
+      setHiddenBySettings(Array.isArray(parsed.hiddenNotifTypes) ? parsed.hiddenNotifTypes : []);
+    } catch {
+      setHiddenBySettings([]);
+    }
+  }, [open]);
 
   return (
     <>
@@ -234,13 +263,18 @@ export default function FiltersPanel({ open, onClose, filters, onFiltersChange }
               label="Only show stocks with notifications"
             />
             <div style={{ height: 8 }} />
-            {ALL_NOTIF_TYPES.map((t: NotifType) => (
-              <CheckRow
-                key={t} label={NOTIF[t].label} dot={NOTIF[t].color}
-                checked={filters.notifTypes.includes(t)}
-                onChange={(on) => set({ notifTypes: on ? [...filters.notifTypes, t] : filters.notifTypes.filter((x) => x !== t) })}
-              />
-            ))}
+            {ALL_NOTIF_TYPES.map((t: NotifType) => {
+              const isHidden = hiddenBySettings.includes(t);
+              return (
+                <CheckRow
+                  key={t} label={NOTIF[t].label} dot={NOTIF[t].color}
+                  checked={filters.notifTypes.includes(t)}
+                  disabled={isHidden}
+                  disabledHint={isHidden ? "Hidden in graph settings" : undefined}
+                  onChange={(on) => set({ notifTypes: on ? [...filters.notifTypes, t] : filters.notifTypes.filter((x) => x !== t) })}
+                />
+              );
+            })}
           </CollapsibleSection>
 
           {/* 4 · Market Cap */}

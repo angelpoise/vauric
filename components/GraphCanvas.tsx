@@ -19,12 +19,22 @@ import {
   ALL_CAP_TIERS,
   ALL_52W_POS,
 } from "@/lib/filtersTypes";
+import {
+  type GraphSettings,
+  DEFAULT_GRAPH_SETTINGS,
+} from "@/lib/graphSettingsTypes";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
+
+const DOT_LETTERS: Record<string, string> = {
+  news: "N", analyst: "A", squeeze: "S",
+  delisting: "P", split: "B", earnings: "E", ipo: "I",
+};
 
 interface Props {
   onHover?: (node: GNode | null) => void;
   activeFilters?: ActiveFilters;
+  graphSettings?: GraphSettings;
 }
 
 // ─── Static sector nodes (always hardcoded) ───────────────────────────────────
@@ -140,7 +150,7 @@ interface DbConnection {
   ticker_b: string;
 }
 
-export default function GraphCanvas({ onHover, activeFilters }: Props) {
+export default function GraphCanvas({ onHover, activeFilters, graphSettings }: Props) {
   const router         = useRouter();
   const canvasRef      = useRef<HTMLCanvasElement>(null);
   const cameraRef      = useRef<Camera>({ x: 0, y: 0, scale: 1 });
@@ -162,14 +172,19 @@ export default function GraphCanvas({ onHover, activeFilters }: Props) {
   const liveDataReadyRef = useRef(false);
   const fundamentalsRef    = useRef<Record<string, FundEntry>>({});
   const activeFiltersRef   = useRef<ActiveFilters>(DEFAULT_FILTERS);
+  const graphSettingsRef   = useRef<GraphSettings>(DEFAULT_GRAPH_SETTINGS);
   const notificationsRef   = useRef<Record<string, Array<{ type: NotifType }>>>({});
 
   const [hoverNode, setHoverNode] = useState<GNode | null>(null);
 
-  // Keep activeFilters ref in sync with prop (read by draw loop without re-creating the effect)
+  // Keep refs in sync with props (read by draw loop without re-creating the effect)
   useEffect(() => {
     activeFiltersRef.current = activeFilters ?? DEFAULT_FILTERS;
   }, [activeFilters]);
+
+  useEffect(() => {
+    graphSettingsRef.current = graphSettings ?? DEFAULT_GRAPH_SETTINGS;
+  }, [graphSettings]);
 
   // Fetch graph structure (stocks + connections) from database.
   // Falls back to hardcoded data if the request fails.
@@ -499,9 +514,12 @@ export default function GraphCanvas({ onHover, activeFilters }: Props) {
         }
 
         // Notification dots — use live news data if available, fall back to placeholder
-        const liveNotifs = node.kind === "stock"
+        const gs = graphSettingsRef.current;
+        const liveNotifs = (node.kind === "stock"
           ? (notificationsRef.current[node.ticker] ?? node.notifications)
-          : node.notifications;
+          : node.notifications
+        ).filter((n) => !gs.hiddenNotifTypes.includes(n.type));
+
         liveNotifs.forEach((notif, i) => {
           const dotR = 5.6;
           const dotX = r * 0.7;
@@ -515,6 +533,13 @@ export default function GraphCanvas({ onHover, activeFilters }: Props) {
           ctx.strokeStyle = "rgba(7,9,15,0.6)";
           ctx.lineWidth   = 1;
           ctx.stroke();
+          if (gs.accessibilityMode) {
+            ctx.fillStyle     = "#000";
+            ctx.font          = `bold ${Math.round(dotR * 1.4)}px sans-serif`;
+            ctx.textAlign     = "center";
+            ctx.textBaseline  = "middle";
+            ctx.fillText(DOT_LETTERS[notif.type] ?? "?", dotX, dotY);
+          }
         });
 
         ctx.restore();
