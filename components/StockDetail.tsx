@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { type NotifType, NOTIF, moveColor } from "@/lib/graphTypes";
+import UpgradeButton from "@/components/UpgradeButton";
 import { getCachedMarketData, setCachedMarketData } from "@/lib/marketDataCache";
 import {
   FREE_TIER_CAP,
@@ -1017,9 +1018,12 @@ export default function StockDetail({ ticker }: { ticker: string }) {
             }}
           >
             {wlFlash === "limit" ? (
-              <span style={{ fontSize: 12, color: "#64748b", fontFamily: "inherit" }}>
-                Free tier limit ({FREE_TIER_CAP}/{FREE_TIER_CAP}). Upgrade to Pro for unlimited.
-              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 12, color: "#64748b", fontFamily: "inherit" }}>
+                  Watchlist full ({FREE_TIER_CAP}/{FREE_TIER_CAP})
+                </span>
+                <UpgradeButton label="Upgrade to Pro" />
+              </div>
             ) : (
               <button
                 onClick={handleAddToWatchlist}

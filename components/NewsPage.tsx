@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { type NotifType, NOTIF } from "@/lib/graphTypes";
 import { getWatchlist, WATCHLIST_EVENT } from "@/lib/watchlist";
+import UpgradeButton from "@/components/UpgradeButton";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -164,13 +165,7 @@ function UpgradePrompt({ total }: { total: number }) {
       <div style={{ fontSize: 12, color: "#475569", marginBottom: 16, fontWeight: 300 }}>
         Showing {CLEAR_LIMIT} of {total} stories
       </div>
-      <button style={{
-        padding: "8px 20px", background: "#3b82f6", border: "none",
-        borderRadius: 7, color: "#fff", fontSize: 13, fontWeight: 500,
-        cursor: "pointer", fontFamily: "inherit",
-      }}>
-        Upgrade to Pro
-      </button>
+      <UpgradeButton label="Upgrade to Pro" />
     </div>
   );
 }
@@ -345,13 +340,7 @@ export default function NewsPage() {
                 <div style={{ fontSize: 11, color: "#475569", lineHeight: 1.6, marginBottom: 14, fontWeight: 300 }}>
                   AI-generated summaries of top stories, sentiment signals, and cross-stock themes are a Pro feature.
                 </div>
-                <button style={{
-                  width: "100%", padding: "7px 0", background: "#3b82f6",
-                  border: "none", borderRadius: 6, color: "#fff",
-                  fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
-                }}>
-                  Upgrade to Pro
-                </button>
+                <UpgradeButton label="Upgrade to Pro" variant="banner" />
               </div>
             )}
           </div>

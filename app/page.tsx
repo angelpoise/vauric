@@ -9,8 +9,8 @@ export default function Home() {
 
       <div className="wrapper">
         {/* NAV */}
-        <nav style={{ display: "flex", justifyContent: "center", padding: "32px 0 24px" }}>
-          <a href="/">
+        <nav>
+          <a href="/" style={{ display: "block", lineHeight: 0 }}>
             <img
               src="/lockup-horizontal-dark-tagline.svg"
               alt="Vauric — Market intelligence, mapped."

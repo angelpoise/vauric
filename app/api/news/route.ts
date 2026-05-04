@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { getUserTier } from "@/lib/getUserTier";
+
+const FREE_NEWS_LIMIT = 10;
 
 interface NewsRow {
   id: number;
@@ -55,6 +58,7 @@ export async function GET(req: NextRequest) {
   const nocache   = searchParams.get("nocache") === "1";
   const notifonly = searchParams.get("notifonly") === "1";
 
+  const { isPro } = await getUserTier();
   const rows = await fetchAll(nocache);
 
   // Lightweight mode for graph notification dots: return all articles uncapped
@@ -72,7 +76,9 @@ export async function GET(req: NextRequest) {
     filtered = filtered.filter((r) => r.ticker === ticker).slice(0, limit);
   } else {
     // Balance across tickers (15 per ticker) then apply the global limit.
-    filtered = balanced(filtered, 15).slice(0, limit);
+    // Non-Pro users are capped at FREE_NEWS_LIMIT for the main feed.
+    const effectiveLimit = !isPro && !notifonly ? Math.min(limit, FREE_NEWS_LIMIT) : limit;
+    filtered = balanced(filtered, 15).slice(0, effectiveLimit);
   }
 
   if (type) filtered = filtered.filter((r) => r.notification_type === type);
