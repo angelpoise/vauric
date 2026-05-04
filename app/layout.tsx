@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Serif_Display, DM_Sans } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
-import AuthHeader from "@/components/AuthHeader";
 import "./globals.css";
 
 const dmSerifDisplay = DM_Serif_Display({
@@ -23,6 +22,9 @@ export const metadata: Metadata = {
   title: "Vauric — The stock market is bigger than 30 tickers",
   description:
     "Discover stocks before the move is over. Vauric is a knowledge graph built to surface what the market is missing.",
+  icons: {
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+  },
 };
 
 export default function RootLayout({
@@ -32,9 +34,6 @@ export default function RootLayout({
     <html lang="en" className={`${dmSerifDisplay.variable} ${dmSans.variable}`}>
       <body>
         <ClerkProvider>
-          <header>
-            <AuthHeader />
-          </header>
           {children}
         </ClerkProvider>
       </body>

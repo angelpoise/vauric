@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Logo from "@/components/Logo";
 
 const NAV = [
   { href: "/admin",               label: "Dashboard"     },
@@ -26,15 +27,9 @@ export default function AdminNav() {
         fontFamily: 'var(--font-dm-sans), "DM Sans", sans-serif',
       }}
     >
-      <span
-        style={{
-          fontSize: 11, fontWeight: 700, color: "#3b82f6",
-          letterSpacing: "0.1em", textTransform: "uppercase",
-          marginRight: 20, flexShrink: 0,
-        }}
-      >
-        Admin
-      </span>
+      <Link href="/graph" style={{ textDecoration: "none", marginRight: 20, flexShrink: 0 }}>
+        <Logo variant="default" />
+      </Link>
       {NAV.map(({ href, label }) => {
         const active = path === href;
         return (

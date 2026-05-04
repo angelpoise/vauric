@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { RadarIcon } from "@/components/Logo";
 
 export const MENU_COLLAPSED_W = 44;
 export const MENU_EXPANDED_W = 180;
@@ -141,6 +143,48 @@ export default function SideMenu({ expanded, onToggle, onSearchOpen, onFiltersOp
         userSelect: "none",
       }}
     >
+      {/* Logo home link */}
+      <Link
+        href="/"
+        style={{
+          width: "100%",
+          height: MENU_COLLAPSED_W,
+          display: "flex",
+          alignItems: "center",
+          textDecoration: "none",
+          flexShrink: 0,
+        }}
+      >
+        <span
+          style={{
+            width: MENU_COLLAPSED_W,
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            flexShrink: 0,
+          }}
+        >
+          <RadarIcon size={20} />
+        </span>
+        <span
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: "0.15em",
+            color: "#f1f5f9",
+            whiteSpace: "nowrap",
+            opacity: expanded ? 1 : 0,
+            transition: "opacity 0.12s ease",
+            fontFamily: '"DM Sans", var(--font-dm-sans), sans-serif',
+          }}
+        >
+          VAURIC
+        </span>
+      </Link>
+
+      {/* Divider */}
+      <div style={{ height: 1, background: "rgba(255,255,255,0.05)", margin: "2px 0", flexShrink: 0 }} />
+
       {/* Hamburger toggle */}
       <button
         onClick={onToggle}

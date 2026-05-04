@@ -9,30 +9,13 @@ export default function Home() {
 
       <div className="wrapper">
         {/* NAV */}
-        <nav>
-          <a href="/" className="logo">
-            <svg className="logo-mark" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="21" cy="21" r="20.5" stroke="rgba(59,130,246,0.3)" />
-              <circle cx="21" cy="21" r="6" fill="#3b82f6" opacity="0.9" />
-              <line x1="21" y1="1"  x2="21" y2="10" stroke="rgba(59,130,246,0.4)" strokeWidth="1" />
-              <line x1="21" y1="32" x2="21" y2="41" stroke="rgba(59,130,246,0.4)" strokeWidth="1" />
-              <line x1="1"  y1="21" x2="10" y2="21" stroke="rgba(59,130,246,0.4)" strokeWidth="1" />
-              <line x1="32" y1="21" x2="41" y2="21" stroke="rgba(59,130,246,0.4)" strokeWidth="1" />
-              <circle cx="21" cy="4"  r="2" fill="rgba(59,130,246,0.5)" />
-              <circle cx="21" cy="38" r="2" fill="rgba(59,130,246,0.5)" />
-              <circle cx="4"  cy="21" r="2" fill="rgba(59,130,246,0.5)" />
-              <circle cx="38" cy="21" r="2" fill="rgba(59,130,246,0.5)" />
-              <line x1="8"  y1="8"  x2="15" y2="15" stroke="rgba(59,130,246,0.25)" strokeWidth="1" />
-              <line x1="27" y1="27" x2="34" y2="34" stroke="rgba(59,130,246,0.25)" strokeWidth="1" />
-              <line x1="34" y1="8"  x2="27" y2="15" stroke="rgba(59,130,246,0.25)" strokeWidth="1" />
-              <line x1="8"  y1="34" x2="15" y2="27" stroke="rgba(59,130,246,0.25)" strokeWidth="1" />
-              <circle cx="7"  cy="7"  r="1.5" fill="rgba(59,130,246,0.35)" />
-              <circle cx="35" cy="7"  r="1.5" fill="rgba(59,130,246,0.35)" />
-              <circle cx="7"  cy="35" r="1.5" fill="rgba(59,130,246,0.35)" />
-              <circle cx="35" cy="35" r="1.5" fill="rgba(59,130,246,0.35)" />
-            </svg>
-            <span className="logo-name">VAURIC</span>
-            <span className="logo-io">vauric.io</span>
+        <nav style={{ display: "flex", justifyContent: "center", padding: "32px 0 24px" }}>
+          <a href="/">
+            <img
+              src="/lockup-horizontal-dark-tagline.svg"
+              alt="Vauric — Market intelligence, mapped."
+              style={{ width: 300, display: "block" }}
+            />
           </a>
         </nav>
 

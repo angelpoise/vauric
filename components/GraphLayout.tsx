@@ -9,6 +9,7 @@ import SearchPanel from "@/components/SearchPanel";
 import FiltersPanel from "@/components/FiltersPanel";
 import { type ActiveFilters, DEFAULT_FILTERS } from "@/lib/filtersTypes";
 import type { GNode } from "@/lib/graphTypes";
+import DisclaimerBanner from "@/components/DisclaimerBanner";
 
 export default function GraphLayout() {
   const [menuExpanded, setMenuExpanded] = useState(false);
@@ -16,6 +17,7 @@ export default function GraphLayout() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<ActiveFilters>(DEFAULT_FILTERS);
+  const [disclaimerVisible, setDisclaimerVisible] = useState(false);
 
   const menuW = menuExpanded ? MENU_EXPANDED_W : MENU_COLLAPSED_W;
 
@@ -49,7 +51,8 @@ export default function GraphLayout() {
           left: menuW,
           right: 0,
           bottom: 0,
-          transition: "left 0.22s ease",
+          clipPath: disclaimerVisible ? "inset(0 0 44px 0)" : "inset(0 0 0px 0)",
+          transition: "left 0.22s ease, clip-path 0.3s ease",
         }}
       >
         <GraphCanvas onHover={setHoveredNode} activeFilters={activeFilters} />
@@ -67,6 +70,8 @@ export default function GraphLayout() {
       <WatchlistPanel />
 
       {isSearchOpen && <SearchPanel onClose={() => setIsSearchOpen(false)} />}
+
+      <DisclaimerBanner onVisibilityChange={setDisclaimerVisible} leftOffset={menuW} />
     </div>
   );
 }

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="340" height="130" viewBox="0 0 340 130">
+  <circle cx="75" cy="36" r="2.08" fill="#3b82f6" opacity="0.97"/>
+  <circle cx="66.2" cy="44.8" r="1.52" fill="#3b82f6" opacity="0.7"/>
+  <circle cx="57.4" cy="53.6" r="1.2000000000000002" fill="#3b82f6" opacity="0.5"/>
+  <circle cx="65.4" cy="36" r="1.36" fill="#3b82f6" opacity="0.52"/>
+  <circle cx="75" cy="46.4" r="1.1199999999999999" fill="#3b82f6" opacity="0.4"/>
+  <circle cx="79.80000000000001" cy="38.4" r="0.96" fill="#3b82f6" opacity="0.3"/>
+  <circle cx="70.2" cy="31.199999999999996" r="0.96" fill="#3b82f6" opacity="0.3"/>
+  <circle cx="15.799999999999997" cy="41.599999999999994" r="1.04" fill="#3b82f6" opacity="0.26"/>
+  <circle cx="12.600000000000001" cy="54.4" r="0.8800000000000001" fill="#3b82f6" opacity="0.2"/>
+  <circle cx="14.199999999999996" cy="68" r="0.8" fill="#3b82f6" opacity="0.17"/>
+  <circle cx="20.599999999999998" cy="81.6" r="1.04" fill="#3b82f6" opacity="0.26"/>
+  <circle cx="32.6" cy="91.2" r="0.8800000000000001" fill="#3b82f6" opacity="0.2"/>
+  <circle cx="47" cy="95.2" r="0.8" fill="#3b82f6" opacity="0.17"/>
+  <circle cx="61.4" cy="89.6" r="0.8800000000000001" fill="#3b82f6" opacity="0.2"/>
+  <circle cx="72.6" cy="78.4" r="0.8800000000000001" fill="#3b82f6" opacity="0.2"/>
+  <circle cx="78.2" cy="64" r="0.8" fill="#3b82f6" opacity="0.17"/>
+  <circle cx="24.599999999999998" cy="52.8" r="0.8" fill="#3b82f6" opacity="0.16"/>
+  <circle cx="22.2" cy="68.8" r="0.8" fill="#3b82f6" opacity="0.14"/>
+  <circle cx="52.6" cy="32" r="0.8" fill="#3b82f6" opacity="0.18"/>
+  <circle cx="37.4" cy="31.199999999999996" r="0.8" fill="#3b82f6" opacity="0.15"/>
+  <circle cx="47" cy="64" r="27.200000000000003" stroke="#3b82f6" stroke-width="0.5599999999999999" fill="none" opacity="0.16"/>
+  <circle cx="47" cy="64" r="18.400000000000002" stroke="#3b82f6" stroke-width="0.7040000000000001" fill="none" opacity="0.36"/>
+  <circle cx="47" cy="64" r="9.600000000000001" stroke="#3b82f6" stroke-width="0.96" fill="none" opacity="0.76"/>
+  <circle cx="47" cy="64" r="2.8000000000000003" fill="#3b82f6"/>
+  <line x1="47" y1="64" x2="75" y2="36" stroke="#3b82f6" stroke-width="1.36" stroke-linecap="round" opacity="0.92"/>
+  <text x="90" y="82" font-family="Arial, sans-serif" font-size="44" font-weight="700" letter-spacing="7" fill="#ffffff">VAURIC</text>
+  <line x1="20" y1="95" x2="310" y2="95" stroke="#3b82f6" stroke-width="0.5" opacity="0.3"/>
+  <text x="155" y="116" font-family="Arial, sans-serif" font-size="10" font-weight="400" letter-spacing="3.5" fill="#3b82f6" text-anchor="middle">MARKET INTELLIGENCE, MAPPED.</text>
+</svg>
