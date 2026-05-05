@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminRequest } from "@/lib/adminSecret";
 
 export async function GET(req: NextRequest) {
-  if (!isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!await isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const [stocksRes, articlesRes, configRes] = await Promise.all([
     supabaseAdmin.from("admin_stocks").select("id", { count: "exact", head: true }),
@@ -19,3 +19,4 @@ export async function GET(req: NextRequest) {
     lastRunAt:       configRes.data?.last_run_at ?? null,
   });
 }
+

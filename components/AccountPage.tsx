@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useUser, useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import UpgradeButton from "@/components/UpgradeButton";
 
@@ -171,26 +171,37 @@ function ProfileTab({ user, isPro }: { user: ReturnType<typeof useUser>["user"];
 // ─── Notifications tab ────────────────────────────────────────────────────────
 
 function NotificationsTab({ userId }: { userId: string }) {
+  const { getToken } = useAuth();
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/account/preferences?userId=${encodeURIComponent(userId)}`)
+    let cancelled = false;
+    getToken().then((token) =>
+      fetch(`/api/account/preferences?userId=${encodeURIComponent(userId)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+    )
       .then((r) => r.ok ? r.json() : null)
-      .then((data) => { if (data) setPrefs({ ...DEFAULT_PREFS, ...data }); })
+      .then((data) => { if (!cancelled && data) setPrefs({ ...DEFAULT_PREFS, ...data }); })
       .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [userId]);
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function toggle(field: keyof Prefs) {
     const next = { ...prefs, [field]: !prefs[field] };
     setPrefs(next);
     setSaving(true);
     try {
+      const token = await getToken();
       await fetch("/api/account/preferences", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ userId, ...next }),
       });
     } catch { /* silent */ }
@@ -240,6 +251,7 @@ function NotificationsTab({ userId }: { userId: string }) {
 // ─── Danger zone tab ──────────────────────────────────────────────────────────
 
 function DangerTab({ userId, onDeleted }: { userId: string; onDeleted: () => void }) {
+  const { getToken } = useAuth();
   const [input, setInput] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -249,9 +261,13 @@ function DangerTab({ userId, onDeleted }: { userId: string; onDeleted: () => voi
     setDeleting(true);
     setError(null);
     try {
+      const token = await getToken();
       const res = await fetch("/api/account/delete", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ userId }),
       });
       const data = await res.json();

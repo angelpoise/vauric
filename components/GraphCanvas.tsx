@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   type GNode,
@@ -31,22 +31,28 @@ const DOT_LETTERS: Record<string, string> = {
   delisting: "P", split: "B", earnings: "E", ipo: "I",
 };
 
-interface ContextMenuInfo { type: "node" | "edge"; id: string; clientX: number; clientY: number; }
+interface ContextMenuInfo { type: "node" | "edge" | "sector"; id: string; clientX: number; clientY: number; }
 
 interface Props {
   onHover?: (node: GNode | null) => void;
   activeFilters?: ActiveFilters;
   graphSettings?: GraphSettings;
   editMode?: boolean;
-  onNodeDragEnd?: (ticker: string, worldX: number, worldY: number) => void;
+  sectorNodes?: SectorNode[];
+  onNodeDragEnd?: (nodeId: string, worldX: number, worldY: number) => void;
   onContextMenu?: (info: ContextMenuInfo) => void;
   onShiftEmptyClick?: () => void;
   onGraphLoaded?: (tickers: string[]) => void;
 }
 
-// ─── Static sector nodes (always hardcoded) ───────────────────────────────────
+export interface GraphCanvasHandle {
+  snapshotPositions: () => void;
+  restorePositions: () => void;
+}
 
-const SECTOR_NODES: SectorNode[] = [
+// ─── Static sector node defaults ─────────────────────────────────────────────
+
+const DEFAULT_SECTOR_NODES: SectorNode[] = [
   { id: "sec-tech",    kind: "sector", name: "Technology", etf: "XLK", price: 224.18, dailyMove:  1.2, x:  500, y: 420, notifications: [] },
   { id: "sec-energy",  kind: "sector", name: "Energy",     etf: "XLE", price:  93.42, dailyMove: -0.8, x: 1100, y: 360, notifications: [] },
   { id: "sec-health",  kind: "sector", name: "Healthcare", etf: "XLV", price: 143.76, dailyMove:  0.3, x:  440, y: 750, notifications: [] },
@@ -112,8 +118,8 @@ interface GraphData {
   adjacency: Map<string, Set<string>>;
 }
 
-function buildGraphData(stockNodes: StockNode[], extraEdges: Edge[]): GraphData {
-  const nodes: GNode[] = [...SECTOR_NODES, ...stockNodes];
+function buildGraphData(sectorNodes: SectorNode[], stockNodes: StockNode[], extraEdges: Edge[]): GraphData {
+  const nodes: GNode[] = [...sectorNodes, ...stockNodes];
   const sectorEdges: Edge[] = stockNodes.map((n) => ({ source: n.id, target: n.sectorId }));
   const edges: Edge[] = [...sectorEdges, ...extraEdges];
 
@@ -157,10 +163,10 @@ interface DbConnection {
   ticker_b: string;
 }
 
-export default function GraphCanvas({
+const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
   onHover, activeFilters, graphSettings,
-  editMode, onNodeDragEnd, onContextMenu, onShiftEmptyClick, onGraphLoaded,
-}: Props) {
+  editMode, sectorNodes, onNodeDragEnd, onContextMenu, onShiftEmptyClick, onGraphLoaded,
+}, ref) {
   const router         = useRouter();
   const canvasRef      = useRef<HTMLCanvasElement>(null);
   const cameraRef      = useRef<Camera>({ x: 0, y: 0, scale: 1 });
@@ -175,7 +181,36 @@ export default function GraphCanvas({
   const routerRef      = useRef(router);
   routerRef.current    = router;
 
-  const graphDataRef = useRef<GraphData>(buildGraphData(FALLBACK_STOCK_NODES, FALLBACK_EXTRA_EDGES));
+  // Separate refs for graph data components so sectors can be updated independently
+  const sectorNodesRef = useRef<SectorNode[]>(sectorNodes ?? DEFAULT_SECTOR_NODES.map((s) => ({ ...s })));
+  const stockNodesRef  = useRef<StockNode[]>(FALLBACK_STOCK_NODES);
+  const extraEdgesRef  = useRef<Edge[]>(FALLBACK_EXTRA_EDGES);
+
+  const graphDataRef = useRef<GraphData>(
+    buildGraphData(sectorNodesRef.current, stockNodesRef.current, extraEdgesRef.current)
+  );
+
+  // Position snapshot for edit-mode discard
+  const positionSnapshotRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+
+  useImperativeHandle(ref, () => ({
+    snapshotPositions() {
+      const snap = new Map<string, { x: number; y: number }>();
+      for (const node of graphDataRef.current.nodes) {
+        snap.set(node.id, { x: node.x, y: node.y });
+      }
+      positionSnapshotRef.current = snap;
+    },
+    restorePositions() {
+      for (const node of graphDataRef.current.nodes) {
+        const saved = positionSnapshotRef.current.get(node.id);
+        if (saved) {
+          node.x = saved.x;
+          node.y = saved.y;
+        }
+      }
+    },
+  }));
 
   interface LiveEntry { price: number; dailyMove: number; dailyMoveDollar: number; }
   const liveDataRef      = useRef<Record<string, LiveEntry>>({});
@@ -185,9 +220,9 @@ export default function GraphCanvas({
   const graphSettingsRef   = useRef<GraphSettings>(DEFAULT_GRAPH_SETTINGS);
   const notificationsRef   = useRef<Record<string, Array<{ type: NotifType }>>>({});
 
-  // Edit mode refs — updated via useEffect to avoid re-creating the draw loop
+  // Edit mode refs
   const editModeRef          = useRef(false);
-  const draggingNodeRef      = useRef<StockNode | null>(null);
+  const draggingNodeRef      = useRef<GNode | null>(null);
   const onNodeDragEndRef     = useRef(onNodeDragEnd);
   const onContextMenuRef     = useRef(onContextMenu);
   const onShiftEmptyClickRef = useRef(onShiftEmptyClick);
@@ -195,7 +230,7 @@ export default function GraphCanvas({
 
   const [hoverNode, setHoverNode] = useState<GNode | null>(null);
 
-  // Keep refs in sync with props (read by draw loop without re-creating the effect)
+  // Keep refs in sync with props
   useEffect(() => { activeFiltersRef.current  = activeFilters  ?? DEFAULT_FILTERS;       }, [activeFilters]);
   useEffect(() => { graphSettingsRef.current  = graphSettings  ?? DEFAULT_GRAPH_SETTINGS; }, [graphSettings]);
   useEffect(() => { editModeRef.current        = editMode       ?? false;                  }, [editMode]);
@@ -204,8 +239,19 @@ export default function GraphCanvas({
   useEffect(() => { onShiftEmptyClickRef.current = onShiftEmptyClick;                      }, [onShiftEmptyClick]);
   useEffect(() => { onGraphLoadedRef.current   = onGraphLoaded;                            }, [onGraphLoaded]);
 
-  // Fetch graph structure (stocks + connections) from database.
-  // Falls back to hardcoded data if the request fails.
+  // Rebuild graph when sector nodes change (add/edit sector from admin)
+  useEffect(() => {
+    if (!sectorNodes) return;
+    // Preserve current positions of existing sectors (in case they've been dragged)
+    const currentById = new Map(graphDataRef.current.nodes.map((n) => [n.id, n]));
+    sectorNodesRef.current = sectorNodes.map((s) => {
+      const existing = currentById.get(s.id);
+      return existing ? { ...s, x: existing.x, y: existing.y } : { ...s };
+    });
+    graphDataRef.current = buildGraphData(sectorNodesRef.current, stockNodesRef.current, extraEdgesRef.current);
+  }, [sectorNodes]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch graph structure (stocks + connections) from database
   useEffect(() => {
     fetch("/api/graph")
       .then((r) => r.ok ? r.json() : null)
@@ -227,14 +273,16 @@ export default function GraphCanvas({
           source: c.ticker_a,
           target: c.ticker_b,
         }));
-        graphDataRef.current = buildGraphData(stockNodes, extraEdges);
+        stockNodesRef.current = stockNodes;
+        extraEdgesRef.current = extraEdges;
+        graphDataRef.current = buildGraphData(sectorNodesRef.current, stockNodes, extraEdges);
         onGraphLoadedRef.current?.(stockNodes.map((n) => n.ticker));
         console.log(`[graph] loaded ${stockNodes.length} stock nodes, ${extraEdges.length} connections`);
       })
       .catch((err) => console.error('[graph] fetch failed:', err));
   }, []);
 
-  // Fetch fundamentals data for filter calculations (market cap, beta, PE, etc.)
+  // Fetch fundamentals
   useEffect(() => {
     fetch("/api/fundamentals")
       .then((r) => r.ok ? r.json() : null)
@@ -242,8 +290,7 @@ export default function GraphCanvas({
       .catch(() => {});
   }, []);
 
-  // Fetch recent news to drive live notification dots on graph nodes.
-  // Nodes get a dot per distinct notification_type published in the last 24 hours.
+  // Fetch notification data for graph dots
   useEffect(() => {
     fetch("/api/news?notifonly=1")
       .then((r) => r.ok ? r.json() : null)
@@ -264,8 +311,7 @@ export default function GraphCanvas({
       .catch(() => {});
   }, []);
 
-  // Populate live data before the draw loop starts so nodes colour correctly on the first frame.
-  // The module-level cache persists across navigations; only fetches when empty or stale (>15 min).
+  // Populate live data
   useEffect(() => {
     const cached = getCachedMarketData();
     if (cached) {
@@ -314,7 +360,6 @@ export default function GraphCanvas({
     // ── Coordinate helpers ───────────────────────────────────────────────────
 
     function worldPos(node: GNode, t: number) {
-      // Suppress breathing animation for the dragged node so it tracks the cursor exactly
       if (draggingNodeRef.current && node.id === draggingNodeRef.current.id) {
         return { x: node.x, y: node.y };
       }
@@ -325,11 +370,10 @@ export default function GraphCanvas({
       };
     }
 
-    // Returns "AAAA---BBBB" if canvas point is near a stock→stock edge (edit mode only)
     function hitTestEdge(mx: number, my: number): string | null {
       const w   = toWorld(mx, my);
       const t   = animTRef.current;
-      const thr = 8; // fixed world-space units so hit area scales with zoom (larger when zoomed in)
+      const thr = 8;
       for (const edge of graphDataRef.current.edges) {
         const src = graphDataRef.current.nodes.find((n) => n.id === edge.source);
         const tgt = graphDataRef.current.nodes.find((n) => n.id === edge.target);
@@ -381,19 +425,15 @@ export default function GraphCanvas({
 
     // ── Filter helpers ───────────────────────────────────────────────────────
 
-    // Returns true if the node should be faded out by active filters.
-    // Sector nodes are never filtered.
     function isNodeFiltered(node: GNode): boolean {
       if (node.kind === "sector") return false;
       const f    = activeFiltersRef.current;
       const live = liveDataRef.current[node.ticker];
       const fund = fundamentalsRef.current[node.ticker] as FundEntry | undefined;
 
-      // Sector membership
       const sid = node.sectorId.replace("sec-", "");
       if (!f.sectors.includes(sid)) return true;
 
-      // Notification presence / type — use live data if available, fall back to node placeholder
       const notifs = notificationsRef.current[(node as StockNode).ticker] ?? node.notifications;
       if (f.onlyWithNotifs && notifs.length === 0) return true;
       if (f.notifTypes.length < ALL_NOTIF_TYPES.length && notifs.length > 0) {
@@ -401,17 +441,14 @@ export default function GraphCanvas({
         if (!hasMatch) return true;
       }
 
-      // Daily move
       const move = live?.dailyMove ?? 0;
       if (f.dailyMove.min !== null && move < f.dailyMove.min) return true;
       if (f.dailyMove.max !== null && move > f.dailyMove.max) return true;
 
-      // Price
       const price = live?.price ?? 0;
       if (f.price.min !== null && price < f.price.min) return true;
       if (f.price.max !== null && price > f.price.max) return true;
 
-      // Market cap tier (only applied when not all tiers are selected)
       if (f.marketCapTiers.length < ALL_CAP_TIERS.length) {
         const cap = fund?.marketCap ?? null;
         if (cap !== null) {
@@ -420,21 +457,17 @@ export default function GraphCanvas({
         }
       }
 
-      // Trailing P/E
       const pe = fund?.trailingPE ?? null;
       if (f.trailingPE.min !== null && (pe === null || pe < f.trailingPE.min)) return true;
       if (f.trailingPE.max !== null && (pe === null || pe > f.trailingPE.max)) return true;
 
-      // Beta
       const beta = fund?.beta ?? null;
       if (f.beta.min !== null && (beta === null || beta < f.beta.min)) return true;
       if (f.beta.max !== null && (beta === null || beta > f.beta.max)) return true;
 
-      // Average volume
       const avgVol = fund?.averageVolume ?? null;
       if (f.avgVolumeMin !== null && (avgVol === null || avgVol < f.avgVolumeMin)) return true;
 
-      // 52-week position
       if (f.fiftyTwoWeekPos.length < ALL_52W_POS.length) {
         const hi = fund?.fiftyTwoWeekHigh ?? null;
         const lo = fund?.fiftyTwoWeekLow  ?? null;
@@ -445,7 +478,6 @@ export default function GraphCanvas({
         }
       }
 
-      // Relative volume
       if (f.relVolumeMin !== null) {
         const vol  = fund?.volume ?? null;
         const avgV = fund?.averageVolume ?? null;
@@ -454,7 +486,6 @@ export default function GraphCanvas({
         }
       }
 
-      // Streak
       if (f.streak !== "any") {
         const m = live?.dailyMove ?? 0;
         if (f.streak === "up"   && m <= 0) return true;
@@ -464,9 +495,6 @@ export default function GraphCanvas({
       return false;
     }
 
-    // Node radius respecting the nodeSize filter toggle.
-    // Market-cap mode uses log10 scaling so the full range of caps is visible:
-    // ~$1B (log≈9) → minR,  ~$1T+ (log≈12) → maxR, with smooth intermediate sizes.
     function effectiveRadius(node: GNode): number {
       if (node.kind === "sector") return 44;
       if (activeFiltersRef.current.nodeSize === "marketcap") {
@@ -529,12 +557,14 @@ export default function GraphCanvas({
       for (const node of gd.nodes) {
         const pos        = worldPos(node, t);
         const r          = effectiveRadius(node);
-        // Sector nodes are keyed in the API response by their ETF ticker, not by node.id
         const liveKey  = node.kind === "sector" ? node.etf : node.id;
         const live     = liveDataRef.current[liveKey];
-        // rawMove is forced to 0 (grey) until live data is ready, preventing placeholder colour flashes
         const rawMove  = liveDataReadyRef.current ? (live?.dailyMove ?? node.dailyMove) : 0;
-        const col      = moveColor(rawMove);
+        // For sectors: use stored colour if no live data available, otherwise use market colour
+        const marketCol  = moveColor(rawMove);
+        const col = (node.kind === "sector" && node.colour && (!liveDataReadyRef.current || !live))
+          ? node.colour
+          : marketCol;
         const fillCol  = moveFill(rawMove);
         const isHovered  = node.id === hid;
         const isNeighbor = hovNeighbors?.has(node.id) ?? false;
@@ -560,7 +590,6 @@ export default function GraphCanvas({
           drawStockNode(ctx, node, r, col, fillCol);
         }
 
-        // Notification dots — use live news data if available, fall back to placeholder
         const gs = graphSettingsRef.current;
         const liveNotifs = (node.kind === "stock"
           ? (notificationsRef.current[node.ticker] ?? node.notifications)
@@ -600,7 +629,6 @@ export default function GraphCanvas({
 
     // ── Node draw helpers ────────────────────────────────────────────────────
 
-    // Converts "rgb(r,g,b)" → "rgba(r,g,b,alpha)" for canvas colour operations
     function withOpacity(col: string, alpha: number): string {
       return col.startsWith("rgb(")
         ? col.replace("rgb(", "rgba(").replace(")", `, ${alpha})`)
@@ -694,7 +722,7 @@ export default function GraphCanvas({
     }
 
     function onMouseDown(e: MouseEvent) {
-      if (e.button !== 0) return; // right-click handled by contextmenu event
+      if (e.button !== 0) return;
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
@@ -702,8 +730,9 @@ export default function GraphCanvas({
 
       if (editModeRef.current) {
         const hit = hitTest(mx, my);
-        if (hit && hit.kind === "stock") {
-          draggingNodeRef.current = hit as StockNode;
+        // Allow dragging both stock and sector nodes in edit mode
+        if (hit && (hit.kind === "stock" || hit.kind === "sector")) {
+          draggingNodeRef.current = hit;
           canvas.style.cursor = "move";
           return;
         }
@@ -745,10 +774,10 @@ export default function GraphCanvas({
     }
 
     function onMouseUp(e: MouseEvent) {
-      // End node drag
       if (editModeRef.current && draggingNodeRef.current) {
         const node = draggingNodeRef.current;
-        onNodeDragEndRef.current?.(node.ticker, node.x, node.y);
+        const nodeId = node.kind === "stock" ? node.ticker : node.id;
+        onNodeDragEndRef.current?.(nodeId, node.x, node.y);
         draggingNodeRef.current = null;
         canvas.style.cursor = "default";
         return;
@@ -763,9 +792,8 @@ export default function GraphCanvas({
       const dy = my - mouseDownPosRef.current.y;
       if (dx * dx + dy * dy < 25) {
         if (editModeRef.current) {
-          // Shift+click on empty canvas → open connection prompt
           if (e.shiftKey && !hitTest(mx, my)) onShiftEmptyClickRef.current?.();
-          return; // no page navigation while in edit mode
+          return;
         }
         const hit = hitTest(mx, my);
         if (hit?.kind === "stock")  routerRef.current.push(`/stock/${hit.ticker}`);
@@ -776,7 +804,8 @@ export default function GraphCanvas({
     function onWindowMouseUp() {
       if (editModeRef.current && draggingNodeRef.current) {
         const node = draggingNodeRef.current;
-        onNodeDragEndRef.current?.(node.ticker, node.x, node.y);
+        const nodeId = node.kind === "stock" ? node.ticker : node.id;
+        onNodeDragEndRef.current?.(nodeId, node.x, node.y);
         draggingNodeRef.current = null;
       }
       panningRef.current  = false;
@@ -792,6 +821,10 @@ export default function GraphCanvas({
       const hit = hitTest(mx, my);
       if (hit && hit.kind === "stock") {
         onContextMenuRef.current?.({ type: "node", id: (hit as StockNode).ticker, clientX: e.clientX, clientY: e.clientY });
+        return;
+      }
+      if (hit && hit.kind === "sector") {
+        onContextMenuRef.current?.({ type: "sector", id: hit.id, clientX: e.clientX, clientY: e.clientY });
         return;
       }
       const edgeId = hitTestEdge(mx, my);
@@ -849,7 +882,6 @@ export default function GraphCanvas({
     };
   }, []);
 
-  // Keep local hoverNode in sync for the draw loop adjacency highlight
   void hoverNode;
 
   return (
@@ -858,4 +890,6 @@ export default function GraphCanvas({
       style={{ display: "block", width: "100%", height: "100%", cursor: "grab" }}
     />
   );
-}
+});
+
+export default GraphCanvas;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useUser, useAuth } from "@clerk/nextjs";
 
 interface Props {
   label?: string;
@@ -15,6 +15,7 @@ export default function UpgradeButton({
   variant = "button",
 }: Props) {
   const { user, isLoaded } = useUser();
+  const { getToken } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isPro =
@@ -33,10 +34,10 @@ export default function UpgradeButton({
 
     setLoading(true);
     try {
-      const meta = (user?.publicMetadata ?? {}) as Record<string, unknown>;
+      const token = await getToken();
       const endpoint = isPro ? "/api/stripe/portal" : "/api/stripe/checkout";
       const body = isPro
-        ? { stripeCustomerId: meta.stripeCustomerId as string }
+        ? {}
         : {
             userId: user!.id,
             userEmail: user!.primaryEmailAddress?.emailAddress ?? "",
@@ -45,7 +46,10 @@ export default function UpgradeButton({
 
       const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(body),
       });
 

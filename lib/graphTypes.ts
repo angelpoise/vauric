@@ -33,6 +33,7 @@ export interface SectorNode extends BaseNode {
   etf: string;
   price: number;
   dailyMove: number;
+  colour?: string; // fixed brand colour; if absent, uses live market colour
 }
 
 export type GNode = StockNode | SectorNode;

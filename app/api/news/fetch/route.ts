@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 import { classifyNews } from "@/lib/newsClassifier";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 // Required Supabase schema:
 //
@@ -88,6 +89,12 @@ async function fetchTicker(
 export async function GET(req: NextRequest) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Rate limit: pipeline is heavy — max 1 trigger per minute globally
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "pipeline";
+  if (!checkRateLimit(`pipeline:${ip}`, 1, 60 * 1000)) {
+    return NextResponse.json({ error: "Pipeline triggered too recently — wait 1 minute" }, { status: 429 });
   }
 
   const finnhubKey = process.env.FINNHUB_API_KEY;

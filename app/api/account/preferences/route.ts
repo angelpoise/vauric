@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { verifyClerkToken } from "@/lib/verifyClerkToken";
 
 interface Prefs {
   email_news: boolean;
@@ -24,9 +25,19 @@ const DEFAULTS: Prefs = {
 };
 
 export async function GET(req: NextRequest) {
+  const tokenUserId = await verifyClerkToken(req.headers.get("authorization"));
+  if (!tokenUserId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const userId = new URL(req.url).searchParams.get("userId");
   if (!userId) {
     return NextResponse.json({ error: "userId required" }, { status: 400 });
+  }
+
+  // Confirm caller owns the requested preferences
+  if (tokenUserId !== userId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { data } = await supabaseAdmin
@@ -41,6 +52,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const tokenUserId = await verifyClerkToken(req.headers.get("authorization"));
+  if (!tokenUserId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let body: { userId?: string } & Partial<Prefs>;
   try {
     body = await req.json();
@@ -51,6 +67,11 @@ export async function PUT(req: NextRequest) {
   const { userId, ...prefs } = body;
   if (!userId) {
     return NextResponse.json({ error: "userId required" }, { status: 400 });
+  }
+
+  // Confirm caller owns the preferences being updated
+  if (tokenUserId !== userId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { error } = await supabaseAdmin
