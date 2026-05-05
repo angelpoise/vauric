@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserTier } from "@/lib/getUserTier";
 
 const FREE_NEWS_LIMIT = 10;
@@ -9,15 +10,23 @@ interface NewsRow {
   ticker: string;
   headline: string;
   summary: string | null;
-  url: string;
+  url: string | null;
   source: string | null;
   published_at: string;
   notification_type: string;
   created_at: string;
 }
 
-// Module-level 15-minute cache — fetches all recent articles, not just top-N,
-// so every ticker has representation regardless of coverage volume.
+interface ManualRow {
+  id: number;
+  ticker: string;
+  notification_type: string;
+  note: string | null;
+  created_at: string;
+}
+
+// ── News cache (15 min) ───────────────────────────────────────────────────────
+
 const TTL_MS = 15 * 60 * 1000;
 let cachedAll: NewsRow[] | null = null;
 let cachedAt = 0;
@@ -32,14 +41,50 @@ async function fetchAll(bust = false): Promise<NewsRow[]> {
     .limit(1000);
 
   if (error || !data) return cachedAll ?? [];
-
   cachedAll = data as NewsRow[];
   cachedAt  = Date.now();
   return cachedAll;
 }
 
-// Returns up to perTicker articles for each ticker, interleaved by recency.
-// Prevents one heavily-covered ticker from crowding out all others.
+// ── Manual notifications cache (2 min — appear quickly after admin adds them) ─
+
+const MANUAL_TTL_MS = 2 * 60 * 1000;
+let cachedManual: ManualRow[] | null = null;
+let cachedManualAt = 0;
+
+async function fetchManual(bust = false): Promise<ManualRow[]> {
+  if (!bust && cachedManual && Date.now() - cachedManualAt < MANUAL_TTL_MS) {
+    return cachedManual;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("manual_notifications")
+    .select("id, ticker, notification_type, note, created_at")
+    .order("created_at", { ascending: false });
+
+  if (error || !data) return cachedManual ?? [];
+  cachedManual    = data as ManualRow[];
+  cachedManualAt  = Date.now();
+  return cachedManual;
+}
+
+// Negative ID ensures no key collision with the auto-increment news table IDs.
+function manualToNewsRow(m: ManualRow): NewsRow {
+  return {
+    id:                -(m.id),
+    ticker:            m.ticker,
+    headline:          m.note ?? "Manual notification",
+    summary:           null,
+    url:               null,
+    source:            null,
+    published_at:      m.created_at,
+    notification_type: m.notification_type,
+    created_at:        m.created_at,
+  };
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function balanced(rows: NewsRow[], perTicker: number): NewsRow[] {
   const counts: Record<string, number> = {};
   const result: NewsRow[] = [];
@@ -50,6 +95,8 @@ function balanced(rows: NewsRow[], perTicker: number): NewsRow[] {
   return result;
 }
 
+// ── Route ─────────────────────────────────────────────────────────────────────
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const ticker    = searchParams.get("ticker")?.toUpperCase() ?? null;
@@ -58,30 +105,44 @@ export async function GET(req: NextRequest) {
   const nocache   = searchParams.get("nocache") === "1";
   const notifonly = searchParams.get("notifonly") === "1";
 
-  const { isPro } = await getUserTier();
-  const rows = await fetchAll(nocache);
+  const [{ isPro }, rows, manuals] = await Promise.all([
+    getUserTier(),
+    fetchAll(nocache),
+    fetchManual(nocache),
+  ]);
 
-  // Lightweight mode for graph notification dots: return all articles uncapped
-  // (just ticker/type/date) so every notification type is represented per ticker,
-  // matching what stock detail pages show.
+  const manualRows = manuals.map(manualToNewsRow);
+
+  // Lightweight mode for graph notification dots — merge all sources and return
+  // ticker/type/date. Manual notifications are always included.
   if (notifonly) {
+    const all = [...rows, ...manualRows];
     return NextResponse.json(
-      rows.map((r) => ({ ticker: r.ticker, notification_type: r.notification_type, published_at: r.published_at })),
+      all.map((r) => ({ ticker: r.ticker, notification_type: r.notification_type, published_at: r.published_at })),
       { headers: { "Cache-Control": "s-maxage=900, stale-while-revalidate=1800" } },
     );
   }
 
-  let filtered = rows;
+  let filtered: NewsRow[];
+
   if (ticker) {
-    filtered = filtered.filter((r) => r.ticker === ticker).slice(0, limit);
+    // Manual notifications for this ticker always shown; news articles capped at limit.
+    const newsForTicker    = rows.filter((r) => r.ticker === ticker).slice(0, limit);
+    const manualForTicker  = manualRows.filter((r) => r.ticker === ticker);
+    filtered = [...manualForTicker, ...newsForTicker];
   } else {
-    // Balance across tickers (15 per ticker) then apply the global limit.
-    // Non-Pro users are capped at FREE_NEWS_LIMIT for the main feed.
-    const effectiveLimit = !isPro && !notifonly ? Math.min(limit, FREE_NEWS_LIMIT) : limit;
-    filtered = balanced(filtered, 15).slice(0, effectiveLimit);
+    // News articles are subject to the free-tier limit; manual notifications are not.
+    const effectiveLimit = !isPro ? Math.min(limit, FREE_NEWS_LIMIT) : limit;
+    const balancedNews   = balanced(rows, 15).slice(0, effectiveLimit);
+    filtered = [...manualRows, ...balancedNews];
   }
 
   if (type) filtered = filtered.filter((r) => r.notification_type === type);
+
+  // Unified date-descending sort so manual notifications appear in chronological order.
+  filtered.sort((a, b) =>
+    new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
+  );
 
   return NextResponse.json(filtered, {
     headers: { "Cache-Control": "s-maxage=900, stale-while-revalidate=1800" },

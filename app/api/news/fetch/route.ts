@@ -68,16 +68,20 @@ async function fetchTicker(
   to: string,
   apiKey: string,
 ): Promise<FinnhubArticle[]> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000); // 10s per ticker
   try {
     const url =
       `https://finnhub.io/api/v1/company-news?symbol=${ticker}` +
       `&from=${from}&to=${to}&token=${apiKey}`;
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: controller.signal });
     if (!res.ok) return [];
     const json = await res.json();
     return Array.isArray(json) ? json : [];
   } catch {
     return [];
+  } finally {
+    clearTimeout(timer);
   }
 }
 

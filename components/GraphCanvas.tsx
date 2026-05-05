@@ -31,10 +31,17 @@ const DOT_LETTERS: Record<string, string> = {
   delisting: "P", split: "B", earnings: "E", ipo: "I",
 };
 
+interface ContextMenuInfo { type: "node" | "edge"; id: string; clientX: number; clientY: number; }
+
 interface Props {
   onHover?: (node: GNode | null) => void;
   activeFilters?: ActiveFilters;
   graphSettings?: GraphSettings;
+  editMode?: boolean;
+  onNodeDragEnd?: (ticker: string, worldX: number, worldY: number) => void;
+  onContextMenu?: (info: ContextMenuInfo) => void;
+  onShiftEmptyClick?: () => void;
+  onGraphLoaded?: (tickers: string[]) => void;
 }
 
 // ─── Static sector nodes (always hardcoded) ───────────────────────────────────
@@ -150,7 +157,10 @@ interface DbConnection {
   ticker_b: string;
 }
 
-export default function GraphCanvas({ onHover, activeFilters, graphSettings }: Props) {
+export default function GraphCanvas({
+  onHover, activeFilters, graphSettings,
+  editMode, onNodeDragEnd, onContextMenu, onShiftEmptyClick, onGraphLoaded,
+}: Props) {
   const router         = useRouter();
   const canvasRef      = useRef<HTMLCanvasElement>(null);
   const cameraRef      = useRef<Camera>({ x: 0, y: 0, scale: 1 });
@@ -175,16 +185,24 @@ export default function GraphCanvas({ onHover, activeFilters, graphSettings }: P
   const graphSettingsRef   = useRef<GraphSettings>(DEFAULT_GRAPH_SETTINGS);
   const notificationsRef   = useRef<Record<string, Array<{ type: NotifType }>>>({});
 
+  // Edit mode refs — updated via useEffect to avoid re-creating the draw loop
+  const editModeRef          = useRef(false);
+  const draggingNodeRef      = useRef<StockNode | null>(null);
+  const onNodeDragEndRef     = useRef(onNodeDragEnd);
+  const onContextMenuRef     = useRef(onContextMenu);
+  const onShiftEmptyClickRef = useRef(onShiftEmptyClick);
+  const onGraphLoadedRef     = useRef(onGraphLoaded);
+
   const [hoverNode, setHoverNode] = useState<GNode | null>(null);
 
   // Keep refs in sync with props (read by draw loop without re-creating the effect)
-  useEffect(() => {
-    activeFiltersRef.current = activeFilters ?? DEFAULT_FILTERS;
-  }, [activeFilters]);
-
-  useEffect(() => {
-    graphSettingsRef.current = graphSettings ?? DEFAULT_GRAPH_SETTINGS;
-  }, [graphSettings]);
+  useEffect(() => { activeFiltersRef.current  = activeFilters  ?? DEFAULT_FILTERS;       }, [activeFilters]);
+  useEffect(() => { graphSettingsRef.current  = graphSettings  ?? DEFAULT_GRAPH_SETTINGS; }, [graphSettings]);
+  useEffect(() => { editModeRef.current        = editMode       ?? false;                  }, [editMode]);
+  useEffect(() => { onNodeDragEndRef.current   = onNodeDragEnd;                            }, [onNodeDragEnd]);
+  useEffect(() => { onContextMenuRef.current   = onContextMenu;                            }, [onContextMenu]);
+  useEffect(() => { onShiftEmptyClickRef.current = onShiftEmptyClick;                      }, [onShiftEmptyClick]);
+  useEffect(() => { onGraphLoadedRef.current   = onGraphLoaded;                            }, [onGraphLoaded]);
 
   // Fetch graph structure (stocks + connections) from database.
   // Falls back to hardcoded data if the request fails.
@@ -210,6 +228,7 @@ export default function GraphCanvas({ onHover, activeFilters, graphSettings }: P
           target: c.ticker_b,
         }));
         graphDataRef.current = buildGraphData(stockNodes, extraEdges);
+        onGraphLoadedRef.current?.(stockNodes.map((n) => n.ticker));
         console.log(`[graph] loaded ${stockNodes.length} stock nodes, ${extraEdges.length} connections`);
       })
       .catch((err) => console.error('[graph] fetch failed:', err));
@@ -295,11 +314,38 @@ export default function GraphCanvas({ onHover, activeFilters, graphSettings }: P
     // ── Coordinate helpers ───────────────────────────────────────────────────
 
     function worldPos(node: GNode, t: number) {
+      // Suppress breathing animation for the dragged node so it tracks the cursor exactly
+      if (draggingNodeRef.current && node.id === draggingNodeRef.current.id) {
+        return { x: node.x, y: node.y };
+      }
       const seed = node.id.charCodeAt(0) * 3 + (node.id.charCodeAt(1) || 0);
       return {
         x: node.x + Math.sin(t * 0.38 + seed * 0.71) * 4,
         y: node.y + Math.cos(t * 0.32 + seed * 0.53) * 4,
       };
+    }
+
+    // Returns "AAAA---BBBB" if canvas point is near a stock→stock edge (edit mode only)
+    function hitTestEdge(mx: number, my: number): string | null {
+      const w   = toWorld(mx, my);
+      const t   = animTRef.current;
+      const thr = 8; // fixed world-space units so hit area scales with zoom (larger when zoomed in)
+      for (const edge of graphDataRef.current.edges) {
+        const src = graphDataRef.current.nodes.find((n) => n.id === edge.source);
+        const tgt = graphDataRef.current.nodes.find((n) => n.id === edge.target);
+        if (!src || !tgt || src.kind !== "stock" || tgt.kind !== "stock") continue;
+        const p1  = worldPos(src, t);
+        const p2  = worldPos(tgt, t);
+        const dx  = p2.x - p1.x;
+        const dy  = p2.y - p1.y;
+        const len2 = dx * dx + dy * dy;
+        if (len2 < 1) continue;
+        const u  = Math.max(0, Math.min(1, ((w.x - p1.x) * dx + (w.y - p1.y) * dy) / len2));
+        const nx = p1.x + u * dx;
+        const ny = p1.y + u * dy;
+        if ((w.x - nx) ** 2 + (w.y - ny) ** 2 < thr * thr) return `${edge.source}---${edge.target}`;
+      }
+      return null;
     }
 
     function toWorld(sx: number, sy: number) {
@@ -418,16 +464,17 @@ export default function GraphCanvas({ onHover, activeFilters, graphSettings }: P
       return false;
     }
 
-    // Node radius respecting the nodeSize filter toggle
+    // Node radius respecting the nodeSize filter toggle.
+    // Market-cap mode uses log10 scaling so the full range of caps is visible:
+    // ~$1B (log≈9) → minR,  ~$1T+ (log≈12) → maxR, with smooth intermediate sizes.
     function effectiveRadius(node: GNode): number {
       if (node.kind === "sector") return 44;
       if (activeFiltersRef.current.nodeSize === "marketcap") {
         const cap = fundamentalsRef.current[node.ticker]?.marketCap ?? null;
-        if (cap !== null) {
-          if (cap >= 200e9) return 28;
-          if (cap >= 10e9)  return 22;
-          if (cap >= 2e9)   return 16;
-          return 11;
+        if (cap !== null && cap > 0) {
+          const minR = 9, maxR = 28, logMin = 8, logMax = 13;
+          const t = Math.max(0, Math.min(1, (Math.log10(cap) - logMin) / (logMax - logMin)));
+          return Math.round(minR + t * (maxR - minR));
         }
       }
       return nodeRadius(node);
@@ -646,10 +693,38 @@ export default function GraphCanvas({ onHover, activeFilters, graphSettings }: P
       }
     }
 
+    function onMouseDown(e: MouseEvent) {
+      if (e.button !== 0) return; // right-click handled by contextmenu event
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      mouseDownPosRef.current = { x: mx, y: my };
+
+      if (editModeRef.current) {
+        const hit = hitTest(mx, my);
+        if (hit && hit.kind === "stock") {
+          draggingNodeRef.current = hit as StockNode;
+          canvas.style.cursor = "move";
+          return;
+        }
+      }
+
+      panningRef.current   = true;
+      lastMouseRef.current = { x: mx, y: my };
+      canvas.style.cursor  = "grabbing";
+    }
+
     function onMouseMove(e: MouseEvent) {
       const rect = canvas.getBoundingClientRect();
       const mx   = e.clientX - rect.left;
       const my   = e.clientY - rect.top;
+
+      if (editModeRef.current && draggingNodeRef.current) {
+        const w = toWorld(mx, my);
+        draggingNodeRef.current.x = w.x;
+        draggingNodeRef.current.y = w.y;
+        return;
+      }
 
       if (panningRef.current) {
         cameraRef.current.x += mx - lastMouseRef.current.x;
@@ -661,23 +736,24 @@ export default function GraphCanvas({ onHover, activeFilters, graphSettings }: P
       const hit   = hitTest(mx, my);
       const newId = hit?.id ?? null;
       if (newId !== hoveredIdRef.current) {
-        hoveredIdRef.current  = newId;
-        canvas.style.cursor   = hit ? "pointer" : "grab";
+        hoveredIdRef.current = newId;
+        canvas.style.cursor  = hit
+          ? (editModeRef.current ? "move" : "pointer")
+          : (editModeRef.current ? "default" : "grab");
         setHover(hit);
       }
     }
 
-    function onMouseDown(e: MouseEvent) {
-      const rect = canvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-      panningRef.current    = true;
-      lastMouseRef.current  = { x: mx, y: my };
-      mouseDownPosRef.current = { x: mx, y: my };
-      canvas.style.cursor   = "grabbing";
-    }
-
     function onMouseUp(e: MouseEvent) {
+      // End node drag
+      if (editModeRef.current && draggingNodeRef.current) {
+        const node = draggingNodeRef.current;
+        onNodeDragEndRef.current?.(node.ticker, node.x, node.y);
+        draggingNodeRef.current = null;
+        canvas.style.cursor = "default";
+        return;
+      }
+
       panningRef.current  = false;
       canvas.style.cursor = hoveredIdRef.current ? "pointer" : "grab";
       const rect = canvas.getBoundingClientRect();
@@ -686,6 +762,11 @@ export default function GraphCanvas({ onHover, activeFilters, graphSettings }: P
       const dx = mx - mouseDownPosRef.current.x;
       const dy = my - mouseDownPosRef.current.y;
       if (dx * dx + dy * dy < 25) {
+        if (editModeRef.current) {
+          // Shift+click on empty canvas → open connection prompt
+          if (e.shiftKey && !hitTest(mx, my)) onShiftEmptyClickRef.current?.();
+          return; // no page navigation while in edit mode
+        }
         const hit = hitTest(mx, my);
         if (hit?.kind === "stock")  routerRef.current.push(`/stock/${hit.ticker}`);
         if (hit?.kind === "sector") routerRef.current.push(`/sector/${hit.id.replace("sec-", "")}`);
@@ -693,8 +774,28 @@ export default function GraphCanvas({ onHover, activeFilters, graphSettings }: P
     }
 
     function onWindowMouseUp() {
+      if (editModeRef.current && draggingNodeRef.current) {
+        const node = draggingNodeRef.current;
+        onNodeDragEndRef.current?.(node.ticker, node.x, node.y);
+        draggingNodeRef.current = null;
+      }
       panningRef.current  = false;
       canvas.style.cursor = hoveredIdRef.current ? "pointer" : "grab";
+    }
+
+    function onContextMenuEvent(e: MouseEvent) {
+      if (!editModeRef.current) return;
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const hit = hitTest(mx, my);
+      if (hit && hit.kind === "stock") {
+        onContextMenuRef.current?.({ type: "node", id: (hit as StockNode).ticker, clientX: e.clientX, clientY: e.clientY });
+        return;
+      }
+      const edgeId = hitTestEdge(mx, my);
+      if (edgeId) onContextMenuRef.current?.({ type: "edge", id: edgeId, clientX: e.clientX, clientY: e.clientY });
     }
 
     function onWheel(e: WheelEvent) {
@@ -722,12 +823,13 @@ export default function GraphCanvas({ onHover, activeFilters, graphSettings }: P
 
     // ── Setup ────────────────────────────────────────────────────────────────
 
-    canvas.addEventListener("mousemove",  onMouseMove);
-    canvas.addEventListener("mousedown",  onMouseDown);
-    canvas.addEventListener("mouseup",    onMouseUp);
-    canvas.addEventListener("wheel",      onWheel, { passive: false });
-    canvas.addEventListener("mouseleave", onMouseLeave);
-    window.addEventListener("mouseup",    onWindowMouseUp);
+    canvas.addEventListener("mousemove",    onMouseMove);
+    canvas.addEventListener("mousedown",    onMouseDown);
+    canvas.addEventListener("mouseup",      onMouseUp);
+    canvas.addEventListener("wheel",        onWheel, { passive: false });
+    canvas.addEventListener("mouseleave",   onMouseLeave);
+    canvas.addEventListener("contextmenu",  onContextMenuEvent);
+    window.addEventListener("mouseup",      onWindowMouseUp);
 
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
@@ -736,12 +838,13 @@ export default function GraphCanvas({ onHover, activeFilters, graphSettings }: P
 
     return () => {
       cancelAnimationFrame(raf);
-      canvas.removeEventListener("mousemove",  onMouseMove);
-      canvas.removeEventListener("mousedown",  onMouseDown);
-      canvas.removeEventListener("mouseup",    onMouseUp);
-      canvas.removeEventListener("wheel",      onWheel);
-      canvas.removeEventListener("mouseleave", onMouseLeave);
-      window.removeEventListener("mouseup",    onWindowMouseUp);
+      canvas.removeEventListener("mousemove",    onMouseMove);
+      canvas.removeEventListener("mousedown",    onMouseDown);
+      canvas.removeEventListener("mouseup",      onMouseUp);
+      canvas.removeEventListener("wheel",        onWheel);
+      canvas.removeEventListener("mouseleave",   onMouseLeave);
+      canvas.removeEventListener("contextmenu",  onContextMenuEvent);
+      window.removeEventListener("mouseup",      onWindowMouseUp);
       ro.disconnect();
     };
   }, []);

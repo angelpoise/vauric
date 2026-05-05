@@ -16,7 +16,7 @@ export default function AppHeader() {
         zIndex: 10,
       }}
     >
-      <Link href="/" style={{ textDecoration: "none" }}>
+      <Link href="/graph" style={{ textDecoration: "none" }}>
         <Logo variant="default" />
       </Link>
       <div style={{ marginLeft: "auto" }}>

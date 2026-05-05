@@ -43,15 +43,20 @@ export default function PipelinePage() {
   async function run() {
     setRunning(true);
     setResult(null);
-    const r = await adminFetch("/api/admin/pipeline", { method: "POST" });
-    const json = await r.json();
-    if (json.error) {
-      setResult(`Error: ${json.error}`);
-    } else {
-      setResult(`✓ Processed ${json.processed} · Inserted ${json.inserted} · Skipped ${json.skipped}`);
+    try {
+      const r = await adminFetch("/api/admin/pipeline", { method: "POST" });
+      const json = await r.json();
+      if (json.error) {
+        setResult(`Error: ${json.error}`);
+      } else {
+        setResult(`✓ Processed ${json.processed} · Inserted ${json.inserted} · Skipped ${json.skipped}`);
+      }
+      loadConfig();
+    } catch (err) {
+      setResult(`Error: ${err instanceof Error ? err.message : "Request failed — check server logs"}`);
+    } finally {
+      setRunning(false);
     }
-    setRunning(false);
-    loadConfig();
   }
 
   const enabled = config?.news_pipeline_enabled ?? null;

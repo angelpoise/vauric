@@ -9,6 +9,21 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(data);
 }
 
+export async function DELETE(req: NextRequest) {
+  if (!isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { ticker_a, ticker_b } = await req.json();
+  if (!ticker_a || !ticker_b) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+  const a = (ticker_a as string).toUpperCase();
+  const b = (ticker_b as string).toUpperCase();
+  // Delete either ordering of the connection
+  const { error } = await supabaseAdmin
+    .from("admin_connections")
+    .delete()
+    .or(`and(ticker_a.eq.${a},ticker_b.eq.${b}),and(ticker_a.eq.${b},ticker_b.eq.${a})`);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true });
+}
+
 export async function POST(req: NextRequest) {
   if (!isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { ticker_a, ticker_b } = await req.json();

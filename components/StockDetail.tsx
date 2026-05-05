@@ -826,7 +826,7 @@ export default function StockDetail({ ticker }: { ticker: string }) {
   const [loaded, setLoaded] = useState(false);
   const [fundamentals, setFundamentals] = useState<FundamentalsEntry | null>(null);
 
-  interface ApiNewsItem { id: number; headline: string; source: string | null; published_at: string; notification_type: string; url: string; }
+  interface ApiNewsItem { id: number; headline: string; source: string | null; published_at: string; notification_type: string; url: string | null; }
   const [stockNews, setStockNews]           = useState<ApiNewsItem[]>([]);
   const [stockNewsLoading, setStockNewsLoading] = useState(true);
   const [inWatchlist, setInWatchlist] = useState(false);

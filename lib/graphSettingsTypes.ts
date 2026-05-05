@@ -9,7 +9,7 @@ export interface GraphSettings {
 export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
   hiddenNotifTypes: [],
   accessibilityMode: false,
-  nodeSize: "connections",
+  nodeSize: "marketcap",
 };
 
 const STORAGE_KEY = "vauric_graph_settings";
