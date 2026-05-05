@@ -110,8 +110,7 @@ export default function WaitlistForm() {
         </button>
         {serverError && <p className="form-error">{serverError}</p>}
         <p className="form-note">
-          Early waitlist members receive a <strong>lifetime discount</strong>{" "}
-          when Pro launches. No spam. Unsubscribe anytime.
+          No spam. Unsubscribe anytime. Expected launch: mid June 2026.
         </p>
       </div>
     </div>
