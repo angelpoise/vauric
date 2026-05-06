@@ -22,16 +22,22 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   return NextResponse.json(data);
 }
 
-// PATCH — updates x_position/y_position by ticker (used by graph edit mode)
+// PATCH — partial field update by ticker; used by graph edit mode (x/y) and
+// admin panel (analysis_schedule). All callers pass the ticker as [id].
+const ALLOWED_PATCH_FIELDS = new Set(["x_position", "y_position", "analysis_schedule"]);
+
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   if (!await isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { x_position, y_position } = await req.json();
-  if (x_position === undefined || y_position === undefined) {
-    return NextResponse.json({ error: "x_position and y_position are required" }, { status: 400 });
+  const raw = await req.json();
+  const body = Object.fromEntries(
+    Object.entries(raw as Record<string, unknown>).filter(([k]) => ALLOWED_PATCH_FIELDS.has(k))
+  );
+  if (Object.keys(body).length === 0) {
+    return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
   }
   const { error } = await supabaseAdmin
     .from("admin_stocks")
-    .update({ x_position, y_position })
+    .update(body)
     .eq("ticker", params.id.toUpperCase());
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });

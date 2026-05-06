@@ -3,26 +3,49 @@
 import { adminFetch } from "@/lib/adminFetch";
 import { useState, useEffect } from "react";
 
-const SECTORS = ["Technology", "Energy", "Healthcare", "Finance", "Consumer"];
+const SECTORS   = ["Technology", "Energy", "Healthcare", "Finance", "Consumer"];
+const SCHEDULES = [
+  { value: "on_visit", label: "On visit"  },
+  { value: "daily",    label: "Daily"     },
+  { value: "weekly",   label: "Weekly"    },
+];
 
-const CARD: React.CSSProperties = { background: "#0d1117", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "20px 24px" };
-const BTN: React.CSSProperties = { background: "#3b82f6", border: "none", borderRadius: 6, color: "#fff", fontSize: 12, fontWeight: 500, padding: "6px 14px", cursor: "pointer", fontFamily: "inherit" };
+const CARD:  React.CSSProperties = { background: "#0d1117", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "20px 24px" };
+const BTN:   React.CSSProperties = { background: "#3b82f6", border: "none", borderRadius: 6, color: "#fff", fontSize: 12, fontWeight: 500, padding: "6px 14px", cursor: "pointer", fontFamily: "inherit" };
 const BTN_D: React.CSSProperties = { background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 6, color: "#ef4444", fontSize: 12, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit" };
 const INPUT: React.CSSProperties = { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, color: "#f1f5f9", fontSize: 13, padding: "7px 10px", fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box" };
-const TH: React.CSSProperties = { fontSize: 10, color: "#475569", fontWeight: 500, letterSpacing: "0.07em", textTransform: "uppercase", padding: "0 16px 10px 0", textAlign: "left" };
-const TD: React.CSSProperties = { padding: "11px 16px 11px 0", borderBottom: "1px solid rgba(255,255,255,0.04)", fontSize: 13, color: "#e2e8f0" };
+const TH:    React.CSSProperties = { fontSize: 10, color: "#475569", fontWeight: 500, letterSpacing: "0.07em", textTransform: "uppercase", padding: "0 16px 10px 0", textAlign: "left" };
+const TD:    React.CSSProperties = { padding: "11px 16px 11px 0", borderBottom: "1px solid rgba(255,255,255,0.04)", fontSize: 13, color: "#e2e8f0" };
 
-interface Stock { id: string; ticker: string; company_name: string; sector: string; x_position: number; y_position: number; investor_relations_url: string | null; }
+interface Stock {
+  id: string;
+  ticker: string;
+  company_name: string;
+  sector: string;
+  x_position: number;
+  y_position: number;
+  investor_relations_url: string | null;
+  visit_count: number | null;
+  last_visited_at: string | null;
+  analysis_schedule: string | null;
+}
+
 type EditMap = Record<string, Partial<Stock>>;
 
 const blank = { ticker: "", company_name: "", sector: "Technology", x_position: 0.5, y_position: 0.5, investor_relations_url: "" };
 
+function fmtDate(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 export default function NodesPage() {
-  const [stocks, setStocks] = useState<Stock[]>([]);
-  const [form, setForm] = useState(blank);
-  const [edits, setEdits] = useState<EditMap>({});
+  const [stocks, setStocks]       = useState<Stock[]>([]);
+  const [form, setForm]           = useState(blank);
+  const [edits, setEdits]         = useState<EditMap>({});
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr]             = useState<string | null>(null);
+  const [regenMsg, setRegenMsg]   = useState<Record<string, string>>({});
 
   async function load() {
     const r = await adminFetch("/api/admin/stocks");
@@ -58,6 +81,24 @@ export default function NodesPage() {
     load();
   }
 
+  async function patchSchedule(ticker: string, value: string) {
+    await adminFetch(`/api/admin/stocks/${ticker}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ analysis_schedule: value }),
+    });
+    setStocks((prev) => prev.map((s) => s.ticker === ticker ? { ...s, analysis_schedule: value } : s));
+  }
+
+  async function regenAnalysis(ticker: string) {
+    setRegenMsg((m) => ({ ...m, [ticker]: "Clearing…" }));
+    const r = await adminFetch(`/api/analysis?ticker=${ticker}`, { method: "DELETE" });
+    setRegenMsg((m) => ({ ...m, [ticker]: r.ok ? "Cleared — regenerates on next visit" : "Error" }));
+    setTimeout(() => setRegenMsg((m) => { const n = { ...m }; delete n[ticker]; return n; }), 3000);
+  }
+
+  const HEADERS = ["Ticker", "Company", "Sector", "X", "Y", "IR URL", "Visits", "Last Visit", "Schedule", ""];
+
   return (
     <div>
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 24 }}>Graph Nodes</h1>
@@ -85,11 +126,11 @@ export default function NodesPage() {
       <div style={CARD}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr>{["Ticker", "Company", "Sector", "X", "Y", "IR URL", ""].map(h => <th key={h} style={TH}>{h}</th>)}</tr>
+            <tr>{HEADERS.map(h => <th key={h} style={TH}>{h}</th>)}</tr>
           </thead>
           <tbody>
             {stocks.length === 0 && (
-              <tr><td colSpan={6} style={{ ...TD, color: "#334155" }}>No stocks in admin_stocks table yet.</td></tr>
+              <tr><td colSpan={HEADERS.length} style={{ ...TD, color: "#334155" }}>No stocks in admin_stocks table yet.</td></tr>
             )}
             {stocks.map(s => {
               const editing = editingId === s.id;
@@ -122,13 +163,45 @@ export default function NodesPage() {
                   <td style={TD}>
                     {editing
                       ? <input style={{ ...INPUT, width: 200 }} placeholder="https://…" value={e.investor_relations_url ?? s.investor_relations_url ?? ""} onChange={ev => setEdits({ ...edits, [s.id]: { ...e, investor_relations_url: ev.target.value } })} />
-                      : s.investor_relations_url ? <a href={s.investor_relations_url} target="_blank" rel="noopener noreferrer" style={{ color: "#3b82f6", fontSize: 12 }}>Link</a> : <span style={{ color: "#334155" }}>—</span>}
+                      : s.investor_relations_url
+                        ? <a href={s.investor_relations_url} target="_blank" rel="noopener noreferrer" style={{ color: "#3b82f6", fontSize: 12 }}>Link</a>
+                        : <span style={{ color: "#334155" }}>—</span>}
                   </td>
+                  {/* Visit count — read-only */}
+                  <td style={{ ...TD, color: "#64748b" }}>{s.visit_count ?? 0}</td>
+                  {/* Last visited — read-only */}
+                  <td style={{ ...TD, color: "#64748b", fontSize: 12 }}>{fmtDate(s.last_visited_at)}</td>
+                  {/* Analysis schedule — always-editable inline dropdown */}
                   <td style={TD}>
-                    <div style={{ display: "flex", gap: 8 }}>
+                    <select
+                      style={{ ...INPUT, width: 110, fontSize: 12, padding: "4px 8px" }}
+                      value={s.analysis_schedule ?? "on_visit"}
+                      onChange={ev => patchSchedule(s.ticker, ev.target.value)}
+                    >
+                      {SCHEDULES.map(({ value, label }) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                  </td>
+                  {/* Actions */}
+                  <td style={TD}>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {editing
-                        ? <><button style={BTN} onClick={() => save(s.id)}>Save</button><button style={{ ...BTN_D, background: "none", border: "none", color: "#475569" }} onClick={() => { setEditingId(null); setEdits({}); }}>Cancel</button></>
-                        : <><button style={{ ...BTN, background: "rgba(255,255,255,0.05)", color: "#94a3b8" }} onClick={() => setEditingId(s.id)}>Edit</button><button style={BTN_D} onClick={() => del(s.id)}>Remove</button></>
+                        ? <>
+                            <button style={BTN} onClick={() => save(s.id)}>Save</button>
+                            <button style={{ ...BTN_D, background: "none", border: "none", color: "#475569" }} onClick={() => { setEditingId(null); setEdits({}); }}>Cancel</button>
+                          </>
+                        : <>
+                            <button style={{ ...BTN, background: "rgba(255,255,255,0.05)", color: "#94a3b8" }} onClick={() => setEditingId(s.id)}>Edit</button>
+                            <button
+                              style={{ ...BTN, background: "rgba(59,130,246,0.08)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.2)" }}
+                              onClick={() => regenAnalysis(s.ticker)}
+                              title="Clear cached analysis — regenerates on next visit"
+                            >
+                              {regenMsg[s.ticker] ?? "Regen"}
+                            </button>
+                            <button style={BTN_D} onClick={() => del(s.id)}>Remove</button>
+                          </>
                       }
                     </div>
                   </td>

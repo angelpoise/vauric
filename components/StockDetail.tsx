@@ -867,6 +867,15 @@ export default function StockDetail({ ticker }: { ticker: string }) {
   const [wlFlash, setWlFlash] = useState<"added" | "duplicate" | "limit" | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Fire-and-forget visit tracking — completely invisible to the user
+  useEffect(() => {
+    fetch("/api/stock/visit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticker }),
+    }).catch(() => {});
+  }, [ticker]);
+
   useEffect(() => {
     setInWatchlist(getWatchlist().includes(ticker));
     const onUpdate = () => setInWatchlist(getWatchlist().includes(ticker));
