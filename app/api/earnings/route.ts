@@ -36,16 +36,16 @@ function fmt(d: Date): string {
   return d.toISOString().split("T")[0];
 }
 
-function buildFilingUrl(hit: EdgarHit): string {
+function buildFilingUrl(hit: EdgarHit, ticker: string): string {
   const { entity_id, accession_no } = hit._source;
   if (entity_id && accession_no) {
     const acc = accession_no.replace(/-/g, "");
     return `https://www.sec.gov/Archives/edgar/data/${entity_id}/${acc}/`;
   }
-  // Fallback: link to EDGAR company search
-  const cik  = hit._source.entity_id ?? "";
+  // Fallback: EDGAR does not always return entity_id on the free tier,
+  // so use the known ticker symbol as the CIK lookup value.
   const form = hit._source.form_type ?? "10-K";
-  return `https://www.sec.gov/cgi-bin/browse-edgar?company=&CIK=${cik}&type=${form}&dateb=&owner=include&count=10&search_text=&action=getcompany`;
+  return `https://www.sec.gov/cgi-bin/browse-edgar?company=&CIK=${ticker}&type=${form}&dateb=&owner=include&count=10&search_text=&action=getcompany`;
 }
 
 async function fetchEdgarFilings(ticker: string): Promise<EarningsRow[]> {
@@ -70,7 +70,7 @@ async function fetchEdgarFilings(ticker: string): Promise<EarningsRow[]> {
       filing_type: h._source.form_type ?? "10-K",
       period:      h._source.period_of_report ?? null,
       filing_date: h._source.file_date ?? h._source.display_date_filed ?? "",
-      filing_url:  buildFilingUrl(h),
+      filing_url:  buildFilingUrl(h, ticker),
     })).filter((r) => r.filing_date);
   } catch {
     return [];
