@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 import { type NotifType, NOTIF } from "@/lib/graphTypes";
 import { getWatchlist, WATCHLIST_EVENT } from "@/lib/watchlist";
 import UpgradeButton from "@/components/UpgradeButton";
@@ -228,7 +228,9 @@ function NewsList({ items, onTickerClick, isPro }: {
 
 export default function NewsPage() {
   const router = useRouter();
+  const { getToken } = useAuth();
   const { user } = useUser();
+  // isPro defaults to false for unauthenticated / free-tier users
   const isPro = user?.publicMetadata?.isPro === true;
   const [activeTab, setActiveTab]           = useState<Tab>("all");
   const [selectedSector, setSelectedSector] = useState("tech");
@@ -246,14 +248,21 @@ export default function NewsPage() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/news")
-      .then((r) => r.ok ? r.json() : [])
-      .then((data: ApiArticle[]) => {
+    const load = async () => {
+      try {
+        const token = await getToken();
+        const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+        const r = await fetch("/api/news", { headers });
+        const data: ApiArticle[] = r.ok ? await r.json() : [];
         setNewsItems(Array.isArray(data) ? data.map(mapArticle) : []);
-      })
-      .catch(() => { setNewsItems([]); })
-      .finally(() => { setNewsLoading(false); });
-  }, []);
+      } catch {
+        setNewsItems([]);
+      } finally {
+        setNewsLoading(false);
+      }
+    };
+    load(); // eslint-disable-line @typescript-eslint/no-floating-promises
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const watchlistNews = useMemo(
     () => newsItems.filter((n) => watchlist.includes(n.ticker)),

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getUserTier } from "@/lib/getUserTier";
+import { verifyClerkTokenWithTier } from "@/lib/verifyClerkToken";
 
 const FREE_NEWS_LIMIT = 20;
 
@@ -112,8 +112,12 @@ export async function GET(req: NextRequest) {
   const notifonly  = searchParams.get("notifonly") === "1";
   const sectorNews = searchParams.get("sectorNews") === "1";
 
+  const authHeader = req.headers.get("authorization");
   const [{ isPro }, rows, manuals] = await Promise.all([
-    getUserTier(),
+    verifyClerkTokenWithTier(authHeader).then((r) => {
+      console.log(`[news] auth header=${!!authHeader} userId=${r.userId ?? "none"} isPro=${r.isPro}`);
+      return r;
+    }),
     fetchAll(nocache),
     fetchManual(nocache),
   ]);
