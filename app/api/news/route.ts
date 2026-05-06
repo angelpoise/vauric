@@ -15,6 +15,9 @@ interface NewsRow {
   published_at: string;
   notification_type: string;
   created_at: string;
+  generates_notification: boolean;
+  is_sector_news: boolean;
+  sector_id: string | null;
 }
 
 interface ManualRow {
@@ -36,7 +39,7 @@ async function fetchAll(bust = false): Promise<NewsRow[]> {
 
   const { data, error } = await supabase
     .from("news")
-    .select("id, ticker, headline, summary, url, source, published_at, notification_type, created_at")
+    .select("id, ticker, headline, summary, url, source, published_at, notification_type, created_at, generates_notification, is_sector_news, sector_id")
     .order("published_at", { ascending: false })
     .limit(1000);
 
@@ -46,7 +49,7 @@ async function fetchAll(bust = false): Promise<NewsRow[]> {
   return cachedAll;
 }
 
-// ── Manual notifications cache (2 min — appear quickly after admin adds them) ─
+// ── Manual notifications cache (2 min) ───────────────────────────────────────
 
 const MANUAL_TTL_MS = 2 * 60 * 1000;
 let cachedManual: ManualRow[] | null = null;
@@ -71,15 +74,18 @@ async function fetchManual(bust = false): Promise<ManualRow[]> {
 // Negative ID ensures no key collision with the auto-increment news table IDs.
 function manualToNewsRow(m: ManualRow): NewsRow {
   return {
-    id:                -(m.id),
-    ticker:            m.ticker,
-    headline:          m.note ?? "Manual notification",
-    summary:           null,
-    url:               null,
-    source:            null,
-    published_at:      m.created_at,
-    notification_type: m.notification_type,
-    created_at:        m.created_at,
+    id:                     -(m.id),
+    ticker:                 m.ticker,
+    headline:               m.note ?? "Manual notification",
+    summary:                null,
+    url:                    null,
+    source:                 null,
+    published_at:           m.created_at,
+    notification_type:      m.notification_type,
+    created_at:             m.created_at,
+    generates_notification: true,  // manual notifications always significant
+    is_sector_news:         false,
+    sector_id:              null,
   };
 }
 
@@ -99,11 +105,12 @@ function balanced(rows: NewsRow[], perTicker: number): NewsRow[] {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const ticker    = searchParams.get("ticker")?.toUpperCase() ?? null;
-  const type      = searchParams.get("type") ?? null;
-  const limit     = Math.min(1000, Math.max(1, parseInt(searchParams.get("limit") ?? "0", 10) || (ticker ? 20 : 50)));
-  const nocache   = searchParams.get("nocache") === "1";
-  const notifonly = searchParams.get("notifonly") === "1";
+  const ticker     = searchParams.get("ticker")?.toUpperCase() ?? null;
+  const type       = searchParams.get("type") ?? null;
+  const limit      = Math.min(1000, Math.max(1, parseInt(searchParams.get("limit") ?? "0", 10) || (ticker ? 20 : 50)));
+  const nocache    = searchParams.get("nocache") === "1";
+  const notifonly  = searchParams.get("notifonly") === "1";
+  const sectorNews = searchParams.get("sectorNews") === "1";
 
   const [{ isPro }, rows, manuals] = await Promise.all([
     getUserTier(),
@@ -113,12 +120,37 @@ export async function GET(req: NextRequest) {
 
   const manualRows = manuals.map(manualToNewsRow);
 
-  // Lightweight mode for graph notification dots — merge all sources and return
-  // ticker/type/date. Manual notifications are always included.
-  if (notifonly) {
-    const all = [...rows, ...manualRows];
+  // Sector-level news for sector node notification dots.
+  // Returns articles flagged is_sector_news=true from the past 24 h.
+  if (sectorNews) {
+    const cutoff24h = Date.now() - 24 * 60 * 60 * 1000;
+    const sectorRows = rows.filter(
+      (r) => r.is_sector_news && r.sector_id && new Date(r.published_at).getTime() > cutoff24h
+    );
     return NextResponse.json(
-      all.map((r) => ({ ticker: r.ticker, notification_type: r.notification_type, published_at: r.published_at })),
+      sectorRows.map((r) => ({
+        sector_id:         r.sector_id,
+        notification_type: r.notification_type,
+        published_at:      r.published_at,
+      })),
+      { headers: { "Cache-Control": "s-maxage=900, stale-while-revalidate=1800" } },
+    );
+  }
+
+  // Lightweight mode for stock node notification dots.
+  // Only articles that are genuinely significant single-stock events get a dot.
+  // Manual notifications (always significant) are always included.
+  if (notifonly) {
+    const stockNotifs = [
+      ...rows.filter((r) => r.generates_notification && !r.is_sector_news),
+      ...manualRows,
+    ];
+    return NextResponse.json(
+      stockNotifs.map((r) => ({
+        ticker:            r.ticker,
+        notification_type: r.notification_type,
+        published_at:      r.published_at,
+      })),
       { headers: { "Cache-Control": "s-maxage=900, stale-while-revalidate=1800" } },
     );
   }
@@ -126,12 +158,10 @@ export async function GET(req: NextRequest) {
   let filtered: NewsRow[];
 
   if (ticker) {
-    // Manual notifications for this ticker always shown; news articles capped at limit.
     const newsForTicker    = rows.filter((r) => r.ticker === ticker).slice(0, limit);
     const manualForTicker  = manualRows.filter((r) => r.ticker === ticker);
     filtered = [...manualForTicker, ...newsForTicker];
   } else {
-    // News articles are subject to the free-tier limit; manual notifications are not.
     const effectiveLimit = !isPro ? Math.min(limit, FREE_NEWS_LIMIT) : limit;
     const balancedNews   = balanced(rows, 15).slice(0, effectiveLimit);
     filtered = [...manualRows, ...balancedNews];
@@ -139,7 +169,6 @@ export async function GET(req: NextRequest) {
 
   if (type) filtered = filtered.filter((r) => r.notification_type === type);
 
-  // Unified date-descending sort so manual notifications appear in chronological order.
   filtered.sort((a, b) =>
     new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
   );

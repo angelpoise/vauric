@@ -1,12 +1,24 @@
 import type { NotifType } from "./graphTypes";
 
+export interface ClassificationResult {
+  type: NotifType;
+  // Only true for specific, high-significance single-stock events.
+  // "news" type never generates a dot — it's background context.
+  generatesNotification: boolean;
+  // True when the headline is broad sector/market commentary rather than
+  // stock-specific. Used to drive sector node notification dots.
+  isSectorNews: boolean;
+  // Populated only when isSectorNews is true.
+  sectorId: string | null;
+}
+
 interface Rule {
   type: NotifType;
   keywords: string[];
-  headlineOnly?: boolean;       // if true, only the headline is checked (not summary)
-  negativeKeywords?: string[];  // if any match the headline, this rule is skipped
-  requireTickerInHeadline?: boolean; // if true, ticker symbol must appear in the headline
-  negativeContextKeywords?: string[]; // market/general-news signals that override this rule
+  headlineOnly?: boolean;
+  negativeKeywords?: string[];
+  requireTickerInHeadline?: boolean;
+  negativeContextKeywords?: string[];
 }
 
 // Ordered rules — first match wins.
@@ -20,7 +32,6 @@ const RULES: Rule[] = [
     keywords: ["upgrade", "downgrade", "price target", "outperform", "underperform", "buy", "sell", "neutral", "initiate"],
   },
   {
-    // Headline-only: avoids matching "short" or "squeeze" in unrelated contexts.
     type: "squeeze",
     keywords: ["short squeeze"],
     headlineOnly: true,
@@ -30,10 +41,8 @@ const RULES: Rule[] = [
     keywords: ["stock split", "reverse split", "secondary offering", "share offering"],
   },
   {
-    // "delisting" covers acquisitions/mergers — labelled "Delisting / Acquisition" in the UI.
-    // Headline-only: avoids "acquire" appearing in unrelated business contexts in summaries.
-    // Negative keywords block biographical/historical references that contain these words
-    // in a retrospective context rather than announcing an active corporate event.
+    // "delisting" covers acquisitions/mergers.
+    // Negative keywords block biographical/historical references.
     type: "delisting",
     keywords: ["acquisition", "merger", "buyout", "takeover", "acquire"],
     headlineOnly: true,
@@ -45,8 +54,6 @@ const RULES: Rule[] = [
     ],
   },
   {
-    // Strict IPO rule: headline-only, ticker must appear in the headline,
-    // extensive negative keyword list, and general market context overrides to "news".
     type: "ipo",
     keywords: ["ipo", "initial public offering", "going public"],
     headlineOnly: true,
@@ -54,34 +61,98 @@ const RULES: Rule[] = [
     negativeKeywords: [
       "invest in", "ahead of", "before", "rival", "competitor", "leading up to",
       "other", "another", "new", "upcoming", "plans", "eyes", "considers", "watch", "target",
-      // Well-known companies whose IPO mentions are not about the tracked stock
       "spacex", "reddit", "stripe", "klarna", "shein", "chime", "databricks",
     ],
     negativeContextKeywords: ["market", "stocks", "investors", "wall street"],
   },
 ];
 
-export function classifyNews(headline: string, summary: string, ticker: string): NotifType {
+// Types that constitute a meaningful single-stock event worthy of a graph dot.
+const NOTIFICATION_TYPES = new Set<NotifType>(["analyst", "squeeze", "delisting", "split", "earnings", "ipo"]);
+
+// Broad sector/market signals — articles whose headlines match these terms
+// (and do NOT name the tracked ticker directly) are sector news, not stock news.
+const SECTOR_SIGNALS: Array<{ id: string; terms: string[] }> = [
+  {
+    id: "tech",
+    terms: [
+      "xlk", "ai sector", "semiconductor sector", "chip sector", "tech sector",
+      "semiconductor industry", "cloud sector", "ai stocks", "chip stocks",
+      "tech stocks", "technology sector", "semiconductor stocks",
+    ],
+  },
+  {
+    id: "energy",
+    terms: [
+      "xle", "energy sector", "oil prices", "crude oil", "natural gas prices",
+      "opec", "oil market", "energy stocks", "oil stocks", "energy industry",
+    ],
+  },
+  {
+    id: "health",
+    terms: [
+      "xlv", "healthcare sector", "pharma sector", "biotech sector",
+      "healthcare stocks", "pharmaceutical sector", "drug stocks", "health stocks",
+    ],
+  },
+  {
+    id: "finance",
+    terms: [
+      "xlf", "interest rates", "fed rate", "federal reserve rate",
+      "fintech sector", "banking sector", "rate hike", "rate cut",
+      "finance sector", "financial sector", "bank stocks",
+    ],
+  },
+  {
+    id: "consumer",
+    terms: [
+      "xly", "consumer sector", "retail sector", "consumer spending",
+      "consumer stocks", "retail stocks", "consumer discretionary",
+    ],
+  },
+];
+
+function detectSector(
+  headline: string,
+  ticker: string,
+): { isSectorNews: boolean; sectorId: string | null } {
+  const hl  = headline.toLowerCase();
+  const sym = ticker.toLowerCase();
+
+  // If the ticker symbol appears in the headline it is stock-specific.
+  if (hl.includes(sym)) return { isSectorNews: false, sectorId: null };
+
+  for (const { id, terms } of SECTOR_SIGNALS) {
+    if (terms.some((t) => hl.includes(t))) {
+      return { isSectorNews: true, sectorId: id };
+    }
+  }
+  return { isSectorNews: false, sectorId: null };
+}
+
+export function classifyNews(
+  headline: string,
+  summary: string,
+  ticker: string,
+): ClassificationResult {
   const hl  = headline.toLowerCase();
   const sm  = summary.toLowerCase();
   const sym = ticker.toLowerCase();
 
+  let type: NotifType = "news";
+
   for (const rule of RULES) {
     const texts = rule.headlineOnly ? [hl] : [hl, sm];
-
-    // Primary keyword match
     if (!texts.some((t) => rule.keywords.some((kw) => t.includes(kw)))) continue;
-
-    // Ticker must appear in headline
     if (rule.requireTickerInHeadline && !hl.includes(sym)) continue;
-
-    // Negative keyword check (headline)
     if (rule.negativeKeywords?.some((nk) => hl.includes(nk))) continue;
-
-    // General market context check — if headline signals a broad market story, skip
     if (rule.negativeContextKeywords?.some((nk) => hl.includes(nk))) continue;
-
-    return rule.type;
+    type = rule.type;
+    break;
   }
-  return "news";
+
+  const generatesNotification = NOTIFICATION_TYPES.has(type);
+  const { isSectorNews, sectorId } = detectSector(headline, ticker);
+
+  return { type, generatesNotification, isSectorNews, sectorId };
 }

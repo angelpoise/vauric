@@ -306,25 +306,48 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       .catch(() => {});
   }, []);
 
-  // Fetch notification data for graph dots
+  // Fetch notification dots for stock nodes and sector nodes in parallel.
+  // Stock dots: only high-significance single-stock events (generates_notification=true).
+  // Sector dots: sector-level news articles shown as yellow "news" dots on sector rings.
   useEffect(() => {
-    fetch("/api/news?notifonly=1")
-      .then((r) => r.ok ? r.json() : null)
-      .then((articles: Array<{ ticker: string; notification_type: string; published_at: string }> | null) => {
-        if (!articles) return;
-        const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-        const map: Record<string, Array<{ type: NotifType }>> = {};
-        for (const a of articles) {
-          if (new Date(a.published_at).getTime() < cutoff) continue;
-          if (!map[a.ticker]) map[a.ticker] = [];
-          const t = a.notification_type as NotifType;
-          if (!map[a.ticker].some((n) => n.type === t)) {
-            map[a.ticker].push({ type: t });
-          }
-        }
-        notificationsRef.current = map;
-      })
-      .catch(() => {});
+    const SECTOR_NODE_MAP: Record<string, string> = {
+      tech:     "sec-tech",
+      energy:   "sec-energy",
+      health:   "sec-health",
+      finance:  "sec-finance",
+      consumer: "sec-consumer",
+    };
+
+    Promise.allSettled([
+      fetch("/api/news?notifonly=1").then((r) => r.ok ? r.json() : null),
+      fetch("/api/news?sectorNews=1").then((r) => r.ok ? r.json() : null),
+    ]).then(([stockRes, sectorRes]) => {
+      const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+      const map: Record<string, Array<{ type: NotifType }>> = {};
+
+      // Stock notification dots
+      const stockArticles: Array<{ ticker: string; notification_type: string; published_at: string }> =
+        stockRes.status === "fulfilled" && stockRes.value ? stockRes.value : [];
+      for (const a of stockArticles) {
+        if (new Date(a.published_at).getTime() < cutoff) continue;
+        if (!map[a.ticker]) map[a.ticker] = [];
+        const t = a.notification_type as NotifType;
+        if (!map[a.ticker].some((n) => n.type === t)) map[a.ticker].push({ type: t });
+      }
+
+      // Sector notification dots — always shown as "news" (yellow)
+      const sectorItems: Array<{ sector_id: string; notification_type: string; published_at: string }> =
+        sectorRes.status === "fulfilled" && sectorRes.value ? sectorRes.value : [];
+      for (const item of sectorItems) {
+        if (new Date(item.published_at).getTime() < cutoff) continue;
+        const nodeId = SECTOR_NODE_MAP[item.sector_id];
+        if (!nodeId) continue;
+        if (!map[nodeId]) map[nodeId] = [];
+        if (!map[nodeId].some((n) => n.type === "news")) map[nodeId].push({ type: "news" });
+      }
+
+      notificationsRef.current = map;
+    }).catch(() => {});
   }, []);
 
   // Populate live data

@@ -189,7 +189,11 @@ export async function GET(req: NextRequest) {
 
   // Flatten articles — deduplicate by URL and by headline similarity across ALL tickers.
   // The same story is often fetched for multiple tickers (e.g. NVDA + AMD for an AI article).
-  interface Article { ticker: string; headline: string; summary: string; source: string; url: string; published_at: string; notification_type: string; }
+  interface Article {
+    ticker: string; headline: string; summary: string; source: string; url: string;
+    published_at: string; notification_type: string;
+    generates_notification: boolean; is_sector_news: boolean; sector_id: string | null;
+  }
   const allArticles: Article[] = [];
   const seenUrls = new Set<string>();
   // All headlines seen in this batch regardless of ticker — prevents cross-ticker duplicates
@@ -207,14 +211,18 @@ export async function GET(req: NextRequest) {
       if (batchHeadlines.some((h) => wordOverlapRatio(h, headline) > 0.8)) continue;
       seenUrls.add(a.url);
       batchHeadlines.push(headline);
+      const cls = classifyNews(headline, a.summary ?? "", ticker);
       allArticles.push({
         ticker,
         headline,
-        summary:           a.summary  ?? "",
-        source:            a.source   ?? "",
-        url:               a.url,
-        published_at:      new Date(a.datetime * 1000).toISOString(),
-        notification_type: classifyNews(headline, a.summary ?? "", ticker),
+        summary:                a.summary  ?? "",
+        source:                 a.source   ?? "",
+        url:                    a.url,
+        published_at:           new Date(a.datetime * 1000).toISOString(),
+        notification_type:      cls.type,
+        generates_notification: cls.generatesNotification,
+        is_sector_news:         cls.isSectorNews,
+        sector_id:              cls.sectorId,
       });
     }
   }
