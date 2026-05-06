@@ -1,0 +1,13 @@
+{
+  "_comment": "Cron jobs below require Vercel Pro. Uncomment 'crons' when upgrading.",
+  "_crons_inactive": [
+    {
+      "path": "/api/analysis/scheduled",
+      "schedule": "0 21 * * 1-5"
+    },
+    {
+      "path": "/api/news/fetch",
+      "schedule": "0 * * * *"
+    }
+  ]
+}

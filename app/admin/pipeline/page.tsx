@@ -13,9 +13,11 @@ interface Config { news_pipeline_enabled: boolean; last_run_at: string | null; }
 
 export default function PipelinePage() {
   const [config, setConfig] = useState<Config | null>(null);
-  const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
-  const [toggling, setToggling] = useState(false);
+  const [running, setRunning]         = useState(false);
+  const [result, setResult]           = useState<string | null>(null);
+  const [toggling, setToggling]       = useState(false);
+  const [clearing, setClearing]       = useState(false);
+  const [clearResult, setClearResult] = useState<string | null>(null);
 
   async function loadConfig() {
     const r = await adminFetch("/api/admin/overview");
@@ -38,6 +40,24 @@ export default function PipelinePage() {
     });
     setConfig({ ...config, news_pipeline_enabled: next });
     setToggling(false);
+  }
+
+  async function runScheduledClear() {
+    setClearing(true);
+    setClearResult(null);
+    try {
+      const r = await adminFetch("/api/admin/analysis", { method: "POST" });
+      const json = await r.json();
+      if (json.error) {
+        setClearResult(`Error: ${json.error}`);
+      } else {
+        setClearResult(`✓ Checked ${json.checked} · Cleared ${json.cleared} · Skipped ${json.skipped}`);
+      }
+    } catch (err) {
+      setClearResult(`Error: ${err instanceof Error ? err.message : "Request failed"}`);
+    } finally {
+      setClearing(false);
+    }
   }
 
   async function run() {
@@ -96,10 +116,10 @@ export default function PipelinePage() {
       </div>
 
       {/* Run now */}
-      <div style={CARD}>
-        <div style={LABEL}>Manual trigger</div>
+      <div style={{ ...CARD, marginBottom: 16 }}>
+        <div style={LABEL}>Manual trigger — news pipeline</div>
         <div style={{ fontSize: 13, color: "#475569", marginBottom: 14, fontWeight: 300 }}>
-          Fetches the latest news from Finnhub for all 19 tracked tickers and inserts new articles. Runs in batches to avoid rate limiting (~3s total).
+          Fetches the latest news from Finnhub for all tracked tickers and inserts new articles. Runs in batches to avoid rate limiting (~3s total).
         </div>
         <button style={BTN} onClick={run} disabled={running}>
           {running ? "Running…" : "Run pipeline now"}
@@ -107,6 +127,22 @@ export default function PipelinePage() {
         {result && (
           <div style={{ marginTop: 12, fontSize: 13, color: result.startsWith("Error") ? "#ef4444" : "#22c55e" }}>
             {result}
+          </div>
+        )}
+      </div>
+
+      {/* Scheduled analysis clear */}
+      <div style={CARD}>
+        <div style={LABEL}>Manual trigger — scheduled analysis clear</div>
+        <div style={{ fontSize: 13, color: "#475569", marginBottom: 14, fontWeight: 300 }}>
+          Clears stale cached analyses for stocks on daily/weekly schedules. On-visit stocks are skipped. Regeneration happens lazily on next page visit.
+        </div>
+        <button style={{ ...BTN, background: "rgba(139,92,246,0.8)" }} onClick={runScheduledClear} disabled={clearing}>
+          {clearing ? "Running…" : "Run scheduled analysis clear"}
+        </button>
+        {clearResult && (
+          <div style={{ marginTop: 12, fontSize: 13, color: clearResult.startsWith("Error") ? "#ef4444" : "#22c55e" }}>
+            {clearResult}
           </div>
         )}
       </div>

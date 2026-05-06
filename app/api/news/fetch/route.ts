@@ -274,6 +274,21 @@ export async function GET(req: NextRequest) {
       errors.push(error.message);
     } else {
       inserted = toInsert.length;
+
+      // For any inserted article that is a significant single-stock event,
+      // clear that ticker's cached analysis so it regenerates on next visit.
+      const significantTickers = Array.from(new Set(
+        toInsert
+          .filter((a) => a.generates_notification && !a.is_sector_news)
+          .map((a) => a.ticker),
+      ));
+      if (significantTickers.length > 0) {
+        // fire and forget — do not block the pipeline response
+        void supabase
+          .from("company_analysis")
+          .delete()
+          .in("ticker", significantTickers);
+      }
     }
   }
 
