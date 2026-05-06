@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 import { type NotifType, NOTIF } from "@/lib/graphTypes";
 import { getWatchlist, WATCHLIST_EVENT } from "@/lib/watchlist";
 import UpgradeButton from "@/components/UpgradeButton";
@@ -65,7 +66,7 @@ function mapArticle(a: ApiArticle): NewsItem {
   };
 }
 
-const CLEAR_LIMIT        = 10; // fully visible articles
+const CLEAR_LIMIT        = 20; // fully visible articles for free users
 const BLUR_ABOVE_PROMPT  =  1; // blurred articles shown above the overlay prompt (article 11)
 const BLUR_BEHIND_PROMPT =  4; // blurred articles behind the overlay prompt (articles 12-15)
 
@@ -178,11 +179,27 @@ function EmptyState({ message }: { message: string }) {
   );
 }
 
-function NewsList({ items, onTickerClick }: { items: NewsItem[]; onTickerClick: (t: string) => void }) {
-  const clear       = items.slice(0, CLEAR_LIMIT);
-  const abovePrompt = items.slice(CLEAR_LIMIT, CLEAR_LIMIT + BLUR_ABOVE_PROMPT);
+function NewsList({ items, onTickerClick, isPro }: {
+  items: NewsItem[];
+  onTickerClick: (t: string) => void;
+  isPro: boolean;
+}) {
+  // Pro users: show everything with no blur or upgrade prompt
+  if (isPro) {
+    return (
+      <>
+        {items.map((item) => (
+          <NewsCard key={item.id} item={item} onTickerClick={onTickerClick} />
+        ))}
+      </>
+    );
+  }
+
+  // Free users: gate after CLEAR_LIMIT articles
+  const clear        = items.slice(0, CLEAR_LIMIT);
+  const abovePrompt  = items.slice(CLEAR_LIMIT, CLEAR_LIMIT + BLUR_ABOVE_PROMPT);
   const behindPrompt = items.slice(CLEAR_LIMIT + BLUR_ABOVE_PROMPT, CLEAR_LIMIT + BLUR_ABOVE_PROMPT + BLUR_BEHIND_PROMPT);
-  const hasGate     = items.length > CLEAR_LIMIT;
+  const hasGate      = items.length > CLEAR_LIMIT;
   return (
     <>
       {clear.map((item) => (
@@ -190,9 +207,7 @@ function NewsList({ items, onTickerClick }: { items: NewsItem[]; onTickerClick: 
       ))}
       {hasGate && (
         <>
-          {/* Article 11: one blurred article visible above the prompt */}
           <BlurredSection items={abovePrompt} />
-          {/* Articles 12-15: blurred backdrop; prompt floats on top as an overlay */}
           <div style={{ position: "relative" }}>
             <BlurredSection items={behindPrompt} />
             <div style={{
@@ -213,6 +228,8 @@ function NewsList({ items, onTickerClick }: { items: NewsItem[]; onTickerClick: 
 
 export default function NewsPage() {
   const router = useRouter();
+  const { user } = useUser();
+  const isPro = user?.publicMetadata?.isPro === true;
   const [activeTab, setActiveTab]           = useState<Tab>("all");
   const [selectedSector, setSelectedSector] = useState("tech");
   const [searchQuery, setSearchQuery]       = useState("");
@@ -381,7 +398,7 @@ export default function NewsPage() {
             ? <EmptyState message="Loading news…" />
             : newsItems.length === 0
               ? <EmptyState message="No news available yet. The pipeline fetches stories hourly." />
-              : <NewsList items={newsItems} onTickerClick={handleTickerClick} />
+              : <NewsList items={newsItems} onTickerClick={handleTickerClick} isPro={isPro} />
         )}
 
         {/* Watchlist */}
@@ -390,7 +407,7 @@ export default function NewsPage() {
             ? <EmptyState message="Loading news…" />
             : watchlistNews.length === 0
               ? <EmptyState message="Add stocks to your watchlist to see their news here." />
-              : <NewsList items={watchlistNews} onTickerClick={handleTickerClick} />
+              : <NewsList items={watchlistNews} onTickerClick={handleTickerClick} isPro={isPro} />
         )}
 
         {/* By Sector */}
@@ -422,7 +439,7 @@ export default function NewsPage() {
               ? <EmptyState message="Loading news…" />
               : sectorNews.length === 0
                 ? <EmptyState message={`No news for ${SECTOR_LABELS[selectedSector]} yet.`} />
-                : <NewsList items={sectorNews} onTickerClick={handleTickerClick} />
+                : <NewsList items={sectorNews} onTickerClick={handleTickerClick} isPro={isPro} />
             }
           </>
         )}
@@ -457,7 +474,7 @@ export default function NewsPage() {
                 ? <EmptyState message="Type to search headlines, tickers, or sources." />
                 : searchNews.length === 0
                   ? <EmptyState message={`No results for "${searchQuery.trim()}".`} />
-                  : <NewsList items={searchNews} onTickerClick={handleTickerClick} />
+                  : <NewsList items={searchNews} onTickerClick={handleTickerClick} isPro={isPro} />
             }
           </>
         )}

@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserTier } from "@/lib/getUserTier";
 
-const FREE_NEWS_LIMIT = 10;
+const FREE_NEWS_LIMIT = 20;
 
 interface NewsRow {
   id: number;
@@ -162,9 +162,9 @@ export async function GET(req: NextRequest) {
     const manualForTicker  = manualRows.filter((r) => r.ticker === ticker);
     filtered = [...manualForTicker, ...newsForTicker];
   } else {
-    const effectiveLimit = !isPro ? Math.min(limit, FREE_NEWS_LIMIT) : limit;
-    const balancedNews   = balanced(rows, 15).slice(0, effectiveLimit);
-    filtered = [...manualRows, ...balancedNews];
+    const balancedNews = balanced(rows, 15);
+    // Pro users get the full balanced feed; free users are capped at FREE_NEWS_LIMIT
+    filtered = [...manualRows, ...(isPro ? balancedNews : balancedNews.slice(0, FREE_NEWS_LIMIT))];
   }
 
   if (type) filtered = filtered.filter((r) => r.notification_type === type);
