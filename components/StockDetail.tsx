@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 import { type NotifType, NOTIF, moveColor } from "@/lib/graphTypes";
 import UpgradeButton from "@/components/UpgradeButton";
 import { getCachedMarketData, setCachedMarketData } from "@/lib/marketDataCache";
@@ -825,8 +826,21 @@ function buildMetrics(f: FundamentalsEntry | null, live: LiveEntry | null): Metr
   ];
 }
 
+function firstThreeSentences(text: string): string {
+  let count = 0;
+  for (let i = 0; i < text.length - 1; i++) {
+    if (/[.!?]/.test(text[i]) && (text[i + 1] === " " || text[i + 1] === "\n")) {
+      count++;
+      if (count === 3) return text.slice(0, i + 1).trim();
+    }
+  }
+  return text.trim();
+}
+
 export default function StockDetail({ ticker }: { ticker: string }) {
   const router = useRouter();
+  const { user } = useUser();
+  const isPro = user?.publicMetadata?.isPro === true;
   const data = getStockData(ticker);
 
   const [live, setLive] = useState<LiveEntry | null>(null);
@@ -1190,7 +1204,9 @@ export default function StockDetail({ ticker }: { ticker: string }) {
             </div>
           ) : (
             <p style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.85, fontWeight: 300, margin: 0 }}>
-              {fundamentals?.longBusinessSummary ?? data.description}
+              {fundamentals?.longBusinessSummary
+                ? firstThreeSentences(fundamentals.longBusinessSummary)
+                : data.description}
             </p>
           )}
         </Section>
@@ -1198,21 +1214,30 @@ export default function StockDetail({ ticker }: { ticker: string }) {
         <Section title="Deeper dive">
           <div style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 10, background: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.25)", borderRadius: 4, padding: "2px 7px", color: "#3b82f6", letterSpacing: "0.06em", textTransform: "uppercase" }}>AI generated</span>
-            <button
-              onClick={() => loadAnalysis(true)}
-              disabled={analysisLoading}
-              style={{ background: "none", border: "none", color: "#475569", fontSize: 12, cursor: analysisLoading ? "wait" : "pointer", padding: 0, fontFamily: "inherit" }}
-            >
-              {analysisLoading ? "Generating…" : "↻ Refresh"}
-            </button>
+            {isPro && (
+              <button
+                onClick={() => loadAnalysis(true)}
+                disabled={analysisLoading}
+                style={{ background: "none", border: "none", color: "#475569", fontSize: 12, cursor: analysisLoading ? "wait" : "pointer", padding: 0, fontFamily: "inherit" }}
+              >
+                {analysisLoading ? "Generating…" : "↻ Refresh"}
+              </button>
+            )}
           </div>
           {!analysis && !analysisLoading && !analysisError && (
-            <button
-              onClick={() => loadAnalysis()}
-              style={{ background: "rgba(59,130,246,0.07)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 8, color: "#3b82f6", fontSize: 13, padding: "8px 18px", cursor: "pointer", fontFamily: "inherit" }}
-            >
-              Generate analysis
-            </button>
+            isPro ? (
+              <button
+                onClick={() => loadAnalysis()}
+                style={{ background: "rgba(59,130,246,0.07)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 8, color: "#3b82f6", fontSize: 13, padding: "8px 18px", cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Generate analysis
+              </button>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <p style={{ fontSize: 13, color: "#475569", margin: 0 }}>AI-powered deeper analysis is a Pro feature.</p>
+                <UpgradeButton label="Upgrade to Pro" />
+              </div>
+            )
           )}
           {analysisLoading && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -1366,7 +1391,7 @@ export default function StockDetail({ ticker }: { ticker: string }) {
           ) : earnings.length === 0 ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ fontSize: 13, color: "#334155", marginBottom: 4 }}>No filings found.</div>
-              <ExternalLink href={`https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${ticker}&type=&dateb=&owner=include&count=40`} label="View all SEC EDGAR filings" />
+              <ExternalLink href={`https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${ticker}&type=10-K&dateb=&owner=include&count=10&search_text=`} label="View all SEC EDGAR filings" />
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1391,7 +1416,7 @@ export default function StockDetail({ ticker }: { ticker: string }) {
               <ExternalLink href={graphStock.investor_relations_url} label="Investor relations" />
             )}
             <ExternalLink
-              href={`https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${ticker}&type=&dateb=&owner=include&count=40`}
+              href={`https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${ticker}&type=10-K&dateb=&owner=include&count=10&search_text=`}
               label="SEC EDGAR filings"
             />
           </div>

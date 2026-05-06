@@ -11,7 +11,10 @@ import {
   moveColor,
   moveFill,
 } from "@/lib/graphTypes";
-import { getCachedMarketData, setCachedMarketData } from "@/lib/marketDataCache";
+import {
+  getCachedMarketData, setCachedMarketData,
+  getCachedNodePositions, setCachedNodePositions,
+} from "@/lib/marketDataCache";
 import {
   type ActiveFilters,
   DEFAULT_FILTERS,
@@ -181,13 +184,22 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
   const routerRef      = useRef(router);
   routerRef.current    = router;
 
-  // Separate refs for graph data components so sectors can be updated independently
+  // Separate refs for graph data components so sectors can be updated independently.
+  // Seed stock positions from the session cache (set on previous visit) so the graph
+  // shows correct positions immediately instead of flashing fallback coordinates.
   const sectorNodesRef = useRef<SectorNode[]>(sectorNodes ?? DEFAULT_SECTOR_NODES.map((s) => ({ ...s })));
-  const stockNodesRef  = useRef<StockNode[]>(FALLBACK_STOCK_NODES);
+  const cachedPos = getCachedNodePositions();
+  const seededStockNodes: StockNode[] = cachedPos
+    ? FALLBACK_STOCK_NODES.map((n) => {
+        const p = cachedPos[n.id];
+        return p ? { ...n, x: p.x, y: p.y } : n;
+      })
+    : FALLBACK_STOCK_NODES;
+  const stockNodesRef  = useRef<StockNode[]>(seededStockNodes);
   const extraEdgesRef  = useRef<Edge[]>(FALLBACK_EXTRA_EDGES);
 
   const graphDataRef = useRef<GraphData>(
-    buildGraphData(sectorNodesRef.current, stockNodesRef.current, extraEdgesRef.current)
+    buildGraphData(sectorNodesRef.current, seededStockNodes, extraEdgesRef.current)
   );
 
   // Position snapshot for edit-mode discard
@@ -277,6 +289,10 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         extraEdgesRef.current = extraEdges;
         graphDataRef.current = buildGraphData(sectorNodesRef.current, stockNodes, extraEdges);
         onGraphLoadedRef.current?.(stockNodes.map((n) => n.ticker));
+        // Cache positions so back-navigation doesn't flash fallback coordinates
+        const posMap: Record<string, { x: number; y: number }> = {};
+        for (const n of stockNodes) posMap[n.id] = { x: n.x, y: n.y };
+        setCachedNodePositions(posMap);
         console.log(`[graph] loaded ${stockNodes.length} stock nodes, ${extraEdges.length} connections`);
       })
       .catch((err) => console.error('[graph] fetch failed:', err));

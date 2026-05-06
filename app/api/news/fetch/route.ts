@@ -154,13 +154,13 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Flatten articles — deduplicate by URL and by headline similarity within this batch.
-  // Same story sometimes appears under slightly different Yahoo Finance URLs for multiple tickers.
+  // Flatten articles — deduplicate by URL and by headline similarity across ALL tickers.
+  // The same story is often fetched for multiple tickers (e.g. NVDA + AMD for an AI article).
   interface Article { ticker: string; headline: string; summary: string; source: string; url: string; published_at: string; notification_type: string; }
   const allArticles: Article[] = [];
   const seenUrls = new Set<string>();
-  // Per-ticker seen headlines — catches same story with minor headline wording differences
-  const seenHeadlines = new Map<string, string[]>();
+  // All headlines seen in this batch regardless of ticker — prevents cross-ticker duplicates
+  const batchHeadlines: string[] = [];
 
   for (const r of fetched) {
     const { ticker, articles } = r.value;
@@ -168,11 +168,10 @@ export async function GET(req: NextRequest) {
       if (!a.url || seenUrls.has(a.url)) continue;
       if (a.datetime * 1000 < cutoffMs) continue;
       const headline = a.headline ?? "";
-      const tickerSeen = seenHeadlines.get(ticker) ?? [];
-      if (tickerSeen.some((h) => wordOverlapRatio(h, headline) > 0.8)) continue;
+      // Cross-ticker similarity check within the current batch
+      if (batchHeadlines.some((h) => wordOverlapRatio(h, headline) > 0.8)) continue;
       seenUrls.add(a.url);
-      tickerSeen.push(headline);
-      seenHeadlines.set(ticker, tickerSeen);
+      batchHeadlines.push(headline);
       allArticles.push({
         ticker,
         headline,
@@ -200,27 +199,20 @@ export async function GET(req: NextRequest) {
   const existingSet = new Set((existing ?? []).map((r: { url: string }) => r.url));
   let urlFiltered = allArticles.filter((a) => !existingSet.has(a.url));
 
-  // Secondary dedup: check existing DB headlines per ticker for the past 48 h.
-  // Catches cases where the same story was already stored under a different URL.
+  // Secondary dedup: fetch ALL headlines stored in the past 48 h (any ticker).
+  // Catches the common case where the same article was already inserted for a
+  // different ticker in a previous pipeline run.
   if (urlFiltered.length > 0) {
-    const tickersNeeded = Array.from(new Set(urlFiltered.map((a) => a.ticker)));
     const { data: recentRows } = await supabase
       .from("news")
-      .select("ticker, headline")
-      .in("ticker", tickersNeeded)
+      .select("headline")
       .gte("published_at", new Date(cutoffMs).toISOString());
 
-    const dbHeadlines = new Map<string, string[]>();
-    for (const row of recentRows ?? []) {
-      const arr = dbHeadlines.get(row.ticker) ?? [];
-      arr.push(row.headline as string);
-      dbHeadlines.set(row.ticker, arr);
-    }
+    const dbHeadlines: string[] = (recentRows ?? []).map((r) => r.headline as string);
 
-    urlFiltered = urlFiltered.filter((a) => {
-      const dbExisting = dbHeadlines.get(a.ticker) ?? [];
-      return !dbExisting.some((h) => wordOverlapRatio(h, a.headline) > 0.8);
-    });
+    urlFiltered = urlFiltered.filter((a) =>
+      !dbHeadlines.some((h) => wordOverlapRatio(h, a.headline) > 0.8)
+    );
   }
 
   const toInsert = urlFiltered;

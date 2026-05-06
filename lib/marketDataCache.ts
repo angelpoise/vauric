@@ -18,3 +18,17 @@ export function setCachedMarketData(data: Record<string, MarketDataEntry>): void
   cachedData = data;
   cachedAt = Date.now();
 }
+
+// Node positions — no TTL, persists for the session so the graph doesn't
+// flash fallback positions on remount (e.g. back-navigating from a stock page).
+export interface NodePosition { x: number; y: number; }
+
+let cachedNodePositions: Record<string, NodePosition> | null = null;
+
+export function getCachedNodePositions(): Record<string, NodePosition> | null {
+  return cachedNodePositions;
+}
+
+export function setCachedNodePositions(positions: Record<string, NodePosition>): void {
+  cachedNodePositions = positions;
+}
