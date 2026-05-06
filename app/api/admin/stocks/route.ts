@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminRequest } from "@/lib/adminSecret";
+import { hydrateSingleTicker } from "@/lib/fundamentalsUtils";
 
 export async function GET(req: NextRequest) {
   if (!await isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -23,6 +24,14 @@ export async function POST(req: NextRequest) {
     })
     .select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Fire-and-forget: pre-warm the fundamentals cache for the new ticker so its
+  // detail page and AI analysis have real data immediately without waiting for
+  // the next full fundamentals refresh.
+  hydrateSingleTicker(ticker.toUpperCase()).catch((err) =>
+    console.error(`[admin/stocks] fundamentals hydration failed for ${ticker}:`, err)
+  );
+
   return NextResponse.json(data, { status: 201 });
 }
 
