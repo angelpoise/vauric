@@ -250,6 +250,9 @@ export default function GraphLayout() {
       setPendingPositions({});
       // Update snapshot so any further drags revert to the newly saved positions
       canvasRef.current?.snapshotPositions();
+      // Invalidate the /api/graph Next.js cache so the next page load
+      // fetches fresh positions from the database rather than the stale cache.
+      adminFetch("/api/admin/revalidate", { method: "POST" }).catch(() => {});
     } finally {
       setSaving(false);
     }

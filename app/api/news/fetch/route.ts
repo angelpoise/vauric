@@ -31,13 +31,6 @@ import { checkRateLimit } from "@/lib/rateLimit";
 //     last_run_at          TIMESTAMPTZ
 //   );
 
-const GRAPH_TICKERS = [
-  "NVDA", "MSFT", "PLTR", "AMD", "ARM", "SMCI",
-  "XOM",  "CVX",  "FANG", "SLB",
-  "LLY",  "HIMS", "RXRX", "MRNA",
-  "PYPL", "COIN", "HOOD", "AFRM", "SOFI",
-];
-
 // Terms that must appear in the headline or first 100 chars of the summary
 // for an article to be considered relevant to a given ticker.
 // Finnhub free tier returns loosely related articles — this filter removes noise.
@@ -166,19 +159,32 @@ export async function GET(req: NextRequest) {
   const today      = fmt(now);
   const twoDaysAgo = fmt(new Date(cutoffMs));
 
+  // Fetch tickers dynamically from admin_stocks so newly added stocks are
+  // included automatically without a code change.
+  const { data: stockRows } = await supabase
+    .from("admin_stocks")
+    .select("ticker")
+    .order("ticker");
+  const graphTickers: string[] = stockRows?.map((r: { ticker: string }) => r.ticker) ?? [];
+
+  if (graphTickers.length === 0) {
+    await supabase.from("pipeline_config").upsert({ id: 1, last_run_at: now.toISOString() });
+    return NextResponse.json({ processed: 0, inserted: 0, skipped: 0, errors: [] });
+  }
+
   // Note: Finnhub free tier returns predominantly Yahoo Finance sourced articles.
   // This is a known free tier limitation — paid plans unlock Reuters, Bloomberg, etc.
 
   // Fetch tickers in batches to avoid Finnhub free-tier rate limiting.
-  // Parallel bursts of all 19 tickers cause silent 429s; batches of 5 with a
-  // short delay between stay well within the rate limit.
+  // Parallel bursts cause silent 429s; batches of 5 with a short delay stay
+  // within the rate limit.
   const BATCH_SIZE = 5;
   const BATCH_DELAY_MS = 700;
   const fetched: Array<PromiseFulfilledResult<{ ticker: string; articles: FinnhubArticle[] }>> = [];
 
-  for (let i = 0; i < GRAPH_TICKERS.length; i += BATCH_SIZE) {
+  for (let i = 0; i < graphTickers.length; i += BATCH_SIZE) {
     if (i > 0) await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
-    const batch = GRAPH_TICKERS.slice(i, i + BATCH_SIZE);
+    const batch = graphTickers.slice(i, i + BATCH_SIZE);
     const results = await Promise.allSettled(
       batch.map(async (ticker) => ({ ticker, articles: await fetchTicker(ticker, twoDaysAgo, today, finnhubKey) })),
     );
