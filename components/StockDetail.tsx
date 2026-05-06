@@ -1385,12 +1385,8 @@ export default function StockDetail({ ticker }: { ticker: string }) {
           )}
         </Section>
 
-        <Section title="Earnings">
-          {earningsLoading ? (
-            <div style={{ fontSize: 13, color: "#334155" }}>Loading…</div>
-          ) : earnings.length === 0 ? (
-            <div style={{ fontSize: 13, color: "#334155" }}>No earnings data available.</div>
-          ) : (
+        {!earningsLoading && earnings.length > 0 && (
+          <Section title="Earnings">
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {earnings.map((e, i) => (
                 <ExternalLink
@@ -1404,8 +1400,8 @@ export default function StockDetail({ ticker }: { ticker: string }) {
                 label="Search earnings calls on YouTube"
               />
             </div>
-          )}
-        </Section>
+          </Section>
+        )}
 
         <Section title="Company Links">
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
