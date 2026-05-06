@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
 
   revalidatePath("/api/graph");
   revalidatePath("/graph");
+  revalidatePath("/api/fundamentals");
 
   return NextResponse.json(data, { status: 201 });
 }

@@ -92,8 +92,19 @@ export default function NodesPage() {
 
   async function regenAnalysis(ticker: string) {
     setRegenMsg((m) => ({ ...m, [ticker]: "Clearing…" }));
-    const r = await adminFetch(`/api/analysis?ticker=${ticker}`, { method: "DELETE" });
-    setRegenMsg((m) => ({ ...m, [ticker]: r.ok ? "Cleared — regenerates on next visit" : "Error" }));
+    try {
+      console.log(`[regenAnalysis] DELETE /api/analysis?ticker=${ticker}`);
+      const r = await adminFetch(`/api/analysis?ticker=${ticker}`, { method: "DELETE" });
+      console.log(`[regenAnalysis] response status: ${r.status}`);
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        console.error(`[regenAnalysis] error body:`, body);
+      }
+      setRegenMsg((m) => ({ ...m, [ticker]: r.ok ? "Cleared — regenerates on next visit" : `Error ${r.status}` }));
+    } catch (err) {
+      console.error(`[regenAnalysis] fetch threw:`, err);
+      setRegenMsg((m) => ({ ...m, [ticker]: "Error" }));
+    }
     setTimeout(() => setRegenMsg((m) => { const n = { ...m }; delete n[ticker]; return n; }), 3000);
   }
 

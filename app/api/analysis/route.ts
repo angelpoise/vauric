@@ -209,10 +209,14 @@ export async function GET(req: NextRequest) {
 // ─── DELETE — clear cached analysis (admin only) ──────────────────────────────
 
 export async function DELETE(req: NextRequest) {
-  if (!await isAdminRequest(req)) {
+  const hasAuth = !!req.headers.get("authorization");
+  const isAdmin = await isAdminRequest(req);
+  console.log(`[analysis DELETE] hasAuth=${hasAuth} isAdmin=${isAdmin}`);
+  if (!isAdmin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const ticker = req.nextUrl.searchParams.get("ticker")?.toUpperCase();
+  console.log(`[analysis DELETE] ticker=${ticker}`);
   if (!ticker) return NextResponse.json({ error: "ticker required" }, { status: 400 });
 
   const { error } = await supabaseAdmin
