@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminRequest } from "@/lib/adminSecret";
 
@@ -52,5 +53,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     : supabaseAdmin.from("admin_stocks").delete().eq("ticker", params.id.toUpperCase());
   const { error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  revalidatePath("/api/graph");
+  revalidatePath("/graph");
   return NextResponse.json({ success: true });
 }

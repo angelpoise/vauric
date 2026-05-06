@@ -1,4 +1,5 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminRequest } from "@/lib/adminSecret";
 import { hydrateSingleTicker } from "@/lib/fundamentalsUtils";
@@ -31,6 +32,9 @@ export async function POST(req: NextRequest) {
   hydrateSingleTicker(ticker.toUpperCase()).catch((err) =>
     console.error(`[admin/stocks] fundamentals hydration failed for ${ticker}:`, err)
   );
+
+  revalidatePath("/api/graph");
+  revalidatePath("/graph");
 
   return NextResponse.json(data, { status: 201 });
 }
