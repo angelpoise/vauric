@@ -229,9 +229,10 @@ function NewsList({ items, onTickerClick, isPro }: {
 export default function NewsPage() {
   const router = useRouter();
   const { getToken } = useAuth();
-  const { user } = useUser();
-  // isPro defaults to false for unauthenticated / free-tier users
-  const isPro = user?.publicMetadata?.isPro === true;
+  const { user, isLoaded } = useUser();
+  // Do not treat isPro as true until Clerk has confirmed the user's status.
+  // isLoaded=false means Clerk is still initialising — default to free tier.
+  const isPro = isLoaded ? user?.publicMetadata?.isPro === true : false;
   const [activeTab, setActiveTab]           = useState<Tab>("all");
   const [selectedSector, setSelectedSector] = useState("tech");
   const [searchQuery, setSearchQuery]       = useState("");
@@ -239,6 +240,10 @@ export default function NewsPage() {
   const [showAiPop, setShowAiPop]           = useState(false);
   const [newsItems, setNewsItems]           = useState<NewsItem[]>([]);
   const [newsLoading, setNewsLoading]       = useState(true);
+
+  useEffect(() => {
+    console.log(`[NewsPage] isLoaded=${isLoaded} isPro=${isPro} articles=${newsItems.length}`);
+  }, [isLoaded, isPro, newsItems.length]);
 
   useEffect(() => {
     setWatchlist(getWatchlist());
@@ -403,7 +408,7 @@ export default function NewsPage() {
 
         {/* All News */}
         {activeTab === "all" && (
-          newsLoading
+          (newsLoading || !isLoaded)
             ? <EmptyState message="Loading news…" />
             : newsItems.length === 0
               ? <EmptyState message="No news available yet. The pipeline fetches stories hourly." />
@@ -412,7 +417,7 @@ export default function NewsPage() {
 
         {/* Watchlist */}
         {activeTab === "watchlist" && (
-          newsLoading
+          (newsLoading || !isLoaded)
             ? <EmptyState message="Loading news…" />
             : watchlistNews.length === 0
               ? <EmptyState message="Add stocks to your watchlist to see their news here." />
@@ -444,7 +449,7 @@ export default function NewsPage() {
                 );
               })}
             </div>
-            {newsLoading
+            {(newsLoading || !isLoaded)
               ? <EmptyState message="Loading news…" />
               : sectorNews.length === 0
                 ? <EmptyState message={`No news for ${SECTOR_LABELS[selectedSector]} yet.`} />
@@ -477,7 +482,7 @@ export default function NewsPage() {
                 }}
               />
             </div>
-            {newsLoading
+            {(newsLoading || !isLoaded)
               ? <EmptyState message="Loading news…" />
               : searchQuery.trim().length === 0
                 ? <EmptyState message="Type to search headlines, tickers, or sources." />

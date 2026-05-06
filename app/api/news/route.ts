@@ -3,7 +3,9 @@ import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { verifyClerkTokenWithTier } from "@/lib/verifyClerkToken";
 
-const FREE_NEWS_LIMIT = 20;
+// Returned to free-tier users: 20 clear articles + 5 blur-buffer so the
+// client gate (CLEAR_LIMIT=20) has content to blur behind the upgrade prompt.
+const FREE_NEWS_LIMIT = 25;
 
 interface NewsRow {
   id: number;
