@@ -1391,7 +1391,7 @@ export default function StockDetail({ ticker }: { ticker: string }) {
           ) : earnings.length === 0 ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ fontSize: 13, color: "#334155", marginBottom: 4 }}>No filings found.</div>
-              <ExternalLink href={`https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${ticker}&type=10-K&dateb=&owner=include&count=10&search_text=`} label="View all SEC EDGAR filings" />
+              <ExternalLink href={`https://www.sec.gov/cgi-bin/browse-edgar?company=&CIK=${ticker}&type=10-K&dateb=&owner=include&count=10&search_text=&action=getcompany`} label="View all SEC EDGAR filings" />
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1416,7 +1416,7 @@ export default function StockDetail({ ticker }: { ticker: string }) {
               <ExternalLink href={graphStock.investor_relations_url} label="Investor relations" />
             )}
             <ExternalLink
-              href={`https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${ticker}&type=10-K&dateb=&owner=include&count=10&search_text=`}
+              href={`https://www.sec.gov/cgi-bin/browse-edgar?company=&CIK=${ticker}&type=10-K&dateb=&owner=include&count=10&search_text=&action=getcompany`}
               label="SEC EDGAR filings"
             />
           </div>

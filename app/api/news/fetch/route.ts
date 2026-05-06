@@ -38,6 +38,39 @@ const GRAPH_TICKERS = [
   "PYPL", "COIN", "HOOD", "AFRM", "SOFI",
 ];
 
+// Terms that must appear in the headline or first 100 chars of the summary
+// for an article to be considered relevant to a given ticker.
+// Finnhub free tier returns loosely related articles — this filter removes noise.
+const TICKER_TERMS: Record<string, string[]> = {
+  NVDA: ["nvda", "nvidia"],
+  MSFT: ["msft", "microsoft"],
+  PLTR: ["pltr", "palantir"],
+  AMD:  ["amd", "advanced micro devices"],
+  ARM:  ["arm holdings", " arm "],
+  SMCI: ["smci", "super micro", "supermicro"],
+  XOM:  ["xom", "exxonmobil", "exxon mobil", "exxon"],
+  CVX:  ["cvx", "chevron"],
+  FANG: ["fang", "diamondback"],
+  SLB:  ["slb", "schlumberger"],
+  LLY:  ["lly", "eli lilly", " lilly"],
+  HIMS: ["hims", "hers health"],
+  RXRX: ["rxrx", "recursion pharma", "recursion pharmaceuticals"],
+  MRNA: ["mrna", "moderna"],
+  PYPL: ["pypl", "paypal"],
+  COIN: ["coin", "coinbase"],
+  HOOD: ["hood", "robinhood"],
+  AFRM: ["afrm", "affirm"],
+  SOFI: ["sofi", "sofi technologies"],
+};
+
+function isRelevant(ticker: string, headline: string, summary: string): boolean {
+  const terms = TICKER_TERMS[ticker];
+  if (!terms) return true; // unknown ticker — don't filter
+  const hl = headline.toLowerCase();
+  const sm = summary.slice(0, 100).toLowerCase();
+  return terms.some((t) => hl.includes(t) || sm.includes(t));
+}
+
 interface FinnhubArticle {
   id: number;
   headline: string;
@@ -168,6 +201,8 @@ export async function GET(req: NextRequest) {
       if (!a.url || seenUrls.has(a.url)) continue;
       if (a.datetime * 1000 < cutoffMs) continue;
       const headline = a.headline ?? "";
+      // Relevance filter — skip Finnhub free-tier noise articles unrelated to this ticker
+      if (!isRelevant(ticker, headline, a.summary ?? "")) continue;
       // Cross-ticker similarity check within the current batch
       if (batchHeadlines.some((h) => wordOverlapRatio(h, headline) > 0.8)) continue;
       seenUrls.add(a.url);

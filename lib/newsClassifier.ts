@@ -30,11 +30,19 @@ const RULES: Rule[] = [
     keywords: ["stock split", "reverse split", "secondary offering", "share offering"],
   },
   {
-    // "delisting" covers acquisitions/mergers — labelled "Delisting / Acquisition" in the UI
+    // "delisting" covers acquisitions/mergers — labelled "Delisting / Acquisition" in the UI.
     // Headline-only: avoids "acquire" appearing in unrelated business contexts in summaries.
+    // Negative keywords block biographical/historical references that contain these words
+    // in a retrospective context rather than announcing an active corporate event.
     type: "delisting",
     keywords: ["acquisition", "merger", "buyout", "takeover", "acquire"],
     headlineOnly: true,
+    negativeKeywords: [
+      "decade", "history", "historical", "farewell", "legacy", "era",
+      "years", "former", "retired", "retirement", "anniversary", "past",
+      "look back", "reminisce", "veteran", "founded", "since", "biography",
+      "memoir", "career", "tenure", "stepping down", "steps down",
+    ],
   },
   {
     // Strict IPO rule: headline-only, ticker must appear in the headline,

@@ -42,8 +42,10 @@ function buildFilingUrl(hit: EdgarHit): string {
     const acc = accession_no.replace(/-/g, "");
     return `https://www.sec.gov/Archives/edgar/data/${entity_id}/${acc}/`;
   }
-  // Fallback: link to EDGAR search
-  return `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${hit._source.entity_id ?? ""}&type=${hit._source.form_type ?? ""}&dateb=&owner=include&count=10`;
+  // Fallback: link to EDGAR company search
+  const cik  = hit._source.entity_id ?? "";
+  const form = hit._source.form_type ?? "10-K";
+  return `https://www.sec.gov/cgi-bin/browse-edgar?company=&CIK=${cik}&type=${form}&dateb=&owner=include&count=10&search_text=&action=getcompany`;
 }
 
 async function fetchEdgarFilings(ticker: string): Promise<EarningsRow[]> {
