@@ -4,7 +4,7 @@ import { isAdminRequest } from "@/lib/adminSecret";
 
 // Only these fields may be updated via the admin API
 const ALLOWED_PUT_FIELDS = new Set([
-  "ticker", "company_name", "sector", "x_position", "y_position",
+  "ticker", "company_name", "sector", "x_position", "y_position", "investor_relations_url",
 ]);
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {

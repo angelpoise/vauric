@@ -1,27 +1,32 @@
 import { NextResponse } from "next/server";
 
-// Free-tier compatible endpoints (snapshot and last-trade are 403 on free tier):
-//   GET /v2/aggs/grouped/locale/us/market/stocks/{date}  → 200 ✓
-// Strategy: two calls (current day + previous day) so we can compute
-//   dailyMove = (currentClose - prevClose) / prevClose × 100
-// which is the true daily change, not the intraday-only (close - open) / open.
+// Strategy: two grouped-bar calls (current day + previous day) for price/daily-move,
+// plus per-ticker bar history for streak calculation.
+
+const GRAPH_TICKERS = [
+  "NVDA", "MSFT", "PLTR", "AMD", "ARM", "SMCI",
+  "XOM",  "CVX",  "FANG", "SLB",
+  "LLY",  "HIMS", "RXRX", "MRNA",
+  "PYPL", "COIN", "HOOD", "AFRM", "SOFI",
+];
 
 interface Bar { T: string; o: number; c: number; }
+interface DayBar { c: number; }
 
 export interface MarketDataEntry {
   price: number;
   dailyMove: number;
   dailyMoveDollar: number;
+  streak: number;
+  streakDirection: "up" | "down" | "flat";
 }
 
-// Steps back one or more days until landing on a weekday
 function prevWeekday(date: Date): Date {
   const d = new Date(date);
   do { d.setDate(d.getDate() - 1); } while (d.getDay() === 0 || d.getDay() === 6);
   return d;
 }
 
-// Returns date unchanged if already a weekday; steps back to Friday if weekend
 function toWeekday(date: Date): Date {
   const d = new Date(date);
   while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
@@ -32,7 +37,7 @@ function fmt(date: Date): string {
   return date.toISOString().split("T")[0];
 }
 
-async function fetchBars(date: Date, apiKey: string): Promise<Bar[] | null> {
+async function fetchGroupedBars(date: Date, apiKey: string): Promise<Bar[] | null> {
   try {
     const res = await fetch(
       `https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/${fmt(date)}` +
@@ -47,6 +52,43 @@ async function fetchBars(date: Date, apiKey: string): Promise<Bar[] | null> {
   }
 }
 
+async function fetchTickerHistory(
+  ticker: string,
+  from: string,
+  to: string,
+  apiKey: string,
+): Promise<DayBar[] | null> {
+  try {
+    const res = await fetch(
+      `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/1/day/${from}/${to}` +
+      `?adjusted=true&sort=asc&limit=35&apiKey=${apiKey}`,
+      { next: { revalidate: 900 } }
+    );
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.results?.length > 0 ? json.results : null;
+  } catch {
+    return null;
+  }
+}
+
+function calcStreak(bars: DayBar[]): { streak: number; streakDirection: "up" | "down" | "flat" } {
+  if (bars.length < 2) return { streak: 0, streakDirection: "flat" };
+  // bars are sorted ascending; reverse so index 0 = most recent day
+  const desc = [...bars].reverse();
+  const isUp   = desc[0].c > desc[1].c;
+  const isDown = desc[0].c < desc[1].c;
+  if (!isUp && !isDown) return { streak: 1, streakDirection: "flat" };
+  const dir = isUp ? "up" : "down";
+  let count = 1;
+  for (let i = 1; i + 1 < desc.length; i++) {
+    if (dir === "up"   && desc[i].c > desc[i + 1].c) { count++; continue; }
+    if (dir === "down" && desc[i].c < desc[i + 1].c) { count++; continue; }
+    break;
+  }
+  return { streak: count, streakDirection: dir };
+}
+
 export async function GET() {
   const apiKey = process.env.POLYGON_API_KEY;
   if (!apiKey) {
@@ -56,14 +98,11 @@ export async function GET() {
   const now = new Date();
   console.log(`[market-data] server UTC now: ${now.toISOString()} (day=${now.getUTCDay()})`);
 
-  // Start from today if it's already a weekday — do NOT subtract a day preemptively.
-  // The retry loop steps back only if the API returns no results for that date
-  // (e.g. today's session isn't processed yet, or it's a holiday).
   let currentDate = toWeekday(now);
   let currentBars: Bar[] | null = null;
   for (let i = 0; i < 5; i++) {
     console.log(`[market-data] trying current: ${fmt(currentDate)} (attempt ${i + 1})`);
-    currentBars = await fetchBars(currentDate, apiKey);
+    currentBars = await fetchGroupedBars(currentDate, apiKey);
     if (currentBars) {
       console.log(`[market-data] found ${currentBars.length} bars for ${fmt(currentDate)}`);
       break;
@@ -76,12 +115,11 @@ export async function GET() {
     return NextResponse.json({ error: "No market data available" }, { status: 503 });
   }
 
-  // Previous trading day: step back once from whatever date worked above
   let prevDate = prevWeekday(currentDate);
   let prevBars: Bar[] | null = null;
   for (let i = 0; i < 5; i++) {
     console.log(`[market-data] trying prev: ${fmt(prevDate)} (attempt ${i + 1})`);
-    prevBars = await fetchBars(prevDate, apiKey);
+    prevBars = await fetchGroupedBars(prevDate, apiKey);
     if (prevBars) {
       console.log(`[market-data] found ${prevBars.length} bars for ${fmt(prevDate)}`);
       break;
@@ -94,15 +132,12 @@ export async function GET() {
     `(prevBars: ${prevBars?.length ?? 0} bars)`
   );
 
-  // Build prev-close lookup keyed by ticker
   const prevClose: Record<string, number> = {};
   for (const b of prevBars ?? []) prevClose[b.T] = b.c;
 
-  // Build current-day lookup keyed by ticker — no filter, include all traded symbols
   const currentByTicker: Record<string, Bar> = {};
   for (const b of currentBars) currentByTicker[b.T] = b;
 
-  // Log sample ticker for verification
   const sample = currentByTicker["NVDA"];
   if (sample) {
     console.log(
@@ -114,25 +149,45 @@ export async function GET() {
     );
   }
 
+  // Fetch 30-day bar history for streak calculation on graph tickers in parallel
+  const historyFrom = fmt(new Date(now.getTime() - 45 * 24 * 60 * 60 * 1000)); // ~30 trading days
+  const historyTo   = fmt(currentDate);
+
+  const streakResults = await Promise.allSettled(
+    GRAPH_TICKERS.map(async (ticker) => ({
+      ticker,
+      bars: await fetchTickerHistory(ticker, historyFrom, historyTo, apiKey),
+    }))
+  );
+
+  const streakMap: Record<string, { streak: number; streakDirection: "up" | "down" | "flat" }> = {};
+  for (const r of streakResults) {
+    if (r.status === "fulfilled" && r.value.bars) {
+      streakMap[r.value.ticker] = calcStreak(r.value.bars);
+    }
+  }
+
   const result: Record<string, MarketDataEntry> = {};
   for (const [ticker, cur] of Object.entries(currentByTicker)) {
     const prev = prevClose[ticker];
+    const { streak, streakDirection } = streakMap[ticker] ?? { streak: 0, streakDirection: "flat" as const };
     if (prev != null && prev > 0) {
-      // True daily change: current close vs previous day's close
       const dollarMove = cur.c - prev;
       result[ticker] = {
         price:           Math.round(cur.c * 100) / 100,
         dailyMove:       Math.round((dollarMove / prev) * 10000) / 100,
         dailyMoveDollar: Math.round(dollarMove * 100) / 100,
+        streak,
+        streakDirection,
       };
     } else {
-      // Prev day bars unavailable — intraday only (close vs open).
-      // TODO: upgrade to paid plan for snapshot endpoint to fix this fallback.
       const dollarMove = cur.c - cur.o;
       result[ticker] = {
         price:           Math.round(cur.c * 100) / 100,
         dailyMove:       Math.round((dollarMove / cur.o) * 10000) / 100,
         dailyMoveDollar: Math.round(dollarMove * 100) / 100,
+        streak,
+        streakDirection,
       };
     }
   }

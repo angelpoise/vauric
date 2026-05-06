@@ -711,11 +711,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 // ─── Link row ─────────────────────────────────────────────────────────────────
 
-function PlaceholderLink({ label }: { label: string }) {
+function ExternalLink({ href, label }: { href: string; label: string }) {
   return (
     <a
-      href="#"
-      onClick={(e) => e.preventDefault()}
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
       style={{
         display: "flex",
         alignItems: "center",
@@ -732,13 +733,7 @@ function PlaceholderLink({ label }: { label: string }) {
       }}
     >
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-        <path
-          d="M3 7H11M8 4L11 7L8 10"
-          stroke="#3b82f6"
-          strokeWidth="1.3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        <path d="M3 7H11M8 4L11 7L8 10" stroke="#3b82f6" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
       {label}
     </a>
@@ -747,7 +742,13 @@ function PlaceholderLink({ label }: { label: string }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-interface LiveEntry { price: number; dailyMove: number; dailyMoveDollar: number; }
+interface LiveEntry {
+  price: number;
+  dailyMove: number;
+  dailyMoveDollar: number;
+  streak?: number;
+  streakDirection?: "up" | "down" | "flat";
+}
 
 interface FundamentalsEntry {
   marketCap:                    number | null;
@@ -765,6 +766,11 @@ interface FundamentalsEntry {
   priceToSalesTrailing12Months: number | null;
   fiftyDayAverage:              number | null;
   twoHundredDayAverage:         number | null;
+  longBusinessSummary:          string | null;
+  sector:                       string | null;
+  industry:                     string | null;
+  website:                      string | null;
+  fullTimeEmployees:            number | null;
 }
 
 function formatMarketCap(v: number): string {
@@ -788,18 +794,19 @@ function buildMetrics(f: FundamentalsEntry | null, live: LiveEntry | null): Metr
   const px = (v: number | null | undefined): string => p(v, (n) => `$${n.toFixed(2)}`);
   const pe = (v: number | null | undefined): string => p(v, (n) => `${n.toFixed(2)}×`);
 
-  // Streak: derive from today's dailyMove only (1 day); improves with historical data.
   let streakValue = "—";
   let streakColor: string | undefined;
   if (live != null) {
-    if (live.dailyMove > 0) {
-      streakValue = "1 up day";
+    const n = live.streak ?? 0;
+    const dir = live.streakDirection ?? "flat";
+    if (dir === "up") {
+      streakValue = `${n} up day${n !== 1 ? "s" : ""}`;
       streakColor = "#22c55e";
-    } else if (live.dailyMove < 0) {
-      streakValue = "1 down day";
+    } else if (dir === "down") {
+      streakValue = `${n} down day${n !== 1 ? "s" : ""}`;
       streakColor = "#ef4444";
     } else {
-      streakValue = "Flat";
+      streakValue = n > 0 ? "Flat" : "—";
     }
   }
 
@@ -827,8 +834,21 @@ export default function StockDetail({ ticker }: { ticker: string }) {
   const [fundamentals, setFundamentals] = useState<FundamentalsEntry | null>(null);
 
   interface ApiNewsItem { id: number; headline: string; source: string | null; published_at: string; notification_type: string; url: string | null; }
-  const [stockNews, setStockNews]           = useState<ApiNewsItem[]>([]);
+  const [stockNews, setStockNews]               = useState<ApiNewsItem[]>([]);
   const [stockNewsLoading, setStockNewsLoading] = useState(true);
+
+  interface GraphStock { ticker: string; investor_relations_url: string | null; company_name: string; }
+  const [graphStock, setGraphStock] = useState<GraphStock | null>(null);
+
+  interface EarningsItem { filing_type: string; period: string | null; filing_date: string; filing_url: string; }
+  const [earnings, setEarnings]               = useState<EarningsItem[]>([]);
+  const [earningsLoading, setEarningsLoading] = useState(true);
+
+  interface AnalysisData { segments: string; margins: string; guidance: string; relationships: string; }
+  const [analysis, setAnalysis]               = useState<AnalysisData | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError]     = useState(false);
+
   const [inWatchlist, setInWatchlist] = useState(false);
   const [wlFlash, setWlFlash] = useState<"added" | "duplicate" | "limit" | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -885,6 +905,38 @@ export default function StockDetail({ ticker }: { ticker: string }) {
       .catch(() => { setStockNews([]); })
       .finally(() => { setStockNewsLoading(false); });
   }, [ticker]);
+
+  useEffect(() => {
+    fetch("/api/graph")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.stocks) {
+          const s = data.stocks.find((s: GraphStock) => s.ticker === ticker);
+          setGraphStock(s ?? null);
+        }
+      })
+      .catch(() => {});
+  }, [ticker]);
+
+  useEffect(() => {
+    setEarningsLoading(true);
+    fetch(`/api/earnings?ticker=${ticker}`)
+      .then((r) => r.ok ? r.json() : [])
+      .then((d) => setEarnings(Array.isArray(d) ? d : []))
+      .catch(() => setEarnings([]))
+      .finally(() => setEarningsLoading(false));
+  }, [ticker]);
+
+  function loadAnalysis(refresh = false) {
+    setAnalysisLoading(true);
+    setAnalysisError(false);
+    const url = `/api/analysis?ticker=${ticker}${refresh ? "&refresh=1" : ""}`;
+    fetch(url)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d && !d.error) setAnalysis(d); else setAnalysisError(true); })
+      .catch(() => setAnalysisError(true))
+      .finally(() => setAnalysisLoading(false));
+  }
 
   const displayPrice     = live?.price     ?? data.price;
   const displayMove      = live?.dailyMove ?? data.dailyMove;
@@ -1130,17 +1182,65 @@ export default function StockDetail({ ticker }: { ticker: string }) {
         {/* ── Sections ────────────────────────────────────────────────────── */}
 
         <Section title="Company Overview">
-          <p
-            style={{
-              fontSize: 14,
-              color: "#94a3b8",
-              lineHeight: 1.85,
-              fontWeight: 300,
-              margin: 0,
-            }}
-          >
-            {data.description}
-          </p>
+          {fundamentals === null && !loaded ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {[100, 85, 65].map((w) => (
+                <div key={w} style={{ height: 14, width: `${w}%`, background: "rgba(255,255,255,0.05)", borderRadius: 4 }} />
+              ))}
+            </div>
+          ) : (
+            <p style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.85, fontWeight: 300, margin: 0 }}>
+              {fundamentals?.longBusinessSummary ?? data.description}
+            </p>
+          )}
+        </Section>
+
+        <Section title="Deeper dive">
+          <div style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 10, background: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.25)", borderRadius: 4, padding: "2px 7px", color: "#3b82f6", letterSpacing: "0.06em", textTransform: "uppercase" }}>AI generated</span>
+            <button
+              onClick={() => loadAnalysis(true)}
+              disabled={analysisLoading}
+              style={{ background: "none", border: "none", color: "#475569", fontSize: 12, cursor: analysisLoading ? "wait" : "pointer", padding: 0, fontFamily: "inherit" }}
+            >
+              {analysisLoading ? "Generating…" : "↻ Refresh"}
+            </button>
+          </div>
+          {!analysis && !analysisLoading && !analysisError && (
+            <button
+              onClick={() => loadAnalysis()}
+              style={{ background: "rgba(59,130,246,0.07)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 8, color: "#3b82f6", fontSize: 13, padding: "8px 18px", cursor: "pointer", fontFamily: "inherit" }}
+            >
+              Generate analysis
+            </button>
+          )}
+          {analysisLoading && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {[["Business segments", 90], ["Margins & profitability", 80], ["Recent guidance", 70], ["Key relationships", 85]].map(([label, w]) => (
+                <div key={label}>
+                  <div style={{ fontSize: 11, color: "#334155", fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 6 }}>{label}</div>
+                  <div style={{ height: 13, width: `${w}%`, background: "rgba(255,255,255,0.05)", borderRadius: 4, marginBottom: 4 }} />
+                  <div style={{ height: 13, width: "60%", background: "rgba(255,255,255,0.04)", borderRadius: 4 }} />
+                </div>
+              ))}
+            </div>
+          )}
+          {analysisError && <p style={{ fontSize: 13, color: "#475569" }}>Analysis unavailable. Check that ANTHROPIC_API_KEY is set and the company_analysis table exists.</p>}
+          {analysis && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              {([
+                ["Business segments",    analysis.segments],
+                ["Margins & profitability", analysis.margins],
+                ["Recent guidance",      analysis.guidance],
+                ["Key relationships",    analysis.relationships],
+              ] as [string, string][]).map(([label, text]) => (
+                <div key={label}>
+                  <div style={{ fontSize: 11, color: "#475569", fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 7 }}>{label}</div>
+                  <p style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.75, fontWeight: 300, margin: 0 }}>{text}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </Section>
 
         <Section title="Key Metrics">
@@ -1261,16 +1361,39 @@ export default function StockDetail({ ticker }: { ticker: string }) {
         </Section>
 
         <Section title="Earnings">
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <PlaceholderLink label="Most recent earnings report" />
-            <PlaceholderLink label="Earnings call recording" />
-          </div>
+          {earningsLoading ? (
+            <div style={{ fontSize: 13, color: "#334155" }}>Loading…</div>
+          ) : earnings.length === 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ fontSize: 13, color: "#334155", marginBottom: 4 }}>No filings found.</div>
+              <ExternalLink href={`https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${ticker}&type=&dateb=&owner=include&count=40`} label="View all SEC EDGAR filings" />
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {earnings.map((e, i) => (
+                <ExternalLink
+                  key={i}
+                  href={e.filing_url}
+                  label={`${e.filing_type}${e.period ? ` — ${e.period}` : ""} · ${new Date(e.filing_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`}
+                />
+              ))}
+              <ExternalLink
+                href={`https://www.youtube.com/results?search_query=${encodeURIComponent((graphStock?.company_name ?? data.name).replace(/\s+/g, "+"))}+earnings+call`}
+                label="Search earnings calls on YouTube"
+              />
+            </div>
+          )}
         </Section>
 
         <Section title="Company Links">
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <PlaceholderLink label="Investor relations" />
-            <PlaceholderLink label="SEC EDGAR filings" />
+            {graphStock?.investor_relations_url && (
+              <ExternalLink href={graphStock.investor_relations_url} label="Investor relations" />
+            )}
+            <ExternalLink
+              href={`https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${ticker}&type=&dateb=&owner=include&count=40`}
+              label="SEC EDGAR filings"
+            />
           </div>
         </Section>
       </div>

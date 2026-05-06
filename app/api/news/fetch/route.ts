@@ -52,6 +52,17 @@ function fmt(d: Date): string {
   return d.toISOString().split("T")[0];
 }
 
+// Returns the ratio of shared words to the larger word count of either headline.
+// Used to catch near-duplicate articles with slightly different URLs.
+function wordOverlapRatio(a: string, b: string): number {
+  const words = (s: string) =>
+    new Set(s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean));
+  const wa = words(a);
+  const wb = words(b);
+  const shared = Array.from(wa).filter((w) => wb.has(w)).length;
+  return shared / Math.max(wa.size, wb.size, 1);
+}
+
 function isAuthorized(req: NextRequest): boolean {
   const pipelineSecret  = process.env.PIPELINE_SECRET;
   const cronSecret      = process.env.VERCEL_CRON_SECRET;
@@ -143,26 +154,33 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Flatten all articles and deduplicate by url within this batch
+  // Flatten articles — deduplicate by URL and by headline similarity within this batch.
+  // Same story sometimes appears under slightly different Yahoo Finance URLs for multiple tickers.
   interface Article { ticker: string; headline: string; summary: string; source: string; url: string; published_at: string; notification_type: string; }
   const allArticles: Article[] = [];
   const seenUrls = new Set<string>();
+  // Per-ticker seen headlines — catches same story with minor headline wording differences
+  const seenHeadlines = new Map<string, string[]>();
 
   for (const r of fetched) {
     const { ticker, articles } = r.value;
     for (const a of articles) {
       if (!a.url || seenUrls.has(a.url)) continue;
-      // Skip articles older than 48 hours at insert time
       if (a.datetime * 1000 < cutoffMs) continue;
+      const headline = a.headline ?? "";
+      const tickerSeen = seenHeadlines.get(ticker) ?? [];
+      if (tickerSeen.some((h) => wordOverlapRatio(h, headline) > 0.8)) continue;
       seenUrls.add(a.url);
+      tickerSeen.push(headline);
+      seenHeadlines.set(ticker, tickerSeen);
       allArticles.push({
         ticker,
-        headline:          a.headline ?? "",
+        headline,
         summary:           a.summary  ?? "",
         source:            a.source   ?? "",
         url:               a.url,
         published_at:      new Date(a.datetime * 1000).toISOString(),
-        notification_type: classifyNews(a.headline ?? "", a.summary ?? "", ticker),
+        notification_type: classifyNews(headline, a.summary ?? "", ticker),
       });
     }
   }
@@ -180,7 +198,32 @@ export async function GET(req: NextRequest) {
     .in("url", urls);
 
   const existingSet = new Set((existing ?? []).map((r: { url: string }) => r.url));
-  const toInsert = allArticles.filter((a) => !existingSet.has(a.url));
+  let urlFiltered = allArticles.filter((a) => !existingSet.has(a.url));
+
+  // Secondary dedup: check existing DB headlines per ticker for the past 48 h.
+  // Catches cases where the same story was already stored under a different URL.
+  if (urlFiltered.length > 0) {
+    const tickersNeeded = Array.from(new Set(urlFiltered.map((a) => a.ticker)));
+    const { data: recentRows } = await supabase
+      .from("news")
+      .select("ticker, headline")
+      .in("ticker", tickersNeeded)
+      .gte("published_at", new Date(cutoffMs).toISOString());
+
+    const dbHeadlines = new Map<string, string[]>();
+    for (const row of recentRows ?? []) {
+      const arr = dbHeadlines.get(row.ticker) ?? [];
+      arr.push(row.headline as string);
+      dbHeadlines.set(row.ticker, arr);
+    }
+
+    urlFiltered = urlFiltered.filter((a) => {
+      const dbExisting = dbHeadlines.get(a.ticker) ?? [];
+      return !dbExisting.some((h) => wordOverlapRatio(h, a.headline) > 0.8);
+    });
+  }
+
+  const toInsert = urlFiltered;
   const errors: string[] = [];
   let inserted = 0;
 

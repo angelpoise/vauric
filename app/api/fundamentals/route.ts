@@ -26,6 +26,11 @@ export interface FundamentalsEntry {
   priceToSalesTrailing12Months: number | null;
   fiftyDayAverage:              number | null;
   twoHundredDayAverage:         number | null;
+  longBusinessSummary:          string | null;
+  sector:                       string | null;
+  industry:                     string | null;
+  website:                      string | null;
+  fullTimeEmployees:            number | null;
 }
 
 // 24-hour module-level cache
@@ -73,16 +78,15 @@ async function fetchFundamentals(
   try {
     const url =
       `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}` +
-      `?modules=summaryDetail&crumb=${encodeURIComponent(session.crumb)}`;
+      `?modules=summaryDetail,assetProfile&crumb=${encodeURIComponent(session.crumb)}`;
     const res = await fetch(url, {
       headers: { "User-Agent": UA, Cookie: session.cookie },
     });
     if (!res.ok) return null;
     const json = await res.json();
-    const sd = json?.quoteSummary?.result?.[0]?.summaryDetail as
-      | Record<string, unknown>
-      | null
-      | undefined;
+    const result = json?.quoteSummary?.result?.[0] as Record<string, unknown> | null | undefined;
+    const sd = result?.summaryDetail as Record<string, unknown> | null | undefined;
+    const ap = result?.assetProfile as Record<string, unknown> | null | undefined;
     if (!sd) return null;
 
     return {
@@ -101,6 +105,11 @@ async function fetchFundamentals(
       priceToSalesTrailing12Months: num(sd, "priceToSalesTrailing12Months"),
       fiftyDayAverage:              num(sd, "fiftyDayAverage"),
       twoHundredDayAverage:         num(sd, "twoHundredDayAverage"),
+      longBusinessSummary: typeof ap?.longBusinessSummary === "string" ? ap.longBusinessSummary : null,
+      sector:              typeof ap?.sector   === "string" ? ap.sector   : null,
+      industry:            typeof ap?.industry  === "string" ? ap.industry  : null,
+      website:             typeof ap?.website   === "string" ? ap.website   : null,
+      fullTimeEmployees:   typeof ap?.fullTimeEmployees === "number" ? ap.fullTimeEmployees : null,
     };
   } catch {
     return null;

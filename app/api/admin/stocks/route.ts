@@ -12,11 +12,15 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   if (!await isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json();
-  const { ticker, company_name, sector, x_position, y_position } = body;
+  const { ticker, company_name, sector, x_position, y_position, investor_relations_url } = body;
   if (!ticker || !company_name || !sector) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   const { data, error } = await supabaseAdmin
     .from("admin_stocks")
-    .insert({ ticker: ticker.toUpperCase(), company_name, sector, x_position: x_position ?? 0.5, y_position: y_position ?? 0.5 })
+    .insert({
+      ticker: ticker.toUpperCase(), company_name, sector,
+      x_position: x_position ?? 0.5, y_position: y_position ?? 0.5,
+      ...(investor_relations_url ? { investor_relations_url } : {}),
+    })
     .select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data, { status: 201 });

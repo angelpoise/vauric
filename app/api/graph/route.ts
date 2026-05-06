@@ -7,7 +7,7 @@ export async function GET() {
   const [stocksRes, connectionsRes] = await Promise.all([
     supabase
       .from("admin_stocks")
-      .select("ticker, company_name, sector, x_position, y_position")
+      .select("ticker, company_name, sector, x_position, y_position, investor_relations_url")
       .order("ticker"),
     supabase
       .from("admin_connections")
