@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 // Strategy: two grouped-bar calls (current day + previous day) for price/daily-move,
 // plus per-ticker bar history for streak calculation.
@@ -89,14 +89,20 @@ function calcStreak(bars: DayBar[]): { streak: number; streakDirection: "up" | "
   return { streak: count, streakDirection: dir };
 }
 
-// Module-level output cache — survives across browser refreshes on the same
-// server instance, avoiding the full Polygon waterfall on every page load.
-let serverCache: { data: Record<string, MarketDataEntry>; ts: number } | null = null;
+// Two independent server caches: one for the fast no-streak path (graph nodes),
+// one for the full with-streak path (stock detail page).
+let serverCache:       { data: Record<string, MarketDataEntry>; ts: number } | null = null;
+let serverCacheStreak: { data: Record<string, MarketDataEntry>; ts: number } | null = null;
 const SERVER_TTL = 15 * 60 * 1000; // 15 minutes
 
-export async function GET() {
-  if (serverCache && Date.now() - serverCache.ts < SERVER_TTL) {
-    return NextResponse.json(serverCache.data);
+export async function GET(req: NextRequest) {
+  // ?includeStreak=true opts in to streak data (19 extra Polygon calls).
+  // Default is false — graph coloring only needs price + daily move.
+  const includeStreak = req.nextUrl.searchParams.get("includeStreak") === "true";
+
+  const activeCache = includeStreak ? serverCacheStreak : serverCache;
+  if (activeCache && Date.now() - activeCache.ts < SERVER_TTL) {
+    return NextResponse.json(activeCache.data);
   }
 
   const apiKey = process.env.POLYGON_API_KEY;
@@ -158,21 +164,23 @@ export async function GET() {
     );
   }
 
-  // Fetch 30-day bar history for streak calculation on graph tickers in parallel
-  const historyFrom = fmt(new Date(now.getTime() - 45 * 24 * 60 * 60 * 1000)); // ~30 trading days
-  const historyTo   = fmt(currentDate);
-
-  const streakResults = await Promise.allSettled(
-    GRAPH_TICKERS.map(async (ticker) => ({
-      ticker,
-      bars: await fetchTickerHistory(ticker, historyFrom, historyTo, apiKey),
-    }))
-  );
-
+  // Streak calculation — skipped when includeStreak=false (default).
+  // Fetching 30-day history for every ticker is 19 extra Polygon calls;
+  // omitting them cuts cold-cache latency from ~5 s to ~1 s.
   const streakMap: Record<string, { streak: number; streakDirection: "up" | "down" | "flat" }> = {};
-  for (const r of streakResults) {
-    if (r.status === "fulfilled" && r.value.bars) {
-      streakMap[r.value.ticker] = calcStreak(r.value.bars);
+  if (includeStreak) {
+    const historyFrom = fmt(new Date(now.getTime() - 45 * 24 * 60 * 60 * 1000));
+    const historyTo   = fmt(currentDate);
+    const streakResults = await Promise.allSettled(
+      GRAPH_TICKERS.map(async (ticker) => ({
+        ticker,
+        bars: await fetchTickerHistory(ticker, historyFrom, historyTo, apiKey),
+      }))
+    );
+    for (const r of streakResults) {
+      if (r.status === "fulfilled" && r.value.bars) {
+        streakMap[r.value.ticker] = calcStreak(r.value.bars);
+      }
     }
   }
 
@@ -201,6 +209,10 @@ export async function GET() {
     }
   }
 
-  serverCache = { data: result, ts: Date.now() };
+  if (includeStreak) {
+    serverCacheStreak = { data: result, ts: Date.now() };
+  } else {
+    serverCache = { data: result, ts: Date.now() };
+  }
   return NextResponse.json(result);
 }

@@ -27,6 +27,21 @@ import {
   DEFAULT_GRAPH_SETTINGS,
 } from "@/lib/graphSettingsTypes";
 
+// ─── Module-level market data prefetch ───────────────────────────────────────
+// Start the fetch the instant this module is imported (before React mounts the
+// component), so data is in flight during canvas setup rather than after it.
+let _marketDataPromise: Promise<void> | null = null;
+if (typeof window !== "undefined") {
+  _marketDataPromise = (async () => {
+    if (getCachedMarketData()) return;
+    try {
+      const r    = await fetch("/api/market-data");
+      const data = r.ok ? (await r.json() as Record<string, unknown>) : null;
+      if (data) setCachedMarketData(data as Parameters<typeof setCachedMarketData>[0]);
+    } catch { /* useEffect will surface any error state */ }
+  })();
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 const DOT_LETTERS: Record<string, string> = {
@@ -350,7 +365,8 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
     }).catch(() => {});
   }, []);
 
-  // Populate live data
+  // Populate live data — attach to the module-level promise that started
+  // fetching before this component mounted, rather than starting a new fetch.
   useEffect(() => {
     const cached = getCachedMarketData();
     if (cached) {
@@ -359,21 +375,15 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       return;
     }
 
-    // Timeout: if market data hasn't arrived in 3 s, unblock the render loop
-    // so nodes show their fallback colour rather than staying grey indefinitely.
+    // Safety timeout: unblock the RAF loop after 3 s if the fetch stalls.
     const timeoutId = setTimeout(() => { liveDataReadyRef.current = true; }, 3000);
 
-    fetch("/api/market-data")
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (data) {
-          setCachedMarketData(data);
-          liveDataRef.current = data;
-          console.log("[market-data] AMD entry:", data["AMD"] ?? "not present in API response");
-        }
+    (_marketDataPromise ?? Promise.resolve())
+      .then(() => {
+        const data = getCachedMarketData();
+        if (data) liveDataRef.current = data;
         liveDataReadyRef.current = true;
       })
-      .catch(() => { liveDataReadyRef.current = true; })
       .finally(() => clearTimeout(timeoutId));
   }, []);
 
