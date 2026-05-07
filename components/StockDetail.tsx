@@ -1278,8 +1278,8 @@ export default function StockDetail({ ticker }: { ticker: string }) {
               );
             })()}
 
-            {/* RS header pill */}
-            {rsData && rsData.trend !== "inline" && (
+            {/* RS header pill — shows 1M figure when |vs1m| >= 1% */}
+            {rsData && rsData.vs1m != null && Math.abs(rsData.vs1m) >= 1 && (
               <span style={{
                 fontSize: 11, fontWeight: 500,
                 padding: "4px 9px", borderRadius: 6, flexShrink: 0,
@@ -1287,7 +1287,7 @@ export default function StockDetail({ ticker }: { ticker: string }) {
                 background:  RS_TREND_COLOR[rsData.trend] + "15",
                 border:      `1px solid ${RS_TREND_COLOR[rsData.trend]}30`,
               }}>
-                {rsData.trend === "outperforming" ? "↑ Outperforming" : "↓ Underperforming"}
+                {`${rsData.vs1m >= 0 ? "↑ +" : "↓ "}${rsData.vs1m.toFixed(1)}% vs ${rsData.etf} (1M)`}
               </span>
             )}
 

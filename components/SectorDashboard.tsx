@@ -257,11 +257,9 @@ function StockTable({ rows }: { rows: StockRow[] }) {
                   { key: "ticker" as SortKey,         label: "Ticker"   },
                   { key: null,                          label: "Company"  },
                   { key: null,                          label: "Sector"   },
-                  { key: "dailyMove" as SortKey,       label: "Daily %"  },
-                  { key: "dailyMoveDollar" as SortKey, label: "Daily $"  },
-                  { key: "price" as SortKey,            label: "Price"    },
-                  { key: "streak" as SortKey,           label: "Streak"   },
-                  { key: "relVolume" as SortKey,        label: "Rel. Vol" },
+                  { key: "dailyMove" as SortKey,       label: "Daily %"   },
+                  { key: "price" as SortKey,            label: "Price"     },
+                  { key: "streak" as SortKey,           label: "Streak"    },
                   { key: "vs1m" as SortKey,             label: "vs Sector" },
                 ] as Array<{ key: SortKey | null; label: string }>).map(({ key, label }) => (
                   <th
@@ -310,10 +308,8 @@ function StockTable({ rows }: { rows: StockRow[] }) {
                       </span>
                     </td>
                     <td style={{ padding: "11px 12px", fontSize: 13, fontWeight: 600, color: moveCol, textAlign: "right" }}>{fmtPct(row.dailyMove)}</td>
-                    <td style={{ padding: "11px 12px", fontSize: 12, color: moveCol + "cc", textAlign: "right" }}>{fmtDollar(row.dailyMoveDollar)}</td>
                     <td style={{ padding: "11px 12px", fontSize: 13, color: "#94a3b8", textAlign: "right" }}>{fmtPrice(row.price)}</td>
                     <td style={{ padding: "11px 12px", fontSize: 12, color: row.streakDirection === "up" ? "#22c55e" : row.streakDirection === "down" ? "#ef4444" : "#334155", textAlign: "left" }}>{streak}</td>
-                    <td style={{ padding: "11px 12px", fontSize: 12, color: "#475569", textAlign: "right" }}>{fmtRV(row.relVolume)}</td>
                     <td style={{ padding: "11px 12px", fontSize: 12, fontWeight: 500, color: row.vs1m == null ? "#334155" : row.vs1m >= 0 ? "#22c55e" : "#ef4444", textAlign: "right" }}>
                       {row.vs1m != null ? `${row.vs1m >= 0 ? "+" : ""}${row.vs1m.toFixed(1)}%` : "—"}
                     </td>
@@ -321,7 +317,7 @@ function StockTable({ rows }: { rows: StockRow[] }) {
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={9} style={{ padding: "32px 12px", textAlign: "center", fontSize: 13, color: "#334155" }}>No stocks match.</td></tr>
+                <tr><td colSpan={7} style={{ padding: "32px 12px", textAlign: "center", fontSize: 13, color: "#334155" }}>No stocks match.</td></tr>
               )}
             </tbody>
           </table>
