@@ -648,6 +648,38 @@ function Chip({ type }: { type: NotifType }) {
   );
 }
 
+const SECTOR_ETF: Record<string, string> = {
+  tech: "XLK", energy: "XLE", health: "XLV", finance: "XLF", consumer: "XLY",
+};
+
+const RS_TREND_COLOR = { outperforming: "#22c55e", inline: "#64748b", underperforming: "#ef4444" };
+
+function RSBarRow({ label, value, etf }: { label: string; value: number | null; etf: string }) {
+  const MAX_PCT = 15;
+  const isPos   = (value ?? 0) >= 0;
+  const color   = value != null ? (isPos ? "#22c55e" : "#ef4444") : "#334155";
+  const fillPct = value != null ? (Math.min(Math.abs(value), MAX_PCT) / MAX_PCT) * 50 : 0;
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+      <span style={{ width: 24, fontSize: 11, color: "#475569", fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", flexShrink: 0 }}>
+        {label}
+      </span>
+      <div style={{ flex: 1, position: "relative", height: 6, background: "rgba(255,255,255,0.05)", borderRadius: 3, overflow: "hidden" }}>
+        <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 1, background: "rgba(255,255,255,0.15)", transform: "translateX(-50%)" }} />
+        {value != null && (
+          isPos
+            ? <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: `${fillPct}%`, background: `${color}88`, borderRadius: "0 3px 3px 0" }} />
+            : <div style={{ position: "absolute", right: "50%", top: 0, bottom: 0, width: `${fillPct}%`, background: `${color}88`, borderRadius: "3px 0 0 3px" }} />
+        )}
+      </div>
+      <span style={{ width: 106, fontSize: 12, color, fontWeight: 500, textAlign: "right", flexShrink: 0, fontFamily: "inherit" }}>
+        {value != null ? `${isPos ? "+" : ""}${value.toFixed(1)}% vs ${etf}` : `— vs ${etf}`}
+      </span>
+    </div>
+  );
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(true);
   return (
@@ -865,6 +897,10 @@ export default function StockDetail({ ticker }: { ticker: string }) {
   const [lastEarnings, setLastEarnings]     = useState<NextEarningsData | null>(null);
   const [lastEarningsFetched, setLastEarningsFetched] = useState(false);
 
+  interface RSData { etf: string; vs1w: number | null; vs1m: number | null; vs3m: number | null; score: number; trend: "outperforming" | "inline" | "underperforming"; }
+  const [rsData, setRsData]     = useState<RSData | null>(null);
+  const [rsLoading, setRsLoading] = useState(true);
+
   interface AnalysisData { segments: string; margins: string; guidance: string; relationships: string; }
   const [analysis, setAnalysis]               = useState<AnalysisData | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
@@ -973,6 +1009,16 @@ export default function StockDetail({ ticker }: { ticker: string }) {
       .catch(() => {})
       .finally(() => setLastEarningsFetched(true));
   }, [ticker]);
+
+  useEffect(() => {
+    setRsData(null);
+    setRsLoading(true);
+    fetch(`/api/relative-strength?ticker=${ticker}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d: RSData | null) => { if (d) setRsData(d); })
+      .catch(() => {})
+      .finally(() => setRsLoading(false));
+  }, [ticker]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setEarningsLoading(true);
@@ -1232,6 +1278,19 @@ export default function StockDetail({ ticker }: { ticker: string }) {
               );
             })()}
 
+            {/* RS header pill */}
+            {rsData && rsData.trend !== "inline" && (
+              <span style={{
+                fontSize: 11, fontWeight: 500,
+                padding: "4px 9px", borderRadius: 6, flexShrink: 0,
+                color:       RS_TREND_COLOR[rsData.trend],
+                background:  RS_TREND_COLOR[rsData.trend] + "15",
+                border:      `1px solid ${RS_TREND_COLOR[rsData.trend]}30`,
+              }}>
+                {rsData.trend === "outperforming" ? "↑ Outperforming" : "↓ Underperforming"}
+              </span>
+            )}
+
             {(() => {
               const seen = new Set<string>();
               return stockNews
@@ -1365,6 +1424,45 @@ export default function StockDetail({ ticker }: { ticker: string }) {
               </div>
             ))}
           </div>
+        </Section>
+
+        <Section title="Relative Strength">
+          {rsLoading ? (
+            <p style={{ fontSize: 13, color: "#334155", margin: 0 }}>Loading…</p>
+          ) : !rsData ? (
+            <p style={{ fontSize: 13, color: "#334155", margin: 0 }}>No relative strength data available.</p>
+          ) : (
+            <>
+              {/* Overall score pill */}
+              <div style={{ marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{
+                  fontSize: 12, fontWeight: 500,
+                  padding: "4px 10px", borderRadius: 20,
+                  color:      RS_TREND_COLOR[rsData.trend],
+                  background: RS_TREND_COLOR[rsData.trend] + "18",
+                  border:     `1px solid ${RS_TREND_COLOR[rsData.trend]}35`,
+                }}>
+                  {rsData.trend === "outperforming" ? "↑ Outperforming sector"
+                    : rsData.trend === "underperforming" ? "↓ Underperforming sector"
+                    : "→ In line with sector"}
+                </span>
+                <span style={{ fontSize: 11, color: "#334155" }}>Score {rsData.score.toFixed(0)}/100</span>
+              </div>
+
+              {/* Per-timeframe bars */}
+              {([
+                { label: "1W", value: rsData.vs1w },
+                { label: "1M", value: rsData.vs1m },
+                { label: "3M", value: rsData.vs3m },
+              ] as Array<{ label: string; value: number | null }>).map(({ label, value }) => (
+                <RSBarRow key={label} label={label} value={value} etf={rsData.etf} />
+              ))}
+
+              <p style={{ fontSize: 11, color: "#334155", margin: "4px 0 0" }}>
+                Performance relative to {rsData.etf} (sector ETF). Positive = outperforming.
+              </p>
+            </>
+          )}
         </Section>
 
         <Section title="Sentiment Tracker">

@@ -63,9 +63,10 @@ interface StockRow {
   streakDirection: "up" | "down" | "flat";
   marketCap: number | null;
   relVolume: number | null;
+  vs1m:      number | null;
 }
 
-type SortKey = "ticker" | "dailyMove" | "dailyMoveDollar" | "price" | "streak" | "relVolume";
+type SortKey = "ticker" | "dailyMove" | "dailyMoveDollar" | "price" | "streak" | "relVolume" | "vs1m";
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
@@ -256,6 +257,7 @@ function StockTable({ rows }: { rows: StockRow[] }) {
                   { key: "price" as SortKey,            label: "Price"    },
                   { key: "streak" as SortKey,           label: "Streak"   },
                   { key: "relVolume" as SortKey,        label: "Rel. Vol" },
+                  { key: "vs1m" as SortKey,             label: "vs Sector" },
                 ] as Array<{ key: SortKey | null; label: string }>).map(({ key, label }) => (
                   <th
                     key={label}
@@ -307,11 +309,14 @@ function StockTable({ rows }: { rows: StockRow[] }) {
                     <td style={{ padding: "11px 12px", fontSize: 13, color: "#94a3b8", textAlign: "right" }}>{fmtPrice(row.price)}</td>
                     <td style={{ padding: "11px 12px", fontSize: 12, color: row.streakDirection === "up" ? "#22c55e" : row.streakDirection === "down" ? "#ef4444" : "#334155", textAlign: "left" }}>{streak}</td>
                     <td style={{ padding: "11px 12px", fontSize: 12, color: "#475569", textAlign: "right" }}>{fmtRV(row.relVolume)}</td>
+                    <td style={{ padding: "11px 12px", fontSize: 12, fontWeight: 500, color: row.vs1m == null ? "#334155" : row.vs1m >= 0 ? "#22c55e" : "#ef4444", textAlign: "right" }}>
+                      {row.vs1m != null ? `${row.vs1m >= 0 ? "+" : ""}${row.vs1m.toFixed(1)}%` : "—"}
+                    </td>
                   </tr>
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={8} style={{ padding: "32px 12px", textAlign: "center", fontSize: 13, color: "#334155" }}>No stocks match.</td></tr>
+                <tr><td colSpan={9} style={{ padding: "32px 12px", textAlign: "center", fontSize: 13, color: "#334155" }}>No stocks match.</td></tr>
               )}
             </tbody>
           </table>
@@ -436,6 +441,7 @@ export default function SectorDashboard() {
   const [marketData, setMarketData]   = useState<Record<string, MarketEntry>>({});
   const [stocks, setStocks]           = useState<GraphStock[]>([]);
   const [fundamentals, setFundamentals] = useState<Record<string, FundamentalsEntry>>({});
+  const [rsMap, setRsMap]             = useState<Record<string, { vs1m: number | null }>>({});
   const [loading, setLoading]         = useState(true);
 
   useEffect(() => {
@@ -443,7 +449,8 @@ export default function SectorDashboard() {
       fetch("/api/market-data?includeStreak=true").then((r) => r.ok ? r.json() : null),
       fetch("/api/graph").then((r) => r.ok ? r.json() : null),
       fetch("/api/fundamentals").then((r) => r.ok ? r.json() : null),
-    ]).then(([mdRes, graphRes, fundRes]) => {
+      fetch("/api/relative-strength").then((r) => r.ok ? r.json() : null),
+    ]).then(([mdRes, graphRes, fundRes, rsRes]) => {
       if (mdRes.status === "fulfilled" && mdRes.value) {
         setMarketData(mdRes.value);
       }
@@ -452,6 +459,9 @@ export default function SectorDashboard() {
       }
       if (fundRes.status === "fulfilled" && fundRes.value) {
         setFundamentals(fundRes.value);
+      }
+      if (rsRes.status === "fulfilled" && rsRes.value) {
+        setRsMap(rsRes.value as Record<string, { vs1m: number | null }>);
       }
       setLoading(false);
     });
@@ -478,6 +488,7 @@ export default function SectorDashboard() {
       streakDirection: live?.streakDirection ?? "flat",
       marketCap:       fund?.marketCap ?? null,
       relVolume:       relVol,
+      vs1m:            rsMap[s.ticker]?.vs1m ?? null,
     };
   });
 
