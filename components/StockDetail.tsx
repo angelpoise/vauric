@@ -859,6 +859,9 @@ export default function StockDetail({ ticker }: { ticker: string }) {
   const [earnings, setEarnings]               = useState<EarningsItem[]>([]);
   const [earningsLoading, setEarningsLoading] = useState(true);
 
+  interface NextEarningsData { report_date: string; report_time: string | null; }
+  const [nextEarnings, setNextEarnings] = useState<NextEarningsData | null>(null);
+
   interface AnalysisData { segments: string; margins: string; guidance: string; relationships: string; }
   const [analysis, setAnalysis]               = useState<AnalysisData | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
@@ -939,6 +942,15 @@ export default function StockDetail({ ticker }: { ticker: string }) {
           const s = data.stocks.find((s: GraphStock) => s.ticker === ticker);
           setGraphStock(s ?? null);
         }
+      })
+      .catch(() => {});
+  }, [ticker]);
+
+  useEffect(() => {
+    fetch(`/api/earnings-calendar?ticker=${ticker}&days=90`)
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: NextEarningsData[]) => {
+        if (Array.isArray(data) && data.length > 0) setNextEarnings(data[0]);
       })
       .catch(() => {});
   }, [ticker]);
@@ -1051,6 +1063,21 @@ export default function StockDetail({ ticker }: { ticker: string }) {
               <div style={{ fontSize: 16, color: "#475569", fontWeight: 300 }}>
                 {data.name}
               </div>
+              {nextEarnings && (() => {
+                const d = new Date(nextEarnings.report_date + "T12:00:00");
+                const dateStr = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+                const timeStr =
+                  nextEarnings.report_time === "pre-market"    ? "Pre-market"
+                  : nextEarnings.report_time === "after-hours"   ? "After hours"
+                  : nextEarnings.report_time === "during-market" ? "During market"
+                  : null;
+                return (
+                  <div style={{ fontSize: 12, color: "#334155", marginTop: 6 }}>
+                    Next earnings: <span style={{ color: "#475569" }}>{dateStr}</span>
+                    {timeStr && <span style={{ color: "#334155" }}> · {timeStr}</span>}
+                  </div>
+                );
+              })()}
             </div>
 
             <div style={{ textAlign: "right", flexShrink: 0 }}>

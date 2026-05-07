@@ -63,6 +63,19 @@ function FilterIcon() {
   );
 }
 
+function CalendarIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+      <line x1="5" y1="1.5" x2="5" y2="4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="11" y1="1.5" x2="11" y2="4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="2" y1="7" x2="14" y2="7" stroke="currentColor" strokeWidth="1" />
+      <circle cx="5.5" cy="10" r="1" fill="currentColor" />
+      <circle cx="8.5" cy="10" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
 function NewsIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -103,6 +116,7 @@ const NAV_ITEMS = [
   { label: "Search",        icon: <SearchIcon /> },
   { label: "Filters",       icon: <FilterIcon /> },
   { label: "News",          icon: <NewsIcon /> },
+  { label: "Earnings",      icon: <CalendarIcon /> },
   { label: "Account",       icon: <AccountIcon /> },
   { label: "Settings",      icon: <SettingsIcon /> },
 ];
@@ -293,6 +307,7 @@ export default function SideMenu({ expanded, onToggle, onSearchOpen, onFiltersOp
                 label === "Search"   ? onSearchOpen :
                 label === "Filters"  ? onFiltersOpen :
                 label === "News"     ? () => router.push("/news") :
+                label === "Earnings" ? () => router.push("/earnings") :
                 label === "Settings" ? onSettingsOpen :
                 label === "Account"  ? () => router.push("/account") :
                 undefined
