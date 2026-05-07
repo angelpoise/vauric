@@ -9,6 +9,114 @@ import { getCachedMarketData, setCachedMarketData } from "@/lib/marketDataCache"
 
 const DM = 'var(--font-dm-sans), "DM Sans", sans-serif';
 
+// ─── Allocation view helpers ──────────────────────────────────────────────────
+
+const SEGMENT_COLORS = [
+  "#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#ef4444",
+  "#14b8a6", "#f97316", "#6366f1", "#84cc16", "#ec4899",
+];
+
+function describeDonutArc(cx: number, cy: number, R: number, r: number, a0: number, a1: number): string {
+  const cos = Math.cos, sin = Math.sin;
+  const osx = cx + R * cos(a0), osy = cy + R * sin(a0);
+  const oex = cx + R * cos(a1), oey = cy + R * sin(a1);
+  const isx = cx + r * cos(a0), isy = cy + r * sin(a0);
+  const iex = cx + r * cos(a1), iey = cy + r * sin(a1);
+  const lg = a1 - a0 > Math.PI ? 1 : 0;
+  return `M ${osx} ${osy} A ${R} ${R} 0 ${lg} 1 ${oex} ${oey} L ${iex} ${iey} A ${r} ${r} 0 ${lg} 0 ${isx} ${isy} Z`;
+}
+
+type AllocRow = { id: string; ticker: string; value: number | null; dailyMovePct: number | null; };
+
+function AllocBars({ data, total, onNav }: { data: AllocRow[]; total: number; onNav: (t: string) => void }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {data.map(row => {
+        const w = ((row.value ?? 0) / total) * 100;
+        const m = row.dailyMovePct ?? 0;
+        return (
+          <div key={row.id} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => onNav(row.ticker)}>
+            <span style={{ width: 44, fontSize: 12, fontWeight: 700, color: "#f1f5f9", letterSpacing: "0.04em", flexShrink: 0 }}>{row.ticker}</span>
+            <div style={{ flex: 1, height: 22, background: "rgba(255,255,255,0.04)", borderRadius: 4, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${w}%`, background: moveFill(m, 0.6), borderRight: `2px solid ${moveColor(m)}`, borderRadius: 4, transition: "width 0.4s ease", minWidth: 40 }} />
+            </div>
+            <span style={{ width: 44, fontSize: 12, color: "#64748b", textAlign: "right", flexShrink: 0 }}>{w.toFixed(1)}%</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function AllocPie({ data, total, onNav }: { data: AllocRow[]; total: number; onNav: (t: string) => void }) {
+  const cx = 100, cy = 100, R = 80, r = 50;
+  let angle = -Math.PI / 2;
+  const segs = data.map((row, i) => {
+    const w     = (row.value ?? 0) / total;
+    const sweep = w * 2 * Math.PI;
+    const a0    = angle; angle += sweep; const a1 = angle;
+    return { ...row, w, a0, a1, mid: a0 + sweep / 2, color: SEGMENT_COLORS[i % SEGMENT_COLORS.length] };
+  });
+  return (
+    <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
+      <svg width={200} height={200} viewBox="0 0 200 200" style={{ flexShrink: 0 }}>
+        {segs.map(s => (
+          <g key={s.id} onClick={() => onNav(s.ticker)} style={{ cursor: "pointer" }}>
+            <path d={describeDonutArc(cx, cy, R, r, s.a0, s.a1)} fill={s.color} opacity={0.85} stroke="#07090f" strokeWidth={1.5} />
+            {s.w > 0.06 && (
+              <text
+                x={cx + (R + 16) * Math.cos(s.mid)} y={cy + (R + 16) * Math.sin(s.mid)}
+                textAnchor="middle" dominantBaseline="middle"
+                fill="#f1f5f9" fontSize={9} fontWeight={700} fontFamily={DM}
+              >{s.ticker}</text>
+            )}
+          </g>
+        ))}
+      </svg>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 10 }}>
+        {segs.map(s => (
+          <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => onNav(s.ticker)}>
+            <div style={{ width: 10, height: 10, borderRadius: 2, background: s.color, flexShrink: 0 }} />
+            <span style={{ width: 42, fontSize: 12, fontWeight: 600, color: "#94a3b8", letterSpacing: "0.04em" }}>{s.ticker}</span>
+            <span style={{ fontSize: 12, color: "#475569" }}>{(s.w * 100).toFixed(1)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AllocStrip({ data, total, onNav }: { data: AllocRow[]; total: number; onNav: (t: string) => void }) {
+  return (
+    <div>
+      <div style={{ display: "flex", height: 44, borderRadius: 8, overflow: "hidden", gap: 1 }}>
+        {data.map((row, i) => {
+          const w     = ((row.value ?? 0) / total) * 100;
+          const color = SEGMENT_COLORS[i % SEGMENT_COLORS.length];
+          return (
+            <div key={row.id} onClick={() => onNav(row.ticker)} title={`${row.ticker} ${w.toFixed(1)}%`}
+              style={{ flex: w, background: color, opacity: 0.82, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", cursor: "pointer", minWidth: 0 }}>
+              {w > 7 && <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.9)", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>{row.ticker}</span>}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 12px", marginTop: 12 }}>
+        {data.map((row, i) => {
+          const w = ((row.value ?? 0) / total) * 100;
+          return (
+            <div key={row.id} style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }} onClick={() => onNav(row.ticker)}>
+              <div style={{ width: 8, height: 8, borderRadius: 1, background: SEGMENT_COLORS[i % SEGMENT_COLORS.length], opacity: 0.85 }} />
+              <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600, letterSpacing: "0.04em" }}>{row.ticker}</span>
+              <span style={{ fontSize: 11, color: "#475569" }}>{w.toFixed(1)}%</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Holding {
@@ -60,6 +168,8 @@ export default function PortfolioTracker() {
   const [marketData, setMarketData] = useState<Record<string, MarketEntry>>({});
   const [knownTickers, setKnownTickers] = useState<string[]>([]);
   const [loading, setLoading]       = useState(true);
+
+  const [allocView, setAllocView] = useState<"bars" | "pie" | "strip">("bars");
 
   const [form, setForm] = useState({ ticker: "", shares: "", purchasePrice: "", purchaseDate: "" });
   const [saving, setSaving]     = useState(false);
@@ -295,12 +405,14 @@ export default function PortfolioTracker() {
                         placeholder={placeholder}
                         value={value}
                         maxLength={maxLength}
+                        inputMode={type === "number" ? "decimal" : undefined}
                         onChange={e => onChange(e.target.value)}
                         onKeyDown={e => e.key === "Enter" && handleAdd()}
                         style={{
                           width, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
                           borderRadius: 7, padding: "8px 10px", fontSize: 13, color: "#f1f5f9", fontFamily: DM, outline: "none",
-                        }}
+                          ...(type === "number" ? { appearance: "none", MozAppearance: "textfield" } : {}),
+                        } as React.CSSProperties}
                       />
                     ))}
                     <button
@@ -318,41 +430,35 @@ export default function PortfolioTracker() {
                   {formError && <p style={{ fontSize: 12, color: "#ef4444", margin: 0 }}>{formError}</p>}
                 </div>
 
-                {/* ── Allocation chart ────────────────────────────────────────── */}
-                {rows.length > 0 && totalValue > 0 && (
+                {/* ── Allocation ──────────────────────────────────────────────── */}
+                {rows.length > 0 && totalValue > 0 && (() => {
+                  const allocRows = [...rows].filter(r => r.value != null).sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
+                  return (
                   <div style={{ background: "#0d1117", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "20px 20px 18px" }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: "#334155", letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 16 }}>Allocation</div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {[...rows]
-                        .filter(r => r.value != null)
-                        .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
-                        .map(row => {
-                          const weight = ((row.value ?? 0) / totalValue) * 100;
-                          const move   = row.dailyMovePct ?? 0;
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: "#334155", letterSpacing: "0.07em", textTransform: "uppercase" }}>Allocation</span>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {(["bars", "pie", "strip"] as const).map(v => {
+                          const active = allocView === v;
                           return (
-                            <div key={row.id} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => router.push(`/stock/${row.ticker}`)}>
-                              <span style={{ width: 44, fontSize: 12, fontWeight: 700, color: "#f1f5f9", letterSpacing: "0.04em", flexShrink: 0 }}>{row.ticker}</span>
-                              <div style={{ flex: 1, height: 22, background: "rgba(255,255,255,0.04)", borderRadius: 4, overflow: "hidden" }}>
-                                <div style={{
-                                  height: "100%",
-                                  width: `${weight}%`,
-                                  background: moveFill(move, 0.6),
-                                  borderRight: `2px solid ${moveColor(move)}`,
-                                  borderRadius: 4,
-                                  transition: "width 0.4s ease",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  paddingLeft: 8,
-                                  minWidth: 40,
-                                }} />
-                              </div>
-                              <span style={{ width: 44, fontSize: 12, color: "#64748b", textAlign: "right", flexShrink: 0 }}>{weight.toFixed(1)}%</span>
-                            </div>
+                            <button key={v} onClick={() => setAllocView(v)} style={{
+                              padding: "3px 10px", borderRadius: 5, fontSize: 11, fontFamily: DM, cursor: "pointer",
+                              background: active ? "rgba(59,130,246,0.12)" : "rgba(255,255,255,0.04)",
+                              border: `1px solid ${active ? "rgba(59,130,246,0.35)" : "rgba(255,255,255,0.08)"}`,
+                              color: active ? "#3b82f6" : "#475569", fontWeight: active ? 500 : 400,
+                            }}>
+                              {v.charAt(0).toUpperCase() + v.slice(1)}
+                            </button>
                           );
                         })}
+                      </div>
                     </div>
+                    {allocView === "bars"  && <AllocBars  data={allocRows} total={totalValue} onNav={t => router.push(`/stock/${t}`)} />}
+                    {allocView === "pie"   && <AllocPie   data={allocRows} total={totalValue} onNav={t => router.push(`/stock/${t}`)} />}
+                    {allocView === "strip" && <AllocStrip data={allocRows} total={totalValue} onNav={t => router.push(`/stock/${t}`)} />}
                   </div>
-                )}
+                  );
+                })()}
               </>
             )}
           </>
