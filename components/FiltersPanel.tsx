@@ -306,6 +306,30 @@ function PresetsSection({
   );
 }
 
+function ResetButton({ onClick }: { onClick: () => void }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        background: hov ? "#3b82f6" : "transparent",
+        border: "1px solid #3b82f6",
+        borderRadius: 6,
+        color: hov ? "#fff" : "#3b82f6",
+        fontSize: 12,
+        padding: "4px 10px",
+        cursor: "pointer",
+        fontFamily: "inherit",
+        transition: "background 0.15s, color 0.15s",
+      }}
+    >
+      Reset all
+    </button>
+  );
+}
+
 // ─── Static label maps ────────────────────────────────────────────────────────
 
 const SECTOR_LABELS: Record<string, string> = {
@@ -441,15 +465,7 @@ export default function FiltersPanel({ open, onClose, filters, onFiltersChange }
               </span>
             )}
           </div>
-          <button
-            onClick={() => onFiltersChange(DEFAULT_FILTERS)}
-            style={{
-              background: "none", border: "none", cursor: "pointer",
-              fontSize: 11, color: "#475569", fontFamily: "inherit", padding: "2px 4px",
-            }}
-          >
-            Reset all
-          </button>
+          <ResetButton onClick={() => { onFiltersChange(DEFAULT_FILTERS); setActivePresetName(null); }} />
         </div>
 
         {/* Presets */}

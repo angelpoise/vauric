@@ -536,7 +536,10 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
 
     function effectiveRadius(node: GNode): number {
       if (node.kind === "sector") return 44;
-      if (activeFiltersRef.current.nodeSize === "marketcap") {
+      // Use graphSettingsRef (not activeFiltersRef) for nodeSize so that filter
+      // presets — which spread DEFAULT_FILTERS — cannot accidentally resize nodes.
+      // Opacity-only filtering must never affect the radius calculation.
+      if (graphSettingsRef.current.nodeSize === "marketcap") {
         const cap = fundamentalsRef.current[node.ticker]?.marketCap ?? null;
         if (cap !== null && cap > 0) {
           const minR = 9, maxR = 28, logMin = 8, logMax = 13;
