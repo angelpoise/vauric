@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import AppShell from "@/components/AppShell";
 import EarningsCalendar from "@/components/EarningsCalendar";
 
 export const metadata: Metadata = {
@@ -8,9 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function EarningsPage() {
-  return (
-    <AppShell>
-      <EarningsCalendar />
-    </AppShell>
-  );
+  return <EarningsCalendar />;
 }

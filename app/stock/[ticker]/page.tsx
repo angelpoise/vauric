@@ -1,5 +1,5 @@
 import StockDetail from "@/components/StockDetail";
-import AppShell from "@/components/AppShell";
+import AppHeader from "@/components/AppHeader";
 
 interface Props {
   params: { ticker: string };
@@ -7,8 +7,9 @@ interface Props {
 
 export default function StockPage({ params }: Props) {
   return (
-    <AppShell>
+    <>
+      <AppHeader />
       <StockDetail ticker={params.ticker.toUpperCase()} />
-    </AppShell>
+    </>
   );
 }

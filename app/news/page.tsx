@@ -1,10 +1,11 @@
 import NewsPage from "@/components/NewsPage";
-import AppShell from "@/components/AppShell";
+import AppHeader from "@/components/AppHeader";
 
 export default function NewsRoute() {
   return (
-    <AppShell>
+    <>
+      <AppHeader />
       <NewsPage />
-    </AppShell>
+    </>
   );
 }
