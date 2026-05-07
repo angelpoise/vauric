@@ -35,9 +35,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { isPro, userId: tokenUserId } = await verifyClerkTokenWithTier(req.headers.get("authorization"));
+  const { userId: tokenUserId } = await verifyClerkTokenWithTier(req.headers.get("authorization"));
   if (!tokenUserId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!isPro)       return NextResponse.json({ error: "Pro subscription required" }, { status: 403 });
+  // No Pro gate here — scenarios themselves are Pro-gated at the UI level
 
   const body = await req.json() as { userId?: string; ticker?: string; scenario?: string };
   const { userId, ticker, scenario } = body;

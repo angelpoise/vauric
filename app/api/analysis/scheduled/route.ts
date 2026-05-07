@@ -19,6 +19,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { generateAnalysis, saveAnalysis } from "@/lib/generateAnalysis";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -58,14 +59,12 @@ export async function GET(req: NextRequest) {
   }
 
   let checked = 0;
-  let cleared = 0;
+  let generated = 0;
   let skipped = 0;
-  const clearTickers: string[] = [];
 
   for (const stock of stocks as Array<{ ticker: string; analysis_schedule: string | null }>) {
     const schedule = stock.analysis_schedule ?? "on_visit";
 
-    // on_visit stocks are handled on demand — skip here
     if (schedule === "on_visit") { skipped++; continue; }
 
     checked++;
@@ -75,23 +74,21 @@ export async function GET(req: NextRequest) {
       (schedule === "daily"  && age > 23 * HOUR_MS) ||
       (schedule === "weekly" && age > 6 * 24 * HOUR_MS);
 
-    if (isDue) {
-      clearTickers.push(stock.ticker);
-      cleared++;
-    } else {
-      skipped++;
+    if (!isDue) { skipped++; continue; }
+
+    // Actively generate fresh content — cache is always warm after the cron runs
+    try {
+      const analysis = await generateAnalysis(stock.ticker);
+      if (analysis) {
+        await saveAnalysis(stock.ticker, analysis);
+        generated++;
+      }
+    } catch (err) {
+      console.error(`[analysis/scheduled] generation failed for ${stock.ticker}:`, err);
     }
   }
 
-  // Delete stale entries in one batch — regeneration happens lazily on next visit
-  if (clearTickers.length > 0) {
-    await supabaseAdmin
-      .from("company_analysis")
-      .delete()
-      .in("ticker", clearTickers);
-  }
+  console.log(`[analysis/scheduled] checked=${checked} generated=${generated} skipped=${skipped}`);
 
-  console.log(`[analysis/scheduled] checked=${checked} cleared=${cleared} skipped=${skipped}`);
-
-  return NextResponse.json({ checked, cleared, skipped });
+  return NextResponse.json({ checked, generated, skipped });
 }

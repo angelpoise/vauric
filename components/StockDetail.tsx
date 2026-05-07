@@ -648,6 +648,28 @@ function Chip({ type }: { type: NotifType }) {
   );
 }
 
+const ANALYSIS_MSGS = [
+  "Analysing business segments…",
+  "Reviewing recent performance…",
+  "Processing market data…",
+  "Compiling insights…",
+];
+
+const SCENARIO_MSGS = [
+  "Modelling bull case…",
+  "Assessing base case…",
+  "Stress-testing bear case…",
+  "Calculating price targets…",
+];
+
+function daysAgo(dateStr: string | null | undefined): string {
+  if (!dateStr) return "unknown";
+  const d = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86_400_000);
+  if (d === 0) return "today";
+  if (d === 1) return "1 day ago";
+  return `${d} days ago`;
+}
+
 const SECTOR_ETF: Record<string, string> = {
   tech: "XLK", energy: "XLE", health: "XLV", finance: "XLF", consumer: "XLY",
 };
@@ -914,10 +936,11 @@ export default function StockDetail({ ticker }: { ticker: string }) {
   interface ScenarioData { bull: ScenarioCase; base: ScenarioCase; bear: ScenarioCase; generated_at: string; }
   const [scenarioData, setScenarioData]       = useState<ScenarioData | null>(null);
   const [scenarioLoading, setScenarioLoading] = useState(false);
-  const [scenarioPeeking, setScenarioPeeking] = useState(false);
-  const [scenarioTab, setScenarioTab]         = useState<"bull" | "base" | "bear">("base");
-  const [scenarioUpToDate, setScenarioUpToDate] = useState(false);
-  const [analysisUpToDate, setAnalysisUpToDate] = useState(false);
+  const [scenarioTab, setScenarioTab]   = useState<"bull" | "base" | "bear">("base");
+  const [analysisMsgIdx, setAnalysisMsgIdx] = useState(0);
+  const [scenarioMsgIdx, setScenarioMsgIdx] = useState(0);
+  const [analysisVisible, setAnalysisVisible] = useState(false);
+  const [scenarioVisible, setScenarioVisible] = useState(false);
   const [trackedTheses, setTrackedTheses]     = useState<Record<string, string>>({}); // scenario → id
   const [trackingInFlight, setTrackingInFlight] = useState<Set<string>>(new Set());
 
@@ -1055,22 +1078,19 @@ export default function StockDetail({ ticker }: { ticker: string }) {
       .catch(() => {});
   }, [user, ticker]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-fetch cached scenarios on mount — peek only (won't trigger generation).
-  // scenarioPeeking stays true while the check is in flight so the Generate
-  // button never flashes and the user can't accidentally trigger a new generation.
+  // Cycle analysis status messages while loading
   useEffect(() => {
-    setScenarioData(null);
-    if (!isPro) return;
-    setScenarioPeeking(true);
-    fetch(`/api/scenarios?ticker=${ticker}&peek=1`)
-      .then(r => r.ok ? r.json() : null)
-      .then((d: ScenarioData | null) => {
-        console.log(`[scenarios] peek ${ticker}:`, d ? "cache hit" : "no cache");
-        if (d?.bull) setScenarioData(d);
-      })
-      .catch(() => {})
-      .finally(() => setScenarioPeeking(false));
-  }, [ticker, isPro]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!analysisLoading) { setAnalysisMsgIdx(0); return; }
+    const id = setInterval(() => setAnalysisMsgIdx(i => (i + 1) % ANALYSIS_MSGS.length), 700);
+    return () => clearInterval(id);
+  }, [analysisLoading]);
+
+  // Cycle scenario status messages while loading
+  useEffect(() => {
+    if (!scenarioLoading) { setScenarioMsgIdx(0); return; }
+    const id = setInterval(() => setScenarioMsgIdx(i => (i + 1) % SCENARIO_MSGS.length), 700);
+    return () => clearInterval(id);
+  }, [scenarioLoading]);
 
   useEffect(() => {
     setEarningsLoading(true);
@@ -1081,15 +1101,47 @@ export default function StockDetail({ ticker }: { ticker: string }) {
       .finally(() => setEarningsLoading(false));
   }, [ticker]);
 
-  function loadAnalysis(refresh = false) {
+  async function handleGenerateAnalysis() {
+    if (analysisLoading) return;
     setAnalysisLoading(true);
     setAnalysisError(false);
-    const url = `/api/analysis?ticker=${ticker}${refresh ? "&refresh=1" : ""}`;
-    fetch(url)
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (d && !d.error) setAnalysis(d); else setAnalysisError(true); })
-      .catch(() => setAnalysisError(true))
-      .finally(() => setAnalysisLoading(false));
+    setAnalysisVisible(false);
+    try {
+      const [data] = await Promise.all([
+        fetch(`/api/analysis?ticker=${ticker}`)
+          .then(r => r.ok ? r.json() : null)
+          .catch(() => null) as Promise<(AnalysisData & { error?: string }) | null>,
+        new Promise<void>(res => setTimeout(res, 2500)),
+      ]);
+      if (data && !data.error) {
+        setAnalysis(data);
+        requestAnimationFrame(() => requestAnimationFrame(() => setAnalysisVisible(true)));
+      } else {
+        setAnalysisError(true);
+      }
+    } finally {
+      setAnalysisLoading(false);
+    }
+  }
+
+  async function handleGenerateScenarios() {
+    if (scenarioLoading) return;
+    setScenarioLoading(true);
+    setScenarioVisible(false);
+    try {
+      const [data] = await Promise.all([
+        fetch(`/api/scenarios?ticker=${ticker}`)
+          .then(r => r.ok ? r.json() : null)
+          .catch(() => null) as Promise<ScenarioData | null>,
+        new Promise<void>(res => setTimeout(res, 2500)),
+      ]);
+      if (data?.bull) {
+        setScenarioData(data);
+        requestAnimationFrame(() => requestAnimationFrame(() => setScenarioVisible(true)));
+      }
+    } finally {
+      setScenarioLoading(false);
+    }
   }
 
   // Returns true if the content is stale: > 7 days old OR newer significant news exists
@@ -1407,66 +1459,61 @@ export default function StockDetail({ ticker }: { ticker: string }) {
         </Section>
 
         <Section title="Deeper dive">
-          <div style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 10, background: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.25)", borderRadius: 4, padding: "2px 7px", color: "#3b82f6", letterSpacing: "0.06em", textTransform: "uppercase" }}>AI generated</span>
-            {isPro && (
-              <button
-                onClick={() => {
-                  if (analysisLoading) return;
-                  if (!isContentStale(analysis?.last_generated_at)) {
-                    setAnalysisUpToDate(true);
-                    setTimeout(() => setAnalysisUpToDate(false), 2500);
-                    return;
-                  }
-                  loadAnalysis(true);
-                }}
-                disabled={analysisLoading}
-                style={{ background: "none", border: "none", color: analysisUpToDate ? "#22c55e" : "#475569", fontSize: 12, cursor: analysisLoading ? "wait" : "pointer", padding: 0, fontFamily: "inherit" }}
-              >
-                {analysisLoading ? "Generating…" : analysisUpToDate ? "Up to date ✓" : "↻ Refresh"}
-              </button>
-            )}
-          </div>
+          <style>{`@keyframes vauric-spin{to{transform:rotate(360deg)}}`}</style>
+
+          {/* Initial button — shown to all users when no content loaded */}
           {!analysis && !analysisLoading && !analysisError && (
-            isPro ? (
-              <button
-                onClick={() => loadAnalysis()}
-                style={{ background: "rgba(59,130,246,0.07)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 8, color: "#3b82f6", fontSize: 13, padding: "8px 18px", cursor: "pointer", fontFamily: "inherit" }}
-              >
-                Generate analysis
-              </button>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <p style={{ fontSize: 13, color: "#475569", margin: 0 }}>AI-powered deeper analysis is a Pro feature.</p>
-                <UpgradeButton label="Upgrade to Pro" />
-              </div>
-            )
+            <button
+              onClick={handleGenerateAnalysis}
+              style={{ background: "rgba(59,130,246,0.07)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 8, color: "#3b82f6", fontSize: 13, padding: "8px 18px", cursor: "pointer", fontFamily: "inherit" }}
+            >
+              Generate deeper dive
+            </button>
           )}
+
+          {/* Loading animation */}
           {analysisLoading && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {[["Business segments", 90], ["Margins & profitability", 80], ["Recent guidance", 70], ["Key relationships", 85]].map(([label, w]) => (
-                <div key={label}>
-                  <div style={{ fontSize: 11, color: "#334155", fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 6 }}>{label}</div>
-                  <div style={{ height: 13, width: `${w}%`, background: "rgba(255,255,255,0.05)", borderRadius: 4, marginBottom: 4 }} />
-                  <div style={{ height: 13, width: "60%", background: "rgba(255,255,255,0.04)", borderRadius: 4 }} />
-                </div>
-              ))}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" style={{ animation: "vauric-spin 1s linear infinite", flexShrink: 0 }}>
+                <circle cx="8" cy="8" r="6" fill="none" stroke="rgba(59,130,246,0.2)" strokeWidth="2" />
+                <path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              <span style={{ fontSize: 13, color: "#475569" }}>{ANALYSIS_MSGS[analysisMsgIdx]}</span>
             </div>
           )}
-          {analysisError && <p style={{ fontSize: 13, color: "#475569" }}>Analysis unavailable. Check that ANTHROPIC_API_KEY is set and the company_analysis table exists.</p>}
-          {analysis && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              {([
-                ["Business segments",    analysis.segments],
-                ["Margins & profitability", analysis.margins],
-                ["Recent guidance",      analysis.guidance],
-                ["Key relationships",    analysis.relationships],
-              ] as [string, string][]).map(([label, text]) => (
-                <div key={label}>
-                  <div style={{ fontSize: 11, color: "#475569", fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 7 }}>{label}</div>
-                  <p style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.75, fontWeight: 300, margin: 0 }}>{text}</p>
-                </div>
-              ))}
+
+          {/* Error state */}
+          {analysisError && !analysisLoading && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <p style={{ fontSize: 13, color: "#475569", margin: 0 }}>Analysis temporarily unavailable — please try again.</p>
+              <button
+                onClick={handleGenerateAnalysis}
+                style={{ alignSelf: "flex-start", background: "none", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, color: "#475569", fontSize: 12, padding: "4px 12px", cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Try again
+              </button>
+            </div>
+          )}
+
+          {/* Content — fades in after load */}
+          {analysis && !analysisLoading && (
+            <div style={{ opacity: analysisVisible ? 1 : 0, transition: "opacity 0.5s ease" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 14 }}>
+                {([
+                  ["Business segments",       analysis.segments],
+                  ["Margins & profitability", analysis.margins],
+                  ["Recent guidance",         analysis.guidance],
+                  ["Key relationships",       analysis.relationships],
+                ] as [string, string][]).map(([label, text]) => (
+                  <div key={label}>
+                    <div style={{ fontSize: 11, color: "#475569", fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 7 }}>{label}</div>
+                    <p style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.75, fontWeight: 300, margin: 0 }}>{text}</p>
+                  </div>
+                ))}
+              </div>
+              <p style={{ fontSize: 11, color: "#334155", margin: 0 }}>
+                Last updated: {daysAgo(analysis.last_generated_at)}
+              </p>
             </div>
           )}
         </Section>
@@ -1479,25 +1526,14 @@ export default function StockDetail({ ticker }: { ticker: string }) {
             </div>
           ) : (
             <div>
-              {/* Generate / Refresh controls */}
-              {scenarioPeeking && (
-                <p style={{ fontSize: 13, color: "#334155", padding: "8px 0" }}>Checking for cached scenarios…</p>
-              )}
-
-              {!scenarioData && !scenarioLoading && !scenarioPeeking && (
+              {/* Initial generate button */}
+              {!scenarioData && !scenarioLoading && (
                 <div style={{ padding: "8px 0 4px" }}>
                   <p style={{ fontSize: 13, color: "#475569", margin: "0 0 14px" }}>
                     Generate AI-powered bull, base, and bear case scenarios for {ticker}.
                   </p>
                   <button
-                    onClick={async () => {
-                      setScenarioLoading(true);
-                      try {
-                        const r = await fetch(`/api/scenarios?ticker=${ticker}`);
-                        if (r.ok) setScenarioData(await r.json());
-                      } catch { /* ignore */ }
-                      finally { setScenarioLoading(false); }
-                    }}
+                    onClick={handleGenerateScenarios}
                     style={{ background: "#3b82f6", border: "none", borderRadius: 7, color: "#fff", fontSize: 13, fontWeight: 500, padding: "8px 18px", cursor: "pointer", fontFamily: "inherit" }}
                   >
                     Generate scenarios
@@ -1505,11 +1541,18 @@ export default function StockDetail({ ticker }: { ticker: string }) {
                 </div>
               )}
 
+              {/* Loading animation */}
               {scenarioLoading && (
-                <p style={{ fontSize: 13, color: "#334155", padding: "8px 0" }}>Generating scenarios…</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
+                  <svg width="16" height="16" viewBox="0 0 16 16" style={{ animation: "vauric-spin 1s linear infinite", flexShrink: 0 }}>
+                    <circle cx="8" cy="8" r="6" fill="none" stroke="rgba(59,130,246,0.2)" strokeWidth="2" />
+                    <path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                  <span style={{ fontSize: 13, color: "#475569" }}>{SCENARIO_MSGS[scenarioMsgIdx]}</span>
+                </div>
               )}
 
-              {scenarioData && (() => {
+              {scenarioData && !scenarioLoading && (() => {
                 const TABS: Array<{ key: "bull" | "base" | "bear"; label: string; color: string }> = [
                   { key: "bull", label: "Bull", color: "#22c55e" },
                   { key: "base", label: "Base", color: "#64748b" },
@@ -1548,7 +1591,7 @@ export default function StockDetail({ ticker }: { ticker: string }) {
                 }
 
                 return (
-                  <div>
+                  <div style={{ opacity: scenarioVisible ? 1 : 0, transition: "opacity 0.5s ease" }}>
                     {/* Tab bar */}
                     <div style={{ display: "flex", gap: 6, marginBottom: 16, alignItems: "center" }}>
                       {TABS.map(t => {
@@ -1605,34 +1648,11 @@ export default function StockDetail({ ticker }: { ticker: string }) {
                     </div>
 
                     {/* Footer */}
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-                      <span style={{ fontSize: 11, color: "#334155" }}>
-                        Generated {new Date(scenarioData.generated_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
-                      </span>
-                      <button
-                        onClick={async () => {
-                          if (!isContentStale(scenarioData.generated_at)) {
-                            setScenarioUpToDate(true);
-                            setTimeout(() => setScenarioUpToDate(false), 2500);
-                            return;
-                          }
-                          setScenarioLoading(true);
-                          setScenarioData(null);
-                          await fetch(`/api/scenarios?ticker=${ticker}`, { method: "DELETE" });
-                          try {
-                            const r = await fetch(`/api/scenarios?ticker=${ticker}`);
-                            if (r.ok) setScenarioData(await r.json());
-                          } catch { /* ignore */ }
-                          finally { setScenarioLoading(false); }
-                        }}
-                        style={{ fontSize: 11, color: scenarioUpToDate ? "#22c55e" : "#475569", background: "none", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 5, padding: "3px 10px", cursor: "pointer", fontFamily: "inherit" }}
-                      >
-                        {scenarioUpToDate ? "Up to date ✓" : "Refresh"}
-                      </button>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginTop: 4 }}>
+                      <p style={{ fontSize: 11, color: "#334155", margin: 0, lineHeight: 1.5 }}>
+                        AI-generated · {daysAgo(scenarioData.generated_at)} · Not financial advice.
+                      </p>
                     </div>
-                    <p style={{ fontSize: 11, color: "#334155", margin: "10px 0 0", lineHeight: 1.5 }}>
-                      AI-generated scenarios for informational purposes only. Not financial advice.
-                    </p>
                   </div>
                 );
               })()}
