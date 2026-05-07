@@ -63,6 +63,16 @@ function FilterIcon() {
   );
 }
 
+function BarChartIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="2"  y="9"  width="3" height="5" rx="0.75" fill="currentColor" opacity="0.9" />
+      <rect x="6.5" y="5" width="3" height="9" rx="0.75" fill="currentColor" />
+      <rect x="11" y="2"  width="3" height="12" rx="0.75" fill="currentColor" opacity="0.7" />
+    </svg>
+  );
+}
+
 function CalendarIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -117,6 +127,7 @@ const NAV_ITEMS = [
   { label: "Filters",       icon: <FilterIcon /> },
   { label: "News",          icon: <NewsIcon /> },
   { label: "Earnings",      icon: <CalendarIcon /> },
+  { label: "Sectors",       icon: <BarChartIcon /> },
   { label: "Account",       icon: <AccountIcon /> },
   { label: "Settings",      icon: <SettingsIcon /> },
 ];
@@ -308,6 +319,7 @@ export default function SideMenu({ expanded, onToggle, onSearchOpen, onFiltersOp
                 label === "Filters"  ? onFiltersOpen :
                 label === "News"     ? () => router.push("/news") :
                 label === "Earnings" ? () => router.push("/earnings") :
+                label === "Sectors"  ? () => router.push("/sector-performance") :
                 label === "Settings" ? onSettingsOpen :
                 label === "Account"  ? () => router.push("/account") :
                 undefined
