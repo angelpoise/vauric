@@ -4,20 +4,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminRequest } from "@/lib/adminSecret";
+import { discoverIR } from "@/lib/discoverIR";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-const HEAD_TIMEOUT_MS = 5000;
+const TIMEOUT_MS = 5000;
 
-async function headOk(url: string): Promise<boolean> {
+const BROWSER_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  "Accept":     "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+};
+
+async function urlOk(url: string): Promise<boolean> {
+  // First try HEAD (cheap, no body download)
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), HEAD_TIMEOUT_MS);
-    const res = await fetch(url, {
-      method:   "HEAD",
-      redirect: "follow",
-      signal:   controller.signal,
-    });
-    clearTimeout(timer);
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+    const res = await fetch(url, { method: "HEAD", redirect: "follow", signal: ctrl.signal, headers: BROWSER_HEADERS });
+    clearTimeout(t);
+    if (res.status >= 200 && res.status < 400) return true;
+  } catch { /* fall through */ }
+
+  // Some IR pages block HEAD — retry with GET before declaring stale
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+    const res = await fetch(url, { method: "GET", redirect: "follow", signal: ctrl.signal, headers: BROWSER_HEADERS });
+    clearTimeout(t);
     return res.status >= 200 && res.status < 400;
   } catch {
     return false;
@@ -37,7 +48,6 @@ export async function GET(req: NextRequest) {
   if (!stocks?.length) return NextResponse.json({ checked: 0, updated: 0, failed: 0 });
 
   let checked = 0, updated = 0, failed = 0;
-  const auth = req.headers.get("authorization") ?? "";
 
   for (const stock of stocks as Array<{
     ticker: string; company_name: string; investor_relations_url: string;
@@ -45,21 +55,13 @@ export async function GET(req: NextRequest) {
     if (!stock.investor_relations_url) continue;
     checked++;
 
-    const ok = await headOk(stock.investor_relations_url);
+    const ok = await urlOk(stock.investor_relations_url);
     if (ok) continue;
 
-    // URL is stale — rediscover via discover-ir
-    try {
-      const res = await fetch(`${APP_URL}/api/admin/stocks/discover-ir`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json", Authorization: auth },
-        body:    JSON.stringify({ ticker: stock.ticker, companyName: stock.company_name }),
-      });
-      if (res.ok) updated++;
-      else failed++;
-    } catch {
-      failed++;
-    }
+    // Both HEAD and GET failed — URL is stale, rediscover directly
+    const newUrl = await discoverIR(stock.ticker, stock.company_name);
+    if (newUrl) updated++;
+    else failed++;
   }
 
   return NextResponse.json({ checked, updated, failed });

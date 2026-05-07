@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminRequest } from "@/lib/adminSecret";
 import { hydrateSingleTicker } from "@/lib/fundamentalsUtils";
+import { discoverIR } from "@/lib/discoverIR";
 
 export async function GET(req: NextRequest) {
   if (!await isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -32,14 +33,8 @@ export async function POST(req: NextRequest) {
     console.error(`[admin/stocks] fundamentals hydration failed for ${upper}:`, err)
   );
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const adminSecret = req.headers.get("authorization") ?? "";
   if (!investor_relations_url) {
-    fetch(`${appUrl}/api/admin/stocks/discover-ir`, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json", Authorization: adminSecret },
-      body:    JSON.stringify({ ticker: upper, companyName: company_name }),
-    }).catch((err) =>
+    discoverIR(upper, company_name).catch((err) =>
       console.error(`[admin/stocks] IR discovery failed for ${upper}:`, err)
     );
   }
