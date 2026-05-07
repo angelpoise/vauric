@@ -97,6 +97,16 @@ function NewsIcon() {
   );
 }
 
+function BriefcaseIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="2" y="5.5" width="12" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M5.5 5.5V4.5a2 2 0 014 0v1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="2" y1="9.5" x2="14" y2="9.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function AccountIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -128,6 +138,7 @@ const NAV_ITEMS = [
   { label: "News",          icon: <NewsIcon /> },
   { label: "Earnings",      icon: <CalendarIcon /> },
   { label: "Sectors",       icon: <BarChartIcon /> },
+  { label: "Portfolio",     icon: <BriefcaseIcon /> },
   { label: "Account",       icon: <AccountIcon /> },
   { label: "Settings",      icon: <SettingsIcon /> },
 ];
@@ -319,7 +330,8 @@ export default function SideMenu({ expanded, onToggle, onSearchOpen, onFiltersOp
                 label === "Filters"  ? onFiltersOpen :
                 label === "News"     ? () => router.push("/news") :
                 label === "Earnings" ? () => router.push("/earnings") :
-                label === "Sectors"  ? () => router.push("/sector-performance") :
+                label === "Sectors"   ? () => router.push("/sector-performance") :
+                label === "Portfolio" ? () => router.push("/portfolio") :
                 label === "Settings" ? onSettingsOpen :
                 label === "Account"  ? () => router.push("/account") :
                 undefined

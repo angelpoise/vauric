@@ -2,6 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useUser, useAuth } from "@clerk/nextjs";
 import {
   type GNode,
   type StockNode,
@@ -197,6 +198,9 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
   editMode, sectorNodes, onNodeDragEnd, onContextMenu, onShiftEmptyClick, onGraphLoaded,
 }, ref) {
   const router         = useRouter();
+  const { user }       = useUser();
+  const { getToken }   = useAuth();
+  const portfolioRef   = useRef<Set<string>>(new Set());
   const canvasRef      = useRef<HTMLCanvasElement>(null);
   const cameraRef      = useRef<Camera>({ x: 0, y: 0, scale: 1 });
   const hoveredIdRef   = useRef<string | null>(null);
@@ -378,6 +382,21 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       notificationsRef.current = map;
     }).catch(() => {});
   }, []);
+
+  // Fetch portfolio holdings so owned stock nodes get the amber ring.
+  useEffect(() => {
+    if (!user) return;
+    getToken().then((token) => {
+      fetch(`/api/portfolio?userId=${encodeURIComponent(user.id)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+        .then((r) => r.ok ? r.json() : [])
+        .then((holdings: Array<{ ticker: string }>) => {
+          portfolioRef.current = new Set(holdings.map((h) => h.ticker));
+        })
+        .catch(() => {});
+    }).catch(() => {});
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Populate live data — attach to the module-level promise that started
   // fetching before this component mounted, rather than starting a new fetch.
@@ -659,6 +678,14 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
           drawSectorNode(ctx, node, r, col, t, rawMove);
         } else {
           drawStockNode(ctx, node, r, col, fillCol);
+          // Amber ring for stocks held in the user's portfolio
+          if (portfolioRef.current.has(node.ticker)) {
+            ctx.beginPath();
+            ctx.arc(0, 0, r + 4, 0, Math.PI * 2);
+            ctx.strokeStyle = "rgba(245,158,11,0.8)";
+            ctx.lineWidth   = 2;
+            ctx.stroke();
+          }
         }
 
         const gs = graphSettingsRef.current;
