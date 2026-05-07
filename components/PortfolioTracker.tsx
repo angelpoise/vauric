@@ -31,14 +31,14 @@ type AllocRow = { id: string; ticker: string; value: number | null; dailyMovePct
 function AllocBars({ data, total, onNav }: { data: AllocRow[]; total: number; onNav: (t: string) => void }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      {data.map(row => {
-        const w = ((row.value ?? 0) / total) * 100;
-        const m = row.dailyMovePct ?? 0;
+      {data.map((row, i) => {
+        const w     = ((row.value ?? 0) / total) * 100;
+        const color = SEGMENT_COLORS[i % SEGMENT_COLORS.length];
         return (
           <div key={row.id} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => onNav(row.ticker)}>
             <span style={{ width: 44, fontSize: 12, fontWeight: 700, color: "#f1f5f9", letterSpacing: "0.04em", flexShrink: 0 }}>{row.ticker}</span>
             <div style={{ flex: 1, height: 22, background: "rgba(255,255,255,0.04)", borderRadius: 4, overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${w}%`, background: moveFill(m, 0.6), borderRight: `2px solid ${moveColor(m)}`, borderRadius: 4, transition: "width 0.4s ease", minWidth: 2 }} />
+              <div style={{ height: "100%", width: `${w}%`, background: color, opacity: 0.75, borderRight: `2px solid ${color}`, borderRadius: 4, transition: "width 0.4s ease", minWidth: 2 }} />
             </div>
             <span style={{ width: 44, fontSize: 12, color: "#64748b", textAlign: "right", flexShrink: 0 }}>{w.toFixed(1)}%</span>
           </div>
