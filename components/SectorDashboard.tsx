@@ -250,23 +250,24 @@ function StockTable({ rows }: { rows: StockRow[] }) {
       {/* Table */}
       <div style={{ background: "#0d1117", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: DM }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: DM, tableLayout: "fixed" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                 {([
-                  { key: "ticker" as SortKey,         label: "Ticker"   },
-                  { key: null,                          label: "Company"  },
-                  { key: null,                          label: "Sector"   },
-                  { key: "dailyMove" as SortKey,       label: "Daily %"   },
-                  { key: "price" as SortKey,            label: "Price"     },
-                  { key: "streak" as SortKey,           label: "Streak"       },
-                  { key: "vs1m" as SortKey,             label: "vs Sector (1D)" },
-                ] as Array<{ key: SortKey | null; label: string }>).map(({ key, label }) => (
+                  { key: "ticker" as SortKey,         label: "Ticker",         width: "8%"  },
+                  { key: null,                          label: "Company",        width: "20%" },
+                  { key: null,                          label: "Sector",         width: "12%" },
+                  { key: "dailyMove" as SortKey,       label: "Daily %",        width: "12%" },
+                  { key: "price" as SortKey,            label: "Price",          width: "10%" },
+                  { key: "streak" as SortKey,           label: "Streak",         width: "10%" },
+                  { key: "vs1m" as SortKey,             label: "vs Sector (1D)", width: "12%" },
+                ] as Array<{ key: SortKey | null; label: string; width: string }>).map(({ key, label, width }) => (
                   <th
                     key={label}
                     onClick={key ? () => handleSort(key) : undefined}
                     style={{
                       ...thStyle(key ?? "ticker"),
+                      width,
                       cursor: key ? "pointer" : "default",
                       textAlign: label === "Ticker" || label === "Company" || label === "Sector" ? "left" : label === "Streak" ? "center" : "right",
                     }}
