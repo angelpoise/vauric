@@ -7,7 +7,7 @@ import UpgradeButton from "@/components/UpgradeButton";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = "profile" | "notifications" | "alerts" | "danger";
+type Tab = "profile" | "notifications" | "alerts" | "theses" | "danger";
 
 interface Prefs {
   email_news: boolean;
@@ -75,6 +75,7 @@ export default function AccountPage() {
     { id: "profile",       label: "Profile" },
     { id: "notifications", label: "Notifications" },
     { id: "alerts",        label: "Alert history" },
+    { id: "theses",        label: "Theses" },
     { id: "danger",        label: "Danger zone" },
   ];
 
@@ -117,6 +118,7 @@ export default function AccountPage() {
         {tab === "profile"       && <ProfileTab user={user} isPro={isPro} />}
         {tab === "notifications" && <NotificationsTab userId={user.id} />}
         {tab === "alerts"        && <AlertHistoryTab userId={user.id} isPro={isPro} />}
+        {tab === "theses"        && <ThesesTab userId={user.id} isPro={isPro} />}
         {tab === "danger"        && <DangerTab userId={user.id} onDeleted={() => router.push("/")} />}
       </div>
     </div>
@@ -440,6 +442,102 @@ function AlertHistoryTab({ userId, isPro }: { userId: string; isPro: boolean }) 
                     fontSize: 18, cursor: "pointer", padding: "0 2px", fontFamily: "inherit",
                   }}
                   title="Clear"
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ─── Theses tab ───────────────────────────────────────────────────────────────
+
+const SCENARIO_COLOR: Record<string, string> = {
+  bull: "#22c55e", base: "#64748b", bear: "#ef4444",
+};
+
+interface ThesisEntry { id: string; ticker: string; scenario: string; created_at: string; }
+
+function ThesesTab({ userId, isPro }: { userId: string; isPro: boolean }) {
+  const { getToken } = useAuth();
+  const router = useRouter();
+  const [theses, setTheses]   = useState<ThesisEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isPro) { setLoading(false); return; }
+    let cancelled = false;
+    getToken().then(token =>
+      fetch(`/api/thesis-tracking?userId=${encodeURIComponent(userId)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+    )
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { if (!cancelled) setTheses(Array.isArray(data) ? data : []); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [userId, isPro]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function remove(id: string) {
+    const token = await getToken();
+    await fetch(`/api/thesis-tracking?id=${id}`, {
+      method: "DELETE",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    setTheses(prev => prev.filter(t => t.id !== id));
+  }
+
+  if (!isPro) {
+    return (
+      <Card>
+        <Label>Thesis tracking</Label>
+        <p style={{ fontSize: 13, color: "#475569", margin: 0 }}>Thesis tracking is a Pro feature.</p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <Label>Tracked theses</Label>
+      {loading ? (
+        <p style={{ fontSize: 13, color: "#334155", margin: 0 }}>Loading…</p>
+      ) : theses.length === 0 ? (
+        <p style={{ fontSize: 13, color: "#334155", margin: 0 }}>
+          No tracked theses. Open any stock page, generate scenarios, and click "Track thesis".
+        </p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {theses.map(t => {
+            const color = SCENARIO_COLOR[t.scenario] ?? "#64748b";
+            return (
+              <div key={t.id} style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)",
+                borderRadius: 8, padding: "10px 14px",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <button
+                    onClick={() => router.push(`/stock/${t.ticker}`)}
+                    style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", letterSpacing: "0.04em", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
+                  >
+                    {t.ticker}
+                  </button>
+                  <span style={{
+                    fontSize: 11, fontWeight: 500, padding: "2px 8px", borderRadius: 4,
+                    color, background: color + "18", border: `1px solid ${color}35`,
+                  }}>
+                    {t.scenario.charAt(0).toUpperCase() + t.scenario.slice(1)}
+                  </span>
+                </div>
+                <button
+                  onClick={() => remove(t.id)}
+                  style={{ background: "none", border: "none", color: "#334155", fontSize: 18, cursor: "pointer", padding: "0 2px", fontFamily: "inherit" }}
+                  title="Remove thesis"
                 >
                   ×
                 </button>

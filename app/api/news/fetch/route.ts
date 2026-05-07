@@ -7,9 +7,11 @@
 // }
 
 import { NextRequest, NextResponse } from "next/server";
+import { clerkClient } from "@clerk/nextjs/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 import { classifyNews } from "@/lib/newsClassifier";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { resend } from "@/lib/resend";
 
 // Required Supabase schema:
 //
@@ -283,11 +285,48 @@ export async function GET(req: NextRequest) {
           .map((a) => a.ticker),
       ));
       if (significantTickers.length > 0) {
-        // fire and forget — do not block the pipeline response
-        void supabase
-          .from("company_analysis")
-          .delete()
+        // Clear cached analysis — fire and forget
+        void supabase.from("company_analysis").delete().in("ticker", significantTickers);
+
+        // Notify users tracking a thesis for any of these tickers
+        const { data: trackers } = await supabase
+          .from("thesis_tracking")
+          .select("clerk_user_id, ticker, scenario")
           .in("ticker", significantTickers);
+
+        if (trackers?.length) {
+          const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://vauric.io";
+          const clerk = await clerkClient();
+          for (const t of trackers as Array<{ clerk_user_id: string; ticker: string; scenario: string }>) {
+            const headline = toInsert.find(a => a.ticker === t.ticker && a.generates_notification)?.headline ?? "";
+            try {
+              const clerkUser = await clerk.users.getUser(t.clerk_user_id);
+              const email = clerkUser.emailAddresses[0]?.emailAddress;
+              if (!email) continue;
+              await resend.emails.send({
+                from:    "notifications@vauric.io",
+                to:      email,
+                subject: `[Vauric] Thesis alert — ${t.ticker} ${t.scenario} case`,
+                html: `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#07090f;font-family:'DM Sans',Helvetica,Arial,sans-serif;color:#f1f5f9;">
+  <div style="max-width:520px;margin:40px auto;padding:0 20px">
+    <div style="margin-bottom:28px"><span style="font-size:18px;font-weight:700;letter-spacing:0.12em;color:#fff">VAURIC</span></div>
+    <div style="background:#0d1117;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:32px">
+      <p style="font-size:12px;color:#475569;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 16px">Thesis Alert</p>
+      <h1 style="font-size:24px;font-weight:700;color:#f1f5f9;margin:0 0 6px">${t.ticker} — ${t.scenario.charAt(0).toUpperCase() + t.scenario.slice(1)} case</h1>
+      <p style="font-size:14px;color:#64748b;margin:0 0 20px">A significant event occurred for a stock you are tracking:</p>
+      <p style="font-size:14px;color:#94a3b8;background:rgba(255,255,255,0.04);border-left:3px solid #3b82f6;padding:12px 16px;border-radius:4px;margin:0 0 28px">${headline}</p>
+      <a href="${APP_URL}/stock/${t.ticker}" style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:500">View ${t.ticker} →</a>
+    </div>
+    <p style="font-size:11px;color:#334155;margin:20px 0 0;text-align:center">Vauric · Thesis tracking · <a href="${APP_URL}/account" style="color:#475569">Manage theses</a></p>
+  </div>
+</body></html>`,
+              });
+            } catch (err) {
+              console.error(`[news/fetch] thesis email failed for ${t.ticker}/${t.scenario}:`, err);
+            }
+          }
+        }
       }
     }
   }

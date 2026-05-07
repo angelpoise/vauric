@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
+import { useUser, useAuth } from "@clerk/nextjs";
 import { type NotifType, NOTIF, moveColor } from "@/lib/graphTypes";
 import UpgradeButton from "@/components/UpgradeButton";
 import PriceAlertModal from "@/components/PriceAlertModal";
@@ -873,7 +873,16 @@ function firstThreeSentences(text: string): string {
 export default function StockDetail({ ticker }: { ticker: string }) {
   const router = useRouter();
   const { user } = useUser();
+  const { getToken } = useAuth();
   const isPro = user?.publicMetadata?.isPro === true;
+
+  async function authFetch(url: string, init?: RequestInit): Promise<Response> {
+    const token = await getToken();
+    return fetch(url, {
+      ...init,
+      headers: { ...(init?.headers ?? {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    });
+  }
   const data = getStockData(ticker);
 
   const [live, setLive] = useState<LiveEntry | null>(null);
@@ -900,6 +909,14 @@ export default function StockDetail({ ticker }: { ticker: string }) {
   interface RSData { etf: string; vs1w: number | null; vs1m: number | null; vs3m: number | null; score: number; trend: "outperforming" | "inline" | "underperforming"; }
   const [rsData, setRsData]     = useState<RSData | null>(null);
   const [rsLoading, setRsLoading] = useState(true);
+
+  interface ScenarioCase { "6m": string; "1y": string; "2y": string; priceTarget: number; }
+  interface ScenarioData { bull: ScenarioCase; base: ScenarioCase; bear: ScenarioCase; generated_at: string; }
+  const [scenarioData, setScenarioData]       = useState<ScenarioData | null>(null);
+  const [scenarioLoading, setScenarioLoading] = useState(false);
+  const [scenarioTab, setScenarioTab]         = useState<"bull" | "base" | "bear">("base");
+  const [trackedTheses, setTrackedTheses]     = useState<Record<string, string>>({}); // scenario → id
+  const [trackingInFlight, setTrackingInFlight] = useState<Set<string>>(new Set());
 
   interface AnalysisData { segments: string; margins: string; guidance: string; relationships: string; }
   const [analysis, setAnalysis]               = useState<AnalysisData | null>(null);
@@ -1019,6 +1036,21 @@ export default function StockDetail({ ticker }: { ticker: string }) {
       .catch(() => {})
       .finally(() => setRsLoading(false));
   }, [ticker]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load thesis tracking state for this user
+  useEffect(() => {
+    if (!user) return;
+    authFetch(`/api/thesis-tracking?userId=${encodeURIComponent(user.id)}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((rows: Array<{ id: string; ticker: string; scenario: string }>) => {
+        const map: Record<string, string> = {};
+        for (const row of rows) {
+          if (row.ticker === ticker) map[row.scenario] = row.id;
+        }
+        setTrackedTheses(map);
+      })
+      .catch(() => {});
+  }, [user, ticker]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setEarningsLoading(true);
@@ -1398,6 +1430,169 @@ export default function StockDetail({ ticker }: { ticker: string }) {
                   <p style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.75, fontWeight: 300, margin: 0 }}>{text}</p>
                 </div>
               ))}
+            </div>
+          )}
+        </Section>
+
+        <Section title="Scenarios">
+          {!isPro ? (
+            <div style={{ padding: "12px 0 4px" }}>
+              <p style={{ fontSize: 13, color: "#475569", margin: "0 0 14px" }}>Bull/base/bear scenario analysis is a Pro feature.</p>
+              <UpgradeButton label="Upgrade to Pro" />
+            </div>
+          ) : (
+            <div>
+              {/* Generate / Refresh controls */}
+              {!scenarioData && !scenarioLoading && (
+                <div style={{ padding: "8px 0 4px" }}>
+                  <p style={{ fontSize: 13, color: "#475569", margin: "0 0 14px" }}>
+                    Generate AI-powered bull, base, and bear case scenarios for {ticker}.
+                  </p>
+                  <button
+                    onClick={async () => {
+                      setScenarioLoading(true);
+                      try {
+                        const r = await fetch(`/api/scenarios?ticker=${ticker}`);
+                        if (r.ok) setScenarioData(await r.json());
+                      } catch { /* ignore */ }
+                      finally { setScenarioLoading(false); }
+                    }}
+                    style={{ background: "#3b82f6", border: "none", borderRadius: 7, color: "#fff", fontSize: 13, fontWeight: 500, padding: "8px 18px", cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    Generate scenarios
+                  </button>
+                </div>
+              )}
+
+              {scenarioLoading && (
+                <p style={{ fontSize: 13, color: "#334155", padding: "8px 0" }}>Generating scenarios…</p>
+              )}
+
+              {scenarioData && (() => {
+                const TABS: Array<{ key: "bull" | "base" | "bear"; label: string; color: string }> = [
+                  { key: "bull", label: "Bull", color: "#22c55e" },
+                  { key: "base", label: "Base", color: "#64748b" },
+                  { key: "bear", label: "Bear", color: "#ef4444" },
+                ];
+                const active = scenarioData[scenarioTab];
+                const activeColor = TABS.find(t => t.key === scenarioTab)!.color;
+                const timeframes: Array<{ key: "6m" | "1y" | "2y"; label: string }> = [
+                  { key: "6m", label: "6 months" },
+                  { key: "1y", label: "1 year" },
+                  { key: "2y", label: "2+ years" },
+                ];
+                const isTracked = !!trackedTheses[scenarioTab];
+                const inFlight  = trackingInFlight.has(scenarioTab);
+
+                async function toggleTrack() {
+                  if (!user || inFlight) return;
+                  setTrackingInFlight(s => new Set(s).add(scenarioTab));
+                  try {
+                    if (isTracked) {
+                      await authFetch(`/api/thesis-tracking?id=${trackedTheses[scenarioTab]}`, { method: "DELETE" });
+                      setTrackedTheses(m => { const n = { ...m }; delete n[scenarioTab]; return n; });
+                    } else {
+                      const r = await authFetch("/api/thesis-tracking", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ userId: user.id, ticker, scenario: scenarioTab }),
+                      });
+                      if (r.ok) {
+                        const d = await r.json() as { id?: string };
+                        if (d?.id) setTrackedTheses(m => ({ ...m, [scenarioTab]: d.id! }));
+                      }
+                    }
+                  } catch { /* ignore */ }
+                  finally { setTrackingInFlight(s => { const n = new Set(s); n.delete(scenarioTab); return n; }); }
+                }
+
+                return (
+                  <div>
+                    {/* Tab bar */}
+                    <div style={{ display: "flex", gap: 6, marginBottom: 16, alignItems: "center" }}>
+                      {TABS.map(t => {
+                        const a = scenarioTab === t.key;
+                        return (
+                          <button key={t.key} onClick={() => setScenarioTab(t.key)} style={{
+                            padding: "6px 16px", borderRadius: 7, fontSize: 13, fontFamily: "inherit", cursor: "pointer",
+                            fontWeight: a ? 600 : 400,
+                            background: a ? `${t.color}18` : "rgba(255,255,255,0.04)",
+                            border: `1px solid ${a ? t.color + "50" : "rgba(255,255,255,0.08)"}`,
+                            color: a ? t.color : "#64748b",
+                          }}>{t.label}</button>
+                        );
+                      })}
+                      {/* Track this thesis bell */}
+                      <button
+                        onClick={toggleTrack}
+                        disabled={inFlight}
+                        title={isTracked ? "Stop tracking this thesis" : "Track this thesis"}
+                        style={{
+                          marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5,
+                          padding: "5px 10px", borderRadius: 6, fontSize: 11, fontFamily: "inherit", cursor: inFlight ? "default" : "pointer",
+                          background: isTracked ? "rgba(59,130,246,0.1)" : "rgba(255,255,255,0.04)",
+                          border: `1px solid ${isTracked ? "rgba(59,130,246,0.3)" : "rgba(255,255,255,0.08)"}`,
+                          color: isTracked ? "#3b82f6" : "#475569", opacity: inFlight ? 0.5 : 1,
+                        }}
+                      >
+                        <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+                          <path d="M8 2a4.5 4.5 0 00-4.5 4.5V10L2 12h12l-1.5-2V6.5A4.5 4.5 0 008 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                          <path d="M6.5 12.5a1.5 1.5 0 003 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                        </svg>
+                        {inFlight ? "…" : isTracked ? "Tracking" : "Track thesis"}
+                      </button>
+                    </div>
+
+                    {/* Price target pill */}
+                    <div style={{ marginBottom: 16 }}>
+                      <span style={{
+                        fontSize: 13, fontWeight: 600, padding: "4px 12px", borderRadius: 20,
+                        background: `${activeColor}18`, border: `1px solid ${activeColor}40`, color: activeColor,
+                      }}>
+                        Target: ${active.priceTarget.toLocaleString()}
+                      </span>
+                    </div>
+
+                    {/* Timeframe cards */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+                      {timeframes.map(tf => (
+                        <div key={tf.key} style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "12px 14px" }}>
+                          <div style={{ fontSize: 10, fontWeight: 600, color: activeColor, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 6 }}>{tf.label}</div>
+                          <div style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.6 }}>{active[tf.key]}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Footer */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 10, color: "#334155", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 4, padding: "2px 7px" }}>AI generated</span>
+                        <span style={{ fontSize: 11, color: "#334155" }}>
+                          {new Date(scenarioData.generated_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                        </span>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          setScenarioLoading(true);
+                          setScenarioData(null);
+                          await fetch(`/api/scenarios?ticker=${ticker}`, { method: "DELETE" });
+                          try {
+                            const r = await fetch(`/api/scenarios?ticker=${ticker}`);
+                            if (r.ok) setScenarioData(await r.json());
+                          } catch { /* ignore */ }
+                          finally { setScenarioLoading(false); }
+                        }}
+                        style={{ fontSize: 11, color: "#475569", background: "none", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 5, padding: "3px 10px", cursor: "pointer", fontFamily: "inherit" }}
+                      >
+                        Refresh
+                      </button>
+                    </div>
+                    <p style={{ fontSize: 11, color: "#334155", margin: "10px 0 0", lineHeight: 1.5 }}>
+                      AI-generated scenarios for informational purposes only. Not financial advice.
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </Section>
