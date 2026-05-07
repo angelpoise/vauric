@@ -36,12 +36,19 @@ const TTL_MS = 15 * 60 * 1000;
 let cachedAll: NewsRow[] | null = null;
 let cachedAt = 0;
 
+// Maximum history window cached — matches the Pro tier window.
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const FORTY_EIGHT_H_MS = 48 * 60 * 60 * 1000;
+
 async function fetchAll(bust = false): Promise<NewsRow[]> {
   if (!bust && cachedAll && Date.now() - cachedAt < TTL_MS) return cachedAll;
+
+  const thirtyDaysAgo = new Date(Date.now() - THIRTY_DAYS_MS).toISOString();
 
   const { data, error } = await supabase
     .from("news")
     .select("id, ticker, headline, summary, url, source, published_at, notification_type, created_at, generates_notification, is_sector_news, sector_id")
+    .gte("published_at", thirtyDaysAgo)
     .order("published_at", { ascending: false })
     .limit(1000);
 
@@ -161,14 +168,20 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // Apply date window: free tier = last 48 h, Pro = last 30 days (full cache)
+  const cutoff = isPro ? null : Date.now() - FORTY_EIGHT_H_MS;
+  const windowedRows = cutoff
+    ? rows.filter((r) => new Date(r.published_at).getTime() > cutoff)
+    : rows;
+
   let filtered: NewsRow[];
 
   if (ticker) {
-    const newsForTicker    = rows.filter((r) => r.ticker === ticker).slice(0, limit);
-    const manualForTicker  = manualRows.filter((r) => r.ticker === ticker);
+    const newsForTicker   = windowedRows.filter((r) => r.ticker === ticker).slice(0, limit);
+    const manualForTicker = manualRows.filter((r) => r.ticker === ticker);
     filtered = [...manualForTicker, ...newsForTicker];
   } else {
-    const balancedNews = balanced(rows, 15);
+    const balancedNews = balanced(windowedRows, 15);
     // Pro users get the full balanced feed; free users are capped at FREE_NEWS_LIMIT
     filtered = [...manualRows, ...(isPro ? balancedNews : balancedNews.slice(0, FREE_NEWS_LIMIT))];
   }

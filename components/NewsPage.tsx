@@ -412,7 +412,14 @@ export default function NewsPage() {
             ? <EmptyState message="Loading news…" />
             : newsItems.length === 0
               ? <EmptyState message="No news available yet. The pipeline fetches stories hourly." />
-              : <NewsList items={newsItems} onTickerClick={handleTickerClick} isPro={isPro} />
+              : <>
+                  <NewsList items={newsItems} onTickerClick={handleTickerClick} isPro={isPro} />
+                  {!isPro && (
+                    <div style={{ textAlign: "center", padding: "16px 0 4px", fontSize: 11, color: "#334155", fontFamily: 'var(--font-dm-sans), "DM Sans", sans-serif' }}>
+                      Showing last 48 hours — upgrade to Pro for 30 days of news history
+                    </div>
+                  )}
+                </>
         )}
 
         {/* Watchlist */}

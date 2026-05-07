@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useUser } from "@clerk/nextjs";
 import {
   type ActiveFilters,
   type FilterRange,
@@ -13,6 +14,7 @@ import {
 } from "@/lib/filtersTypes";
 import { NOTIF, type NotifType } from "@/lib/graphTypes";
 import { MENU_COLLAPSED_W } from "@/components/SideMenu";
+import UpgradeButton from "@/components/UpgradeButton";
 
 const PANEL_W = 280;
 
@@ -306,6 +308,155 @@ function PresetsSection({
   );
 }
 
+// ─── Saved Views ──────────────────────────────────────────────────────────────
+
+const VIEWS_KEY  = "vauric_graph_views";
+const MAX_VIEWS  = 5;
+
+function loadViews(): Preset[] {
+  try { return JSON.parse(localStorage.getItem(VIEWS_KEY) ?? "[]"); }
+  catch { return []; }
+}
+function saveViews(views: Preset[]): void {
+  localStorage.setItem(VIEWS_KEY, JSON.stringify(views));
+}
+
+function ViewsSection({
+  views, activeViewName, isPro, showSaveInput, saveInputValue,
+  onApply, onDelete, onSaveCurrent, onToggleSaveInput, onSaveInputChange,
+}: {
+  views: Preset[];
+  activeViewName: string | null;
+  isPro: boolean;
+  showSaveInput: boolean;
+  saveInputValue: string;
+  onApply: (v: Preset) => void;
+  onDelete: (name: string) => void;
+  onSaveCurrent: () => void;
+  onToggleSaveInput: () => void;
+  onSaveInputChange: (v: string) => void;
+}) {
+  const atMax = views.length >= MAX_VIEWS;
+  const [showUpgrade, setShowUpgrade] = useState(false);
+
+  return (
+    <div style={{
+      padding: "10px 16px 12px",
+      borderBottom: "1px solid rgba(255,255,255,0.05)",
+      flexShrink: 0,
+    }}>
+      <div style={{ fontSize: 10, fontWeight: 500, color: "#334155", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>
+        Saved views
+      </div>
+
+      {/* Pill row */}
+      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
+        {views.map((v) => {
+          const isActive = activeViewName === v.name;
+          return (
+            <div key={v.name} style={{
+              display: "inline-flex", alignItems: "center",
+              background: isActive ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.03)",
+              border: `1px solid ${isActive ? "rgba(59,130,246,0.4)" : "rgba(255,255,255,0.07)"}`,
+              borderRadius: 6, overflow: "hidden", transition: "all 0.12s",
+            }}>
+              <button
+                onClick={() => onApply(v)}
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  fontSize: 11, fontWeight: isActive ? 500 : 400,
+                  color: isActive ? "#3b82f6" : "#64748b",
+                  padding: "5px 6px 5px 10px",
+                  fontFamily: "inherit", whiteSpace: "nowrap",
+                }}
+              >
+                {v.name}
+              </button>
+              <button
+                onClick={() => onDelete(v.name)}
+                title={`Delete "${v.name}"`}
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  color: "#334155", padding: "5px 8px 5px 2px",
+                  fontSize: 13, lineHeight: 1, fontFamily: "inherit",
+                  display: "flex", alignItems: "center",
+                }}
+              >
+                ×
+              </button>
+            </div>
+          );
+        })}
+        {views.length === 0 && (
+          <span style={{ fontSize: 11, color: "#334155", alignSelf: "center" }}>No saved views</span>
+        )}
+      </div>
+
+      {/* Save / Pro gate */}
+      {showUpgrade ? (
+        <div style={{ marginTop: 4 }}>
+          <UpgradeButton label="Upgrade to save views" />
+          <button onClick={() => setShowUpgrade(false)} style={{ background: "none", border: "none", color: "#334155", fontSize: 11, cursor: "pointer", fontFamily: "inherit", marginLeft: 8 }}>✕</button>
+        </div>
+      ) : showSaveInput ? (
+        <div style={{ display: "flex", gap: 5 }}>
+          <input
+            autoFocus
+            value={saveInputValue}
+            onChange={(e) => onSaveInputChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onSaveCurrent();
+              if (e.key === "Escape") onToggleSaveInput();
+            }}
+            placeholder="View name…"
+            style={inputStyle}
+          />
+          <button
+            onClick={onSaveCurrent}
+            disabled={!saveInputValue.trim()}
+            style={{
+              background: "#3b82f6", border: "none", borderRadius: 6,
+              color: "#fff", fontSize: 11, padding: "5px 10px", cursor: "pointer",
+              fontFamily: "inherit", flexShrink: 0,
+              opacity: saveInputValue.trim() ? 1 : 0.45,
+            }}
+          >
+            Save
+          </button>
+          <button
+            onClick={onToggleSaveInput}
+            style={{
+              background: "none", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 6,
+              color: "#475569", fontSize: 12, padding: "5px 8px",
+              cursor: "pointer", fontFamily: "inherit", flexShrink: 0,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => {
+            if (!isPro) { setShowUpgrade(true); return; }
+            if (atMax) return;
+            onToggleSaveInput();
+          }}
+          disabled={isPro && atMax}
+          title={isPro && atMax ? `Maximum ${MAX_VIEWS} views` : undefined}
+          style={{
+            background: "none", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 6,
+            color: "#475569", fontSize: 11, padding: "4px 10px",
+            cursor: isPro && atMax ? "not-allowed" : "pointer",
+            fontFamily: "inherit", opacity: isPro && atMax ? 0.45 : 1,
+          }}
+        >
+          {isPro && atMax ? `Max views (${MAX_VIEWS})` : "+ Save view"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function ResetButton({ onClick }: { onClick: () => void }) {
   const [hov, setHov] = useState(false);
   return (
@@ -359,7 +510,16 @@ export default function FiltersPanel({ open, onClose, filters, onFiltersChange }
   const activeCount = countActiveFilters(filters);
   const set = (partial: Partial<ActiveFilters>) => onFiltersChange({ ...filters, ...partial });
 
+  const { user, isLoaded } = useUser();
+  const isPro = isLoaded ? user?.publicMetadata?.isPro === true : false;
+
   const [hiddenBySettings, setHiddenBySettings] = useState<NotifType[]>([]);
+
+  // ── Views state ─────────────────────────────────────────────────────────────
+  const [views, setViews]                       = useState<Preset[]>([]);
+  const [activeViewName, setActiveViewName]     = useState<string | null>(null);
+  const [showViewSaveInput, setShowViewSaveInput] = useState(false);
+  const [viewSaveInputValue, setViewSaveInputValue] = useState("");
 
   // ── Preset state ────────────────────────────────────────────────────────────
   const [userPresets, setUserPresets]       = useState<Preset[]>([]);
@@ -421,6 +581,43 @@ export default function FiltersPanel({ open, onClose, filters, onFiltersChange }
     setSaveInputValue("");
   }
 
+  // ── Views logic ─────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (open) setViews(loadViews());
+  }, [open]);
+
+  useEffect(() => {
+    if (!activeViewName) return;
+    const v = views.find((x) => x.name === activeViewName);
+    if (!v || JSON.stringify(v.filters) !== JSON.stringify(filters)) setActiveViewName(null);
+  }, [filters, activeViewName, views]);
+
+  function applyView(v: Preset) {
+    onFiltersChange(v.filters);
+    setActiveViewName(v.name);
+    setShowViewSaveInput(false);
+  }
+
+  function deleteView(name: string) {
+    const updated = views.filter((v) => v.name !== name);
+    setViews(updated);
+    saveViews(updated);
+    if (activeViewName === name) setActiveViewName(null);
+  }
+
+  function saveCurrentView() {
+    const name = viewSaveInputValue.trim();
+    if (!name) return;
+    const without = views.filter((v) => v.name !== name);
+    const updated = [...without, { name, filters }].slice(-MAX_VIEWS);
+    setViews(updated);
+    saveViews(updated);
+    setActiveViewName(name);
+    setShowViewSaveInput(false);
+    setViewSaveInputValue("");
+  }
+
   return (
     <>
       {/* Backdrop — only covers the graph area to the right of the panel */}
@@ -467,6 +664,20 @@ export default function FiltersPanel({ open, onClose, filters, onFiltersChange }
           </div>
           <ResetButton onClick={() => { onFiltersChange(DEFAULT_FILTERS); setActivePresetName(null); }} />
         </div>
+
+        {/* Saved views */}
+        <ViewsSection
+          views={views}
+          activeViewName={activeViewName}
+          isPro={isPro}
+          showSaveInput={showViewSaveInput}
+          saveInputValue={viewSaveInputValue}
+          onApply={applyView}
+          onDelete={deleteView}
+          onSaveCurrent={saveCurrentView}
+          onToggleSaveInput={() => { setShowViewSaveInput((v) => !v); setViewSaveInputValue(""); }}
+          onSaveInputChange={setViewSaveInputValue}
+        />
 
         {/* Presets */}
         <PresetsSection

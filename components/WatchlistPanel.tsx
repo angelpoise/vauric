@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 import { moveColor } from "@/lib/graphTypes";
 import { getCachedMarketData, setCachedMarketData } from "@/lib/marketDataCache";
 import {
@@ -39,8 +40,38 @@ const STOCK_NAMES: Record<string, string> = {
 
 interface LiveEntry { price: number; dailyMove: number; dailyMoveDollar: number; }
 
+function exportWatchlistCSV(
+  tickers: string[],
+  marketData: Record<string, LiveEntry> | null,
+) {
+  const header = ["Ticker", "Company Name", "Current Price", "Daily Move %", "Daily Move $"];
+  const bodyRows = tickers.map((t) => {
+    const live = marketData?.[t];
+    const sign = (live?.dailyMove ?? 0) >= 0 ? "+" : "";
+    return [
+      t,
+      STOCK_NAMES[t] ?? t,
+      live?.price != null ? live.price.toFixed(2) : "",
+      live?.dailyMove != null ? `${sign}${live.dailyMove.toFixed(2)}` : "",
+      live?.dailyMoveDollar != null ? live.dailyMoveDollar.toFixed(2) : "",
+    ];
+  });
+  const csv = [header, ...bodyRows].map((r) => r.join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `vauric-watchlist-${new Date().toISOString().split("T")[0]}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export default function WatchlistPanel() {
   const router = useRouter();
+  const { user, isLoaded } = useUser();
+  const isPro = isLoaded ? user?.publicMetadata?.isPro === true : false;
   const [open, setOpen] = useState(false);
   const [tickers, setTickers] = useState<string[]>([]);
   const [marketData, setMarketData] = useState<Record<string, LiveEntry> | null>(null);
@@ -181,6 +212,28 @@ export default function WatchlistPanel() {
           <span style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", fontSize: 13, fontWeight: 500, color: "#f1f5f9" }}>
             My Watchlist
           </span>
+          {tickers.length > 0 && (
+            <button
+              onClick={() => {
+                if (isPro) exportWatchlistCSV(tickers, marketData);
+              }}
+              title={isPro ? "Export watchlist as CSV" : "Pro feature"}
+              style={{
+                background: "none",
+                border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: 5,
+                color: isPro ? "#64748b" : "#334155",
+                fontSize: 10,
+                fontWeight: 500,
+                letterSpacing: "0.04em",
+                padding: "3px 8px",
+                cursor: isPro ? "pointer" : "default",
+                fontFamily: "inherit",
+              }}
+            >
+              Export CSV
+            </button>
+          )}
         </div>
 
         {/* Stock list */}
