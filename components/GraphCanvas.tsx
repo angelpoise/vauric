@@ -203,7 +203,15 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
   // Seed stock positions from the session cache (set on previous visit) so the graph
   // shows correct positions immediately instead of flashing fallback coordinates.
   const sectorNodesRef = useRef<SectorNode[]>(sectorNodes ?? DEFAULT_SECTOR_NODES.map((s) => ({ ...s })));
-  const cachedPos = getCachedNodePositions();
+  const cachedPos: Record<string, { x: number; y: number }> | null =
+    getCachedNodePositions() ?? (() => {
+      try {
+        const raw = sessionStorage.getItem("vauric_node_positions");
+        return raw
+          ? (JSON.parse(raw) as Record<string, { x: number; y: number }>)
+          : null;
+      } catch { return null; }
+    })();
   const seededStockNodes: StockNode[] = cachedPos
     ? FALLBACK_STOCK_NODES.map((n) => {
         const p = cachedPos[n.id];
@@ -308,6 +316,9 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         const posMap: Record<string, { x: number; y: number }> = {};
         for (const n of stockNodes) posMap[n.id] = { x: n.x, y: n.y };
         setCachedNodePositions(posMap);
+        try {
+          sessionStorage.setItem("vauric_node_positions", JSON.stringify(posMap));
+        } catch { /* ignore — private browsing or storage quota */ }
         console.log(`[graph] loaded ${stockNodes.length} stock nodes, ${extraEdges.length} connections`);
       })
       .catch((err) => console.error('[graph] fetch failed:', err));
