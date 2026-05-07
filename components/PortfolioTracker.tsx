@@ -38,7 +38,7 @@ function AllocBars({ data, total, onNav }: { data: AllocRow[]; total: number; on
           <div key={row.id} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => onNav(row.ticker)}>
             <span style={{ width: 44, fontSize: 12, fontWeight: 700, color: "#f1f5f9", letterSpacing: "0.04em", flexShrink: 0 }}>{row.ticker}</span>
             <div style={{ flex: 1, height: 22, background: "rgba(255,255,255,0.04)", borderRadius: 4, overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${w}%`, background: moveFill(m, 0.6), borderRight: `2px solid ${moveColor(m)}`, borderRadius: 4, transition: "width 0.4s ease", minWidth: 40 }} />
+              <div style={{ height: "100%", width: `${w}%`, background: moveFill(m, 0.6), borderRight: `2px solid ${moveColor(m)}`, borderRadius: 4, transition: "width 0.4s ease", minWidth: 2 }} />
             </div>
             <span style={{ width: 44, fontSize: 12, color: "#64748b", textAlign: "right", flexShrink: 0 }}>{w.toFixed(1)}%</span>
           </div>
@@ -171,7 +171,7 @@ export default function PortfolioTracker() {
 
   const [allocView, setAllocView] = useState<"bars" | "pie" | "strip">("bars");
 
-  const [form, setForm] = useState({ ticker: "", shares: "", purchasePrice: "", purchaseDate: "" });
+  const [form, setForm] = useState({ ticker: "", shares: "", purchasePrice: "" });
   const [saving, setSaving]     = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -254,15 +254,11 @@ export default function PortfolioTracker() {
       const r = await authFetch("/api/portfolio", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({
-          userId: user.id, ticker: t, shares: s,
-          purchasePrice: p,
-          ...(form.purchaseDate ? { purchaseDate: form.purchaseDate } : {}),
-        }),
+        body:    JSON.stringify({ userId: user.id, ticker: t, shares: s, purchasePrice: p }),
       });
       if (r.status === 403) { setFormError("Pro subscription required"); return; }
       if (!r.ok) { const d = await r.json(); setFormError(d.error ?? "Failed to add"); return; }
-      setForm({ ticker: "", shares: "", purchasePrice: "", purchaseDate: "" });
+      setForm({ ticker: "", shares: "", purchasePrice: "" });
       await loadHoldings();
     } catch { setFormError("Request failed"); }
     finally { setSaving(false); }
@@ -397,7 +393,6 @@ export default function PortfolioTracker() {
                       { placeholder: "Ticker (e.g. NVDA)", value: form.ticker, onChange: (v: string) => setForm(f => ({ ...f, ticker: v.toUpperCase() })), width: 130, maxLength: 10 },
                       { placeholder: "Shares", value: form.shares, onChange: (v: string) => setForm(f => ({ ...f, shares: v })), width: 100, type: "number" },
                       { placeholder: "Buy price ($)", value: form.purchasePrice, onChange: (v: string) => setForm(f => ({ ...f, purchasePrice: v })), width: 120, type: "number" },
-                      { placeholder: "Date (optional)", value: form.purchaseDate, onChange: (v: string) => setForm(f => ({ ...f, purchaseDate: v })), width: 150, type: "date" },
                     ].map(({ placeholder, value, onChange, width, type, maxLength }) => (
                       <input
                         key={placeholder}
