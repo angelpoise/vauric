@@ -164,6 +164,9 @@ function ProfileTab({ user, isPro }: { user: ReturnType<typeof useUser>["user"];
         )}
         <UpgradeButton label="Upgrade to Pro" />
       </Card>
+
+      {/* Price alerts */}
+      {user && <AlertsSection userId={user.id} isPro={isPro} />}
     </div>
   );
 }
@@ -321,6 +324,90 @@ function DangerTab({ userId, onDeleted }: { userId: string; onDeleted: () => voi
       >
         {deleting ? "Deleting…" : "Delete my account"}
       </button>
+    </Card>
+  );
+}
+
+// ─── Alerts section ───────────────────────────────────────────────────────────
+
+interface PriceAlert {
+  id: string;
+  ticker: string;
+  target_price: number;
+  direction: "above" | "below";
+  created_at: string;
+}
+
+function AlertsSection({ userId, isPro }: { userId: string; isPro: boolean }) {
+  const { getToken } = useAuth();
+  const [alerts, setAlerts]   = useState<PriceAlert[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isPro) { setLoading(false); return; }
+    let cancelled = false;
+    getToken().then((token) =>
+      fetch(`/api/alerts?userId=${encodeURIComponent(userId)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+    )
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => { if (!cancelled) setAlerts(Array.isArray(data) ? data : []); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [userId, isPro]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function deleteAlert(id: string) {
+    const token = await getToken();
+    await fetch(`/api/alerts?id=${id}`, {
+      method: "DELETE",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    setAlerts((prev) => prev.filter((a) => a.id !== id));
+  }
+
+  return (
+    <Card>
+      <Label>Price alerts</Label>
+      {!isPro ? (
+        <p style={{ fontSize: 13, color: "#475569", margin: "0 0 12px" }}>
+          Price alerts are a Pro feature. Set target prices and get notified by email when a stock crosses your threshold.
+        </p>
+      ) : loading ? (
+        <p style={{ fontSize: 13, color: "#334155", margin: 0 }}>Loading…</p>
+      ) : alerts.length === 0 ? (
+        <p style={{ fontSize: 13, color: "#334155", margin: 0 }}>No active price alerts. Set one from any stock page.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {alerts.map((a) => (
+            <div key={a.id} style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)",
+              borderRadius: 8, padding: "10px 14px",
+            }}>
+              <div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", letterSpacing: "0.04em", marginRight: 10 }}>
+                  {a.ticker}
+                </span>
+                <span style={{ fontSize: 13, color: a.direction === "above" ? "#22c55e" : "#ef4444" }}>
+                  {a.direction === "above" ? "▲ Above" : "▼ Below"} ${a.target_price.toFixed(2)}
+                </span>
+              </div>
+              <button
+                onClick={() => deleteAlert(a.id)}
+                style={{
+                  background: "none", border: "none", color: "#334155",
+                  fontSize: 18, cursor: "pointer", padding: "0 2px", fontFamily: "inherit",
+                }}
+                title="Delete alert"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }

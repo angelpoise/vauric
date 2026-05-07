@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { type NotifType, NOTIF, moveColor } from "@/lib/graphTypes";
 import UpgradeButton from "@/components/UpgradeButton";
+import PriceAlertModal from "@/components/PriceAlertModal";
 import { getCachedMarketData, setCachedMarketData } from "@/lib/marketDataCache";
 import {
   FREE_TIER_CAP,
@@ -865,6 +866,7 @@ export default function StockDetail({ ticker }: { ticker: string }) {
 
   const [inWatchlist, setInWatchlist] = useState(false);
   const [wlFlash, setWlFlash] = useState<"added" | "duplicate" | "limit" | null>(null);
+  const [showAlertModal, setShowAlertModal] = useState(false);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fire-and-forget visit tracking — completely invisible to the user
@@ -1171,6 +1173,27 @@ export default function StockDetail({ ticker }: { ticker: string }) {
                 .map((a, i) => <Chip key={i} type={(a.notification_type as NotifType) || "news"} />);
             })()}
 
+            {/* Bell — set price alert */}
+            <button
+              onClick={() => setShowAlertModal(true)}
+              title="Set price alert"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "7px 14px",
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 8, cursor: "pointer", color: "#64748b",
+                fontSize: 13, fontWeight: 400, fontFamily: "inherit",
+                marginLeft: "auto",
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+              Alert
+            </button>
+
           </div>
 
           {/* Disclaimer */}
@@ -1401,6 +1424,14 @@ export default function StockDetail({ ticker }: { ticker: string }) {
           </div>
         </Section>
       </div>
+
+      {showAlertModal && (
+        <PriceAlertModal
+          ticker={ticker}
+          currentPrice={live?.price ?? null}
+          onClose={() => setShowAlertModal(false)}
+        />
+      )}
     </div>
   );
 }
