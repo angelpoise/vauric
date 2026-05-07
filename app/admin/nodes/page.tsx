@@ -46,7 +46,8 @@ export default function NodesPage() {
   const [edits, setEdits]         = useState<EditMap>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [err, setErr]             = useState<string | null>(null);
-  const [regenMsg, setRegenMsg]   = useState<Record<string, string>>({});
+  const [regenMsg, setRegenMsg]             = useState<Record<string, string>>({});
+  const [regenScenariosMsg, setRegenScenariosMsg] = useState<Record<string, string>>({});
   const [irDiscovering, setIrDiscovering] = useState<Record<string, boolean>>({});
   const [irMsg, setIrMsg]         = useState<Record<string, string>>({});
   const [verifying, setVerifying] = useState(false);
@@ -141,19 +142,29 @@ export default function NodesPage() {
   async function regenAnalysis(ticker: string) {
     setRegenMsg((m) => ({ ...m, [ticker]: "Clearing…" }));
     try {
-      console.log(`[regenAnalysis] DELETE /api/analysis?ticker=${ticker}`);
-      const r = await adminFetch(`/api/analysis?ticker=${ticker}`, { method: "DELETE" });
-      console.log(`[regenAnalysis] response status: ${r.status}`);
-      if (!r.ok) {
-        const body = await r.json().catch(() => ({}));
-        console.error(`[regenAnalysis] error body:`, body);
-      }
-      setRegenMsg((m) => ({ ...m, [ticker]: r.ok ? "Cleared — regenerates on next visit" : `Error ${r.status}` }));
-    } catch (err) {
-      console.error(`[regenAnalysis] fetch threw:`, err);
+      const delR = await adminFetch(`/api/analysis?ticker=${ticker}`, { method: "DELETE" });
+      if (!delR.ok) { setRegenMsg((m) => ({ ...m, [ticker]: `Error ${delR.status}` })); return; }
+      setRegenMsg((m) => ({ ...m, [ticker]: "Generating…" }));
+      const genR = await adminFetch(`/api/analysis?ticker=${ticker}`);
+      setRegenMsg((m) => ({ ...m, [ticker]: genR.ok ? "Done ✓" : `Error ${genR.status}` }));
+    } catch {
       setRegenMsg((m) => ({ ...m, [ticker]: "Error" }));
     }
     setTimeout(() => setRegenMsg((m) => { const n = { ...m }; delete n[ticker]; return n; }), 3000);
+  }
+
+  async function regenScenarios(ticker: string) {
+    setRegenScenariosMsg((m) => ({ ...m, [ticker]: "Clearing…" }));
+    try {
+      const delR = await adminFetch(`/api/scenarios?ticker=${ticker}`, { method: "DELETE" });
+      if (!delR.ok) { setRegenScenariosMsg((m) => ({ ...m, [ticker]: `Error ${delR.status}` })); return; }
+      setRegenScenariosMsg((m) => ({ ...m, [ticker]: "Generating…" }));
+      const genR = await adminFetch(`/api/scenarios?ticker=${ticker}`);
+      setRegenScenariosMsg((m) => ({ ...m, [ticker]: genR.ok ? "Done ✓" : `Error ${genR.status}` }));
+    } catch {
+      setRegenScenariosMsg((m) => ({ ...m, [ticker]: "Error" }));
+    }
+    setTimeout(() => setRegenScenariosMsg((m) => { const n = { ...m }; delete n[ticker]; return n; }), 3000);
   }
 
   const HEADERS = ["Ticker", "Company", "Sector", "X", "Y", "IR URL", "Visits", "Last Visit", "Schedule", "Scenario Sched", ""];
@@ -281,9 +292,16 @@ export default function NodesPage() {
                             <button
                               style={{ ...BTN, background: "rgba(59,130,246,0.08)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.2)" }}
                               onClick={() => regenAnalysis(s.ticker)}
-                              title="Clear cached analysis — regenerates on next visit"
+                              title="Clear and regenerate analysis"
                             >
                               {regenMsg[s.ticker] ?? "Regen"}
+                            </button>
+                            <button
+                              style={{ ...BTN, background: "rgba(34,197,94,0.08)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.2)" }}
+                              onClick={() => regenScenarios(s.ticker)}
+                              title="Clear and regenerate scenarios"
+                            >
+                              {regenScenariosMsg[s.ticker] ?? "Regen SC"}
                             </button>
                             <button
                               style={{ ...BTN, background: "rgba(168,85,247,0.08)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.2)" }}
