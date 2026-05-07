@@ -7,7 +7,7 @@ import UpgradeButton from "@/components/UpgradeButton";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = "profile" | "notifications" | "danger";
+type Tab = "profile" | "notifications" | "alerts" | "danger";
 
 interface Prefs {
   email_news: boolean;
@@ -74,6 +74,7 @@ export default function AccountPage() {
   const TABS: { id: Tab; label: string }[] = [
     { id: "profile",       label: "Profile" },
     { id: "notifications", label: "Notifications" },
+    { id: "alerts",        label: "Alert history" },
     { id: "danger",        label: "Danger zone" },
   ];
 
@@ -115,6 +116,7 @@ export default function AccountPage() {
 
         {tab === "profile"       && <ProfileTab user={user} isPro={isPro} />}
         {tab === "notifications" && <NotificationsTab userId={user.id} />}
+        {tab === "alerts"        && <AlertHistoryTab userId={user.id} isPro={isPro} />}
         {tab === "danger"        && <DangerTab userId={user.id} onDeleted={() => router.push("/")} />}
       </div>
     </div>
@@ -165,8 +167,6 @@ function ProfileTab({ user, isPro }: { user: ReturnType<typeof useUser>["user"];
         <UpgradeButton label="Upgrade to Pro" />
       </Card>
 
-      {/* Price alerts */}
-      {user && <AlertsSection userId={user.id} isPro={isPro} />}
     </div>
   );
 }
@@ -328,26 +328,28 @@ function DangerTab({ userId, onDeleted }: { userId: string; onDeleted: () => voi
   );
 }
 
-// ─── Alerts section ───────────────────────────────────────────────────────────
+// ─── Alert history tab ────────────────────────────────────────────────────────
 
-interface PriceAlert {
+interface TriggeredAlert {
   id: string;
   ticker: string;
   target_price: number;
   direction: "above" | "below";
+  triggered_at: string | null;
   created_at: string;
 }
 
-function AlertsSection({ userId, isPro }: { userId: string; isPro: boolean }) {
+function AlertHistoryTab({ userId, isPro }: { userId: string; isPro: boolean }) {
   const { getToken } = useAuth();
-  const [alerts, setAlerts]   = useState<PriceAlert[]>([]);
+  const [alerts, setAlerts]   = useState<TriggeredAlert[]>([]);
   const [loading, setLoading] = useState(true);
+  const [prices, setPrices]   = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!isPro) { setLoading(false); return; }
     let cancelled = false;
     getToken().then((token) =>
-      fetch(`/api/alerts?userId=${encodeURIComponent(userId)}`, {
+      fetch(`/api/alerts?userId=${encodeURIComponent(userId)}&history=true`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
     )
@@ -355,6 +357,17 @@ function AlertsSection({ userId, isPro }: { userId: string; isPro: boolean }) {
       .then((data) => { if (!cancelled) setAlerts(Array.isArray(data) ? data : []); })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
+
+    fetch("/api/market-data")
+      .then((r) => r.ok ? r.json() : null)
+      .then((md) => {
+        if (!md || cancelled) return;
+        const p: Record<string, number> = {};
+        for (const [t, v] of Object.entries(md)) p[t] = (v as { price: number }).price;
+        setPrices(p);
+      })
+      .catch(() => {});
+
     return () => { cancelled = true; };
   }, [userId, isPro]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -367,45 +380,72 @@ function AlertsSection({ userId, isPro }: { userId: string; isPro: boolean }) {
     setAlerts((prev) => prev.filter((a) => a.id !== id));
   }
 
+  if (!isPro) {
+    return (
+      <Card>
+        <Label>Alert history</Label>
+        <p style={{ fontSize: 13, color: "#475569", margin: 0 }}>
+          Price alerts are a Pro feature.
+        </p>
+      </Card>
+    );
+  }
+
   return (
     <Card>
-      <Label>Price alerts</Label>
-      {!isPro ? (
-        <p style={{ fontSize: 13, color: "#475569", margin: "0 0 12px" }}>
-          Price alerts are a Pro feature. Set target prices and get notified by email when a stock crosses your threshold.
-        </p>
-      ) : loading ? (
+      <Label>Alert history</Label>
+      {loading ? (
         <p style={{ fontSize: 13, color: "#334155", margin: 0 }}>Loading…</p>
       ) : alerts.length === 0 ? (
-        <p style={{ fontSize: 13, color: "#334155", margin: 0 }}>No active price alerts. Set one from any stock page.</p>
+        <p style={{ fontSize: 13, color: "#334155", margin: 0 }}>No triggered alerts yet.</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {alerts.map((a) => (
-            <div key={a.id} style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)",
-              borderRadius: 8, padding: "10px 14px",
-            }}>
-              <div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", letterSpacing: "0.04em", marginRight: 10 }}>
-                  {a.ticker}
-                </span>
-                <span style={{ fontSize: 13, color: a.direction === "above" ? "#22c55e" : "#ef4444" }}>
-                  {a.direction === "above" ? "▲ Above" : "▼ Below"} ${a.target_price.toFixed(2)}
-                </span>
+          {alerts.map((a) => {
+            const isAbove = a.direction === "above";
+            const date = a.triggered_at
+              ? new Date(a.triggered_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+              : "—";
+            const currentPrice = prices[a.ticker];
+            return (
+              <div key={a.id} style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)",
+                borderRadius: 8, padding: "10px 14px", gap: 12,
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", letterSpacing: "0.04em" }}>
+                      {a.ticker}
+                    </span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 500, borderRadius: 4, padding: "1px 6px",
+                      background: isAbove ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
+                      border: `1px solid ${isAbove ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}`,
+                      color: isAbove ? "#22c55e" : "#ef4444",
+                    }}>
+                      {isAbove ? "▲" : "▼"} ${a.target_price.toFixed(2)}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "#334155", display: "flex", gap: 12 }}>
+                    <span>Triggered {date}</span>
+                    {currentPrice != null && (
+                      <span>Now <span style={{ color: "#475569" }}>${currentPrice.toFixed(2)}</span></span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => deleteAlert(a.id)}
+                  style={{
+                    background: "none", border: "none", color: "#334155",
+                    fontSize: 18, cursor: "pointer", padding: "0 2px", fontFamily: "inherit",
+                  }}
+                  title="Clear"
+                >
+                  ×
+                </button>
               </div>
-              <button
-                onClick={() => deleteAlert(a.id)}
-                style={{
-                  background: "none", border: "none", color: "#334155",
-                  fontSize: 18, cursor: "pointer", padding: "0 2px", fontFamily: "inherit",
-                }}
-                title="Delete alert"
-              >
-                ×
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </Card>

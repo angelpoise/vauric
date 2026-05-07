@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useUser, useAuth } from "@clerk/nextjs";
 import { RadarIcon } from "@/components/Logo";
 
 export const MENU_COLLAPSED_W = 44;
@@ -14,6 +15,14 @@ interface Props {
   onSearchOpen: () => void;
   onFiltersOpen: () => void;
   onSettingsOpen: () => void;
+}
+
+interface UnreadAlert {
+  id: string;
+  ticker: string;
+  target_price: number;
+  direction: "above" | "below";
+  triggered_at: string | null;
 }
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -102,7 +111,81 @@ const NAV_ITEMS = [
 
 export default function SideMenu({ expanded, onToggle, onSearchOpen, onFiltersOpen, onSettingsOpen }: Props) {
   const router = useRouter();
+  const { user } = useUser();
+  const { getToken } = useAuth();
+
   const [hovered, setHovered] = useState<number | null>(null);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadAlerts, setUnreadAlerts] = useState<UnreadAlert[]>([]);
+  const [dropdownTop, setDropdownTop] = useState(0);
+  const bellRef = useRef<HTMLButtonElement>(null);
+
+  const DM = '"DM Sans", var(--font-dm-sans), sans-serif';
+
+  async function fetchUnread() {
+    if (!user) return;
+    try {
+      const token = await getToken();
+      const r = await fetch(`/api/alerts/unread?userId=${encodeURIComponent(user.id)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (r.ok) {
+        const data = await r.json();
+        setUnreadCount(data.count ?? 0);
+        setUnreadAlerts(data.alerts ?? []);
+      }
+    } catch { /* ignore */ }
+  }
+
+  useEffect(() => {
+    if (!user) return;
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 60_000);
+    return () => clearInterval(interval);
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function markOneRead(id: string) {
+    try {
+      const token = await getToken();
+      await fetch("/api/alerts", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ id, read: true }),
+      });
+      setUnreadAlerts((prev) => prev.filter((a) => a.id !== id));
+      setUnreadCount((c) => Math.max(0, c - 1));
+    } catch { /* ignore */ }
+  }
+
+  async function markAllRead() {
+    try {
+      const token = await getToken();
+      await Promise.all(
+        unreadAlerts.map((a) =>
+          fetch("/api/alerts", {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ id: a.id, read: true }),
+          })
+        )
+      );
+      setUnreadAlerts([]);
+      setUnreadCount(0);
+    } catch { /* ignore */ }
+  }
+
+  function handleBellClick() {
+    const rect = bellRef.current?.getBoundingClientRect();
+    if (rect) setDropdownTop(rect.top);
+    setNotifOpen((o) => !o);
+  }
 
   const itemBase: React.CSSProperties = {
     width: "100%",
@@ -115,6 +198,7 @@ export default function SideMenu({ expanded, onToggle, onSearchOpen, onFiltersOp
     padding: 0,
     textAlign: "left",
     transition: "background 0.12s ease",
+    position: "relative",
   };
 
   const iconWrap: React.CSSProperties = {
@@ -126,124 +210,258 @@ export default function SideMenu({ expanded, onToggle, onSearchOpen, onFiltersOp
     transition: "color 0.12s ease",
   };
 
+  const menuLeft = expanded ? MENU_EXPANDED_W : MENU_COLLAPSED_W;
+
   return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        bottom: 0,
-        width: expanded ? MENU_EXPANDED_W : MENU_COLLAPSED_W,
-        background: "#0d1117",
-        borderRight: "1px solid rgba(255,255,255,0.06)",
-        display: "flex",
-        flexDirection: "column",
-        transition: "width 0.22s ease",
-        overflow: "hidden",
-        zIndex: 20,
-        userSelect: "none",
-      }}
-    >
-      {/* Logo home link */}
-      <Link
-        href="/"
+    <>
+      <div
         style={{
-          width: "100%",
-          height: MENU_COLLAPSED_W,
+          position: "fixed",
+          top: 0, left: 0, bottom: 0,
+          width: expanded ? MENU_EXPANDED_W : MENU_COLLAPSED_W,
+          background: "#0d1117",
+          borderRight: "1px solid rgba(255,255,255,0.06)",
           display: "flex",
-          alignItems: "center",
-          textDecoration: "none",
-          flexShrink: 0,
+          flexDirection: "column",
+          transition: "width 0.22s ease",
+          overflow: "hidden",
+          zIndex: 20,
+          userSelect: "none",
         }}
       >
-        <span
+        {/* Logo home link */}
+        <Link
+          href="/"
           style={{
-            width: MENU_COLLAPSED_W,
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            flexShrink: 0,
+            width: "100%", height: MENU_COLLAPSED_W,
+            display: "flex", alignItems: "center",
+            textDecoration: "none", flexShrink: 0,
           }}
         >
-          <RadarIcon size={20} />
-        </span>
-        <span
-          style={{
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: "0.15em",
-            color: "#f1f5f9",
-            whiteSpace: "nowrap",
-            opacity: expanded ? 1 : 0,
-            transition: "opacity 0.12s ease",
-            fontFamily: '"DM Sans", var(--font-dm-sans), sans-serif',
-          }}
-        >
-          VAURIC
-        </span>
-      </Link>
-
-      {/* Divider */}
-      <div style={{ height: 1, background: "rgba(255,255,255,0.05)", margin: "2px 0", flexShrink: 0 }} />
-
-      {/* Hamburger toggle */}
-      <button
-        onClick={onToggle}
-        onMouseEnter={() => setHovered(-1)}
-        onMouseLeave={() => setHovered(null)}
-        style={{
-          ...itemBase,
-          background: hovered === -1 ? "rgba(255,255,255,0.04)" : "transparent",
-        }}
-        aria-label="Toggle menu"
-      >
-        <span style={{ ...iconWrap, color: hovered === -1 ? "#94a3b8" : "#64748b" }}>
-          <HamburgerIcon />
-        </span>
-      </button>
-
-      {/* Divider */}
-      <div style={{ height: 1, background: "rgba(255,255,255,0.05)", margin: "2px 0", flexShrink: 0 }} />
-
-      {/* Nav items */}
-      {NAV_ITEMS.map(({ label, icon }, i) => (
-        <button
-          key={label}
-          onClick={
-            label === "Search"   ? onSearchOpen :
-            label === "Filters"  ? onFiltersOpen :
-            label === "News"     ? () => router.push("/news") :
-            label === "Settings" ? onSettingsOpen :
-            label === "Account"  ? () => router.push("/account") :
-            undefined
-          }
-          onMouseEnter={() => setHovered(i)}
-          onMouseLeave={() => setHovered(null)}
-          style={{
-            ...itemBase,
-            background: hovered === i ? "rgba(255,255,255,0.04)" : "transparent",
-          }}
-          aria-label={label}
-        >
-          <span style={{ ...iconWrap, color: hovered === i ? "#94a3b8" : "#64748b" }}>
-            {icon}
+          <span
+            style={{
+              width: MENU_COLLAPSED_W, display: "flex",
+              justifyContent: "center", alignItems: "center", flexShrink: 0,
+            }}
+          >
+            <RadarIcon size={20} />
           </span>
           <span
             style={{
-              fontSize: 13,
-              fontWeight: 400,
-              color: hovered === i ? "#94a3b8" : "#64748b",
-              whiteSpace: "nowrap",
+              fontSize: 12, fontWeight: 700, letterSpacing: "0.15em",
+              color: "#f1f5f9", whiteSpace: "nowrap",
               opacity: expanded ? 1 : 0,
-              transition: "opacity 0.12s ease, color 0.12s ease",
-              fontFamily: '"DM Sans", var(--font-dm-sans), sans-serif',
-              letterSpacing: "0.01em",
+              transition: "opacity 0.12s ease",
+              fontFamily: DM,
             }}
           >
-            {label}
+            VAURIC
+          </span>
+        </Link>
+
+        {/* Divider */}
+        <div style={{ height: 1, background: "rgba(255,255,255,0.05)", margin: "2px 0", flexShrink: 0 }} />
+
+        {/* Hamburger toggle */}
+        <button
+          onClick={onToggle}
+          onMouseEnter={() => setHovered(-1)}
+          onMouseLeave={() => setHovered(null)}
+          style={{
+            ...itemBase,
+            background: hovered === -1 ? "rgba(255,255,255,0.04)" : "transparent",
+          }}
+          aria-label="Toggle menu"
+        >
+          <span style={{ ...iconWrap, color: hovered === -1 ? "#94a3b8" : "#64748b" }}>
+            <HamburgerIcon />
           </span>
         </button>
-      ))}
-    </div>
+
+        {/* Divider */}
+        <div style={{ height: 1, background: "rgba(255,255,255,0.05)", margin: "2px 0", flexShrink: 0 }} />
+
+        {/* Nav items */}
+        {NAV_ITEMS.map(({ label, icon }, i) => {
+          const isNotif = label === "Notifications";
+          return (
+            <button
+              key={label}
+              ref={isNotif ? bellRef : undefined}
+              onClick={
+                isNotif      ? handleBellClick :
+                label === "Search"   ? onSearchOpen :
+                label === "Filters"  ? onFiltersOpen :
+                label === "News"     ? () => router.push("/news") :
+                label === "Settings" ? onSettingsOpen :
+                label === "Account"  ? () => router.push("/account") :
+                undefined
+              }
+              onMouseEnter={() => setHovered(i)}
+              onMouseLeave={() => setHovered(null)}
+              style={{
+                ...itemBase,
+                background: hovered === i ? "rgba(255,255,255,0.04)" : "transparent",
+              }}
+              aria-label={label}
+            >
+              <span style={{ ...iconWrap, color: hovered === i ? "#94a3b8" : "#64748b" }}>
+                {icon}
+              </span>
+              {/* Badge */}
+              {isNotif && unreadCount > 0 && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 8, left: 26,
+                    minWidth: 16, height: 16,
+                    borderRadius: 8,
+                    background: "#ef4444",
+                    color: "#fff",
+                    fontSize: 10, fontWeight: 700,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    padding: "0 3px",
+                    lineHeight: 1,
+                    fontFamily: DM,
+                    pointerEvents: "none",
+                  }}
+                >
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+              <span
+                style={{
+                  fontSize: 13, fontWeight: 400,
+                  color: hovered === i ? "#94a3b8" : "#64748b",
+                  whiteSpace: "nowrap",
+                  opacity: expanded ? 1 : 0,
+                  transition: "opacity 0.12s ease, color 0.12s ease",
+                  fontFamily: DM,
+                  letterSpacing: "0.01em",
+                }}
+              >
+                {label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Notification dropdown ──────────────────────────────────────────────── */}
+
+      {/* Backdrop */}
+      {notifOpen && (
+        <div
+          onClick={() => setNotifOpen(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 29 }}
+        />
+      )}
+
+      {notifOpen && (
+        <div
+          style={{
+            position: "fixed",
+            left: menuLeft + 8,
+            top: dropdownTop,
+            width: 300,
+            zIndex: 30,
+            background: "#0d1117",
+            border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: 10,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+            fontFamily: DM,
+            overflow: "hidden",
+          }}
+        >
+          {/* Dropdown header */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "14px 16px 12px",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+          }}>
+            <span style={{ fontSize: 13, fontWeight: 500, color: "#f1f5f9" }}>
+              Triggered alerts
+            </span>
+            {unreadAlerts.length > 0 && (
+              <button
+                onClick={markAllRead}
+                style={{
+                  background: "none", border: "none",
+                  fontSize: 11, color: "#475569", cursor: "pointer",
+                  fontFamily: DM, padding: 0,
+                }}
+              >
+                Mark all as read
+              </button>
+            )}
+          </div>
+
+          {/* Alert list */}
+          <div style={{ maxHeight: 320, overflowY: "auto" }}>
+            {unreadAlerts.length === 0 ? (
+              <p style={{ fontSize: 12, color: "#334155", padding: "20px 16px", margin: 0, textAlign: "center" }}>
+                No unread alerts.
+              </p>
+            ) : (
+              unreadAlerts.map((alert) => {
+                const isAbove = alert.direction === "above";
+                const date = alert.triggered_at
+                  ? new Date(alert.triggered_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+                  : "";
+                return (
+                  <div
+                    key={alert.id}
+                    style={{
+                      padding: "12px 16px",
+                      borderBottom: "1px solid rgba(255,255,255,0.04)",
+                      display: "flex", alignItems: "center", gap: 10,
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 3 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", letterSpacing: "0.04em" }}>
+                          {alert.ticker}
+                        </span>
+                        <span style={{ fontSize: 11, color: isAbove ? "#22c55e" : "#ef4444", fontWeight: 500 }}>
+                          {isAbove ? "▲" : "▼"} ${alert.target_price.toFixed(2)}
+                        </span>
+                        {date && <span style={{ fontSize: 10, color: "#334155" }}>{date}</span>}
+                      </div>
+                      <button
+                        onClick={() => {
+                          markOneRead(alert.id);
+                          setNotifOpen(false);
+                          router.push(`/stock/${alert.ticker}`);
+                        }}
+                        style={{
+                          background: "none", border: "none", padding: 0,
+                          fontSize: 11, color: "#3b82f6", cursor: "pointer",
+                          fontFamily: DM,
+                        }}
+                      >
+                        View stock →
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => markOneRead(alert.id)}
+                      title="Mark as read"
+                      style={{
+                        background: "none", border: "none", color: "#1e293b",
+                        fontSize: 17, cursor: "pointer", padding: "2px 4px",
+                        fontFamily: DM, flexShrink: 0, lineHeight: 1,
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#64748b"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#1e293b"; }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

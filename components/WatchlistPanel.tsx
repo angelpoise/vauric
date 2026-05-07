@@ -68,7 +68,11 @@ function exportWatchlistCSV(
   URL.revokeObjectURL(url);
 }
 
-export default function WatchlistPanel() {
+interface WatchlistProps {
+  isAlertsOpen?: boolean;
+}
+
+export default function WatchlistPanel({ isAlertsOpen = false }: WatchlistProps) {
   const router = useRouter();
   const { user, isLoaded } = useUser();
   const isPro = isLoaded ? user?.publicMetadata?.isPro === true : false;
@@ -161,7 +165,9 @@ export default function WatchlistPanel() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          pointerEvents: "auto",
+          pointerEvents: isAlertsOpen ? "none" : "auto",
+          opacity: isAlertsOpen ? 0 : 1,
+          transition: "opacity 0.25s ease",
           padding: 0,
         }}
       >

@@ -109,7 +109,7 @@ export async function GET(req: NextRequest) {
     // Mark as triggered
     await supabaseAdmin
       .from("price_alerts")
-      .update({ triggered: true, triggered_at: new Date().toISOString() })
+      .update({ triggered: true, triggered_at: new Date().toISOString(), read: false })
       .eq("id", alert.id);
 
     triggered++;

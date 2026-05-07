@@ -6,6 +6,7 @@ import GraphCanvas, { type GraphCanvasHandle } from "@/components/GraphCanvas";
 import SideMenu, { MENU_COLLAPSED_W, MENU_EXPANDED_W } from "@/components/SideMenu";
 import HoverBar from "@/components/HoverBar";
 import WatchlistPanel from "@/components/WatchlistPanel";
+import AlertsPanel from "@/components/AlertsPanel";
 import SearchPanel from "@/components/SearchPanel";
 import FiltersPanel from "@/components/FiltersPanel";
 import GraphSettingsPanel from "@/components/GraphSettingsPanel";
@@ -114,6 +115,7 @@ export default function GraphLayout() {
   const [activeFilters, setActiveFilters]   = useState<ActiveFilters>(DEFAULT_FILTERS);
   const [graphSettings, setGraphSettings]   = useState<GraphSettings>(DEFAULT_GRAPH_SETTINGS);
   const [disclaimerVisible, setDisclaimerVisible] = useState(false);
+  const [alertsOpen, setAlertsOpen]         = useState(false);
 
   // Edit mode state
   const [editMode, setEditMode]                   = useState(false);
@@ -410,7 +412,8 @@ export default function GraphLayout() {
         />
       )}
 
-      <WatchlistPanel />
+      <AlertsPanel onOpenChange={setAlertsOpen} />
+      <WatchlistPanel isAlertsOpen={alertsOpen} />
 
       {isSearchOpen && <SearchPanel onClose={() => setIsSearchOpen(false)} />}
 

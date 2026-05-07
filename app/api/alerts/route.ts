@@ -13,12 +13,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const history = req.nextUrl.searchParams.get("history") === "true";
+
   const { data, error } = await supabaseAdmin
     .from("price_alerts")
-    .select("id, ticker, target_price, direction, created_at")
+    .select("id, ticker, target_price, direction, created_at, triggered_at")
     .eq("clerk_user_id", userId)
-    .eq("triggered", false)
-    .order("created_at", { ascending: false });
+    .eq("triggered", history)
+    .order(history ? "triggered_at" : "created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data ?? []);
@@ -65,6 +67,23 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data, { status: 201 });
+}
+
+export async function PATCH(req: NextRequest) {
+  const { userId: tokenUserId } = await verifyClerkTokenWithTier(req.headers.get("authorization"));
+  if (!tokenUserId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id, read } = await req.json() as { id: string; read: boolean };
+  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+
+  const { error } = await supabaseAdmin
+    .from("price_alerts")
+    .update({ read })
+    .eq("id", id)
+    .eq("clerk_user_id", tokenUserId);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(req: NextRequest) {
