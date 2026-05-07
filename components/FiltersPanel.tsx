@@ -137,6 +137,175 @@ function toggle<T>(arr: T[], item: T): T[] {
   return arr.includes(item) ? arr.filter((x) => x !== item) : [...arr, item];
 }
 
+// ─── Preset types, constants and storage ─────────────────────────────────────
+
+interface Preset {
+  name: string;
+  filters: ActiveFilters;
+  isBuiltIn?: boolean;
+}
+
+const MAX_USER_PRESETS = 5;
+const PRESETS_KEY = "vauric_filter_presets";
+
+const BUILT_IN_PRESETS: Preset[] = [
+  {
+    name: "Big movers",
+    isBuiltIn: true,
+    filters: { ...DEFAULT_FILTERS, dailyMove: { min: 5, max: null } },
+  },
+  {
+    name: "Notifications only",
+    isBuiltIn: true,
+    filters: { ...DEFAULT_FILTERS, onlyWithNotifs: true },
+  },
+  {
+    name: "Large caps",
+    isBuiltIn: true,
+    filters: { ...DEFAULT_FILTERS, marketCapTiers: ["mega", "large"] },
+  },
+];
+
+function loadUserPresets(): Preset[] {
+  try { return JSON.parse(localStorage.getItem(PRESETS_KEY) ?? "[]"); }
+  catch { return []; }
+}
+function saveUserPresets(presets: Preset[]): void {
+  localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
+}
+
+// ─── Presets section ──────────────────────────────────────────────────────────
+
+function PresetsSection({
+  userPresets, activePresetName, showSaveInput, saveInputValue,
+  onApply, onDelete, onSaveCurrent, onToggleSaveInput, onSaveInputChange,
+}: {
+  userPresets: Preset[];
+  activePresetName: string | null;
+  showSaveInput: boolean;
+  saveInputValue: string;
+  onApply: (p: Preset) => void;
+  onDelete: (name: string) => void;
+  onSaveCurrent: () => void;
+  onToggleSaveInput: () => void;
+  onSaveInputChange: (v: string) => void;
+}) {
+  const allPresets = [...BUILT_IN_PRESETS, ...userPresets];
+  const atMax = userPresets.length >= MAX_USER_PRESETS;
+
+  return (
+    <div style={{
+      padding: "10px 16px 12px",
+      borderBottom: "1px solid rgba(255,255,255,0.05)",
+      flexShrink: 0,
+    }}>
+      {/* Label */}
+      <div style={{ fontSize: 10, fontWeight: 500, color: "#334155", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>
+        Presets
+      </div>
+
+      {/* Pill row */}
+      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
+        {allPresets.map((preset) => {
+          const isActive = activePresetName === preset.name;
+          return (
+            <div key={preset.name} style={{
+              display: "inline-flex", alignItems: "center",
+              background: isActive ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.03)",
+              border: `1px solid ${isActive ? "rgba(59,130,246,0.4)" : "rgba(255,255,255,0.07)"}`,
+              borderRadius: 6, overflow: "hidden",
+              transition: "all 0.12s",
+            }}>
+              <button
+                onClick={() => onApply(preset)}
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  fontSize: 11, fontWeight: isActive ? 500 : 400,
+                  color: isActive ? "#3b82f6" : "#64748b",
+                  padding: preset.isBuiltIn ? "5px 10px" : "5px 6px 5px 10px",
+                  fontFamily: "inherit", whiteSpace: "nowrap",
+                }}
+              >
+                {preset.name}
+              </button>
+              {!preset.isBuiltIn && (
+                <button
+                  onClick={() => onDelete(preset.name)}
+                  title={`Delete "${preset.name}"`}
+                  style={{
+                    background: "none", border: "none", cursor: "pointer",
+                    color: "#334155", padding: "5px 8px 5px 2px",
+                    fontSize: 13, lineHeight: 1, fontFamily: "inherit",
+                    display: "flex", alignItems: "center",
+                  }}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          );
+        })}
+        {userPresets.length === 0 && (
+          <span style={{ fontSize: 11, color: "#334155", alignSelf: "center" }}>No saved presets</span>
+        )}
+      </div>
+
+      {/* Save current */}
+      {showSaveInput ? (
+        <div style={{ display: "flex", gap: 5 }}>
+          <input
+            autoFocus
+            value={saveInputValue}
+            onChange={(e) => onSaveInputChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onSaveCurrent();
+              if (e.key === "Escape") onToggleSaveInput();
+            }}
+            placeholder="Preset name…"
+            style={inputStyle}
+          />
+          <button
+            onClick={onSaveCurrent}
+            disabled={!saveInputValue.trim()}
+            style={{
+              background: "#3b82f6", border: "none", borderRadius: 6,
+              color: "#fff", fontSize: 11, padding: "5px 10px", cursor: "pointer",
+              fontFamily: "inherit", flexShrink: 0,
+              opacity: saveInputValue.trim() ? 1 : 0.45,
+            }}
+          >
+            Save
+          </button>
+          <button
+            onClick={onToggleSaveInput}
+            style={{
+              background: "none", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 6,
+              color: "#475569", fontSize: 12, padding: "5px 8px",
+              cursor: "pointer", fontFamily: "inherit", flexShrink: 0,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={onToggleSaveInput}
+          disabled={atMax}
+          title={atMax ? `Maximum ${MAX_USER_PRESETS} presets` : undefined}
+          style={{
+            background: "none", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 6,
+            color: "#475569", fontSize: 11, padding: "4px 10px",
+            cursor: atMax ? "not-allowed" : "pointer",
+            fontFamily: "inherit", opacity: atMax ? 0.45 : 1,
+          }}
+        >
+          {atMax ? `Max presets (${MAX_USER_PRESETS})` : "+ Save current"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── Static label maps ────────────────────────────────────────────────────────
 
 const SECTOR_LABELS: Record<string, string> = {
@@ -168,6 +337,12 @@ export default function FiltersPanel({ open, onClose, filters, onFiltersChange }
 
   const [hiddenBySettings, setHiddenBySettings] = useState<NotifType[]>([]);
 
+  // ── Preset state ────────────────────────────────────────────────────────────
+  const [userPresets, setUserPresets]       = useState<Preset[]>([]);
+  const [activePresetName, setActivePresetName] = useState<string | null>(null);
+  const [showSaveInput, setShowSaveInput]   = useState(false);
+  const [saveInputValue, setSaveInputValue] = useState("");
+
   // Re-read graph settings from localStorage each time the panel opens so the
   // disabled state is always fresh after the user changes graph settings.
   useEffect(() => {
@@ -180,6 +355,47 @@ export default function FiltersPanel({ open, onClose, filters, onFiltersChange }
       setHiddenBySettings([]);
     }
   }, [open]);
+
+  // Load user presets when the panel opens
+  useEffect(() => {
+    if (open) setUserPresets(loadUserPresets());
+  }, [open]);
+
+  // Clear active preset indicator when the current filters diverge from it
+  useEffect(() => {
+    if (!activePresetName) return;
+    const all = [...BUILT_IN_PRESETS, ...userPresets];
+    const preset = all.find((p) => p.name === activePresetName);
+    if (!preset || JSON.stringify(preset.filters) !== JSON.stringify(filters)) {
+      setActivePresetName(null);
+    }
+  }, [filters, activePresetName, userPresets]);
+
+  function applyPreset(preset: Preset) {
+    onFiltersChange(preset.filters);
+    setActivePresetName(preset.name);
+    setShowSaveInput(false);
+  }
+
+  function deletePreset(name: string) {
+    const updated = userPresets.filter((p) => p.name !== name);
+    setUserPresets(updated);
+    saveUserPresets(updated);
+    if (activePresetName === name) setActivePresetName(null);
+  }
+
+  function saveCurrentPreset() {
+    const name = saveInputValue.trim();
+    if (!name) return;
+    // Replace if same name already exists, else append; cap at MAX_USER_PRESETS
+    const without = userPresets.filter((p) => p.name !== name);
+    const updated = [...without, { name, filters }].slice(-MAX_USER_PRESETS);
+    setUserPresets(updated);
+    saveUserPresets(updated);
+    setActivePresetName(name);
+    setShowSaveInput(false);
+    setSaveInputValue("");
+  }
 
   return (
     <>
@@ -235,6 +451,19 @@ export default function FiltersPanel({ open, onClose, filters, onFiltersChange }
             Reset all
           </button>
         </div>
+
+        {/* Presets */}
+        <PresetsSection
+          userPresets={userPresets}
+          activePresetName={activePresetName}
+          showSaveInput={showSaveInput}
+          saveInputValue={saveInputValue}
+          onApply={applyPreset}
+          onDelete={deletePreset}
+          onSaveCurrent={saveCurrentPreset}
+          onToggleSaveInput={() => { setShowSaveInput((v) => !v); setSaveInputValue(""); }}
+          onSaveInputChange={setSaveInputValue}
+        />
 
         {/* Scrollable filter sections */}
         <div style={{ flex: 1, overflowY: "auto" }}>
