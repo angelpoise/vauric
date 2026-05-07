@@ -152,7 +152,7 @@ function BlurredSection({ items }: { items: NewsItem[] }) {
   );
 }
 
-function UpgradePrompt({ total }: { total: number }) {
+function UpgradePrompt() {
   return (
     <div style={{
       padding: "24px 32px", textAlign: "center",
@@ -162,9 +162,6 @@ function UpgradePrompt({ total }: { total: number }) {
       <div style={{ fontSize: 20, marginBottom: 10 }}>🔒</div>
       <div style={{ fontSize: 14, fontWeight: 500, color: "#f1f5f9", marginBottom: 6 }}>
         Free tier limit reached
-      </div>
-      <div style={{ fontSize: 12, color: "#475569", marginBottom: 16, fontWeight: 300 }}>
-        Showing {CLEAR_LIMIT} of {total} stories
       </div>
       <UpgradeButton label="Upgrade to Pro" />
     </div>
@@ -215,7 +212,7 @@ function NewsList({ items, onTickerClick, isPro }: {
               background: "linear-gradient(to bottom, transparent 0%, rgba(7,9,15,0.85) 40%)",
               display: "flex", alignItems: "center", justifyContent: "center",
             }}>
-              <UpgradePrompt total={items.length} />
+              <UpgradePrompt />
             </div>
           </div>
         </>
