@@ -98,11 +98,22 @@ export async function GET(req: NextRequest) {
     .eq("ticker", ticker)
     .maybeSingle();
 
-  if (cached && Date.now() - new Date(cached.generated_at as string).getTime() < WEEK_MS) {
+  const ageMs   = cached ? Date.now() - new Date(cached.generated_at as string).getTime() : null;
+  const isFresh = ageMs !== null && ageMs < WEEK_MS;
+  console.log(
+    `[scenarios] ticker=${ticker} peek=${peek}`,
+    `cached=${cached ? "yes" : "no"}`,
+    `generated_at=${(cached as { generated_at?: string } | null)?.generated_at ?? "n/a"}`,
+    `age_days=${ageMs !== null ? (ageMs / 86_400_000).toFixed(1) : "n/a"}`,
+    `fresh=${isFresh}`,
+    `path=${!cached ? "no-cache" : isFresh ? "cache-hit" : "stale"}`,
+  );
+
+  if (cached && isFresh) {
     return NextResponse.json({ ...cached, ticker });
   }
 
-  if (peek) return NextResponse.json(null); // cache cold — let client show Generate button
+  if (peek) return NextResponse.json(null); // cache cold/stale — let client show Generate button
 
   const scenarios = await generateScenarios(ticker);
   if (!scenarios) return NextResponse.json({ error: "Generation failed" }, { status: 500 });

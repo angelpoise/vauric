@@ -192,6 +192,13 @@ export async function GET(req: NextRequest) {
   const schedule    = (stock?.analysis_schedule as string | null) ?? "on_visit";
   const lastVisited = stock?.last_visited_at as string | null;
 
+  console.log(
+    `[analysis] ticker=${ticker} refresh=${refresh}`,
+    `cached=${cached ? "yes" : "no"}`,
+    `last_generated_at=${(cached as { last_generated_at?: string } | null)?.last_generated_at ?? "n/a"}`,
+    `path=${refresh ? "force-refresh" : cached ? "cache-hit" : "generate"}`,
+  );
+
   // Explicit refresh: regenerate synchronously and return fresh result
   if (refresh) {
     const analysis = await generateAnalysis(ticker);
