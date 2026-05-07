@@ -903,14 +903,15 @@ export default function StockDetail({ ticker }: { ticker: string }) {
   }
 
   useEffect(() => {
+    // Show cached price/move immediately so the header doesn't flash
     const cached = getCachedMarketData();
-    if (cached) {
-      if (cached[ticker]) setLive(cached[ticker]);
+    if (cached?.[ticker]) {
+      setLive(cached[ticker]);
       setLoaded(true);
-      return;
     }
-
-    fetch("/api/market-data")
+    // Always fetch with streak so the streak metric populates correctly;
+    // serverCacheStreak keeps this response fast after the first request.
+    fetch("/api/market-data?includeStreak=true")
       .then((r) => r.ok ? r.json() : null)
       .then((json) => {
         if (json) setCachedMarketData(json);

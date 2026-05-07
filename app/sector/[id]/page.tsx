@@ -1,5 +1,5 @@
 import SectorDetail from "@/components/SectorDetail";
-import AppHeader from "@/components/AppHeader";
+import AppShell from "@/components/AppShell";
 
 interface Props {
   params: { id: string };
@@ -7,9 +7,8 @@ interface Props {
 
 export default function SectorPage({ params }: Props) {
   return (
-    <>
-      <AppHeader />
+    <AppShell>
       <SectorDetail id={params.id.toLowerCase()} />
-    </>
+    </AppShell>
   );
 }

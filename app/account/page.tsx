@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import AppHeader from "@/components/AppHeader";
+import AppShell from "@/components/AppShell";
 import AccountPage from "@/components/AccountPage";
 
 export const metadata: Metadata = {
@@ -8,9 +8,8 @@ export const metadata: Metadata = {
 
 export default function AccountRoute() {
   return (
-    <>
-      <AppHeader />
+    <AppShell>
       <AccountPage />
-    </>
+    </AppShell>
   );
 }

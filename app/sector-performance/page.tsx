@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import AppShell from "@/components/AppShell";
 import SectorDashboard from "@/components/SectorDashboard";
 
 export const metadata: Metadata = {
@@ -7,5 +8,9 @@ export const metadata: Metadata = {
 };
 
 export default function SectorPerformancePage() {
-  return <SectorDashboard />;
+  return (
+    <AppShell>
+      <SectorDashboard />
+    </AppShell>
+  );
 }
