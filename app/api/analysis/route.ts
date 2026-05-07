@@ -129,7 +129,7 @@ Base your response on the data provided. If information is unavailable for a sec
   try {
     const message = await anthropic.messages.create({
       model:      "claude-sonnet-4-6",
-      max_tokens: 1024,
+      max_tokens: 600,
       messages:   [{ role: "user", content: prompt }],
     });
     const text   = message.content[0].type === "text" ? message.content[0].text.trim() : "";
@@ -186,11 +186,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(analysis);
   }
 
-  // Cache hit: return immediately, trigger background regen if schedule says so
+  // Cache hit: return immediately. Background auto-regen is disabled — analysis
+  // is only regenerated when the user explicitly requests it via refresh=1.
   if (cached) {
-    if (shouldRegenerate(cached.last_generated_at as string, schedule, lastVisited)) {
-      regenInBackground(ticker);
-    }
     return NextResponse.json({
       segments:      cached.segments,
       margins:       cached.margins,

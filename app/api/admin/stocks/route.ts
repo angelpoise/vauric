@@ -33,7 +33,8 @@ export async function POST(req: NextRequest) {
     console.error(`[admin/stocks] fundamentals hydration failed for ${upper}:`, err)
   );
 
-  if (!investor_relations_url) {
+  // Only discover the IR URL when the admin hasn't supplied one manually.
+  if (!investor_relations_url?.trim()) {
     discoverIR(upper, company_name).catch((err) =>
       console.error(`[admin/stocks] IR discovery failed for ${upper}:`, err)
     );

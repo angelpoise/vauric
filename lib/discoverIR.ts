@@ -22,7 +22,7 @@ export async function discoverIR(ticker: string, companyName: string): Promise<s
     const anthropic = new Anthropic({ apiKey });
 
     const message = await anthropic.messages.create({
-      model:      "claude-sonnet-4-6",
+      model:      "claude-haiku-4-5-20251001",
       max_tokens: 512,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       tools: [{ type: "web_search_20250305", name: "web_search" } as any],
