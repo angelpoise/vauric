@@ -15,9 +15,11 @@ export interface RSEntry {
 
 interface DayBar { t: number; c: number; }
 
-// ─── Server cache (1 hour) ────────────────────────────────────────────────────
+// ─── Per-ticker cache (1 hour) ────────────────────────────────────────────────
+// Each ticker is cached independently so a StockDetail visit only ever
+// triggers 2 Polygon calls (stock + ETF), never a full 24-call batch.
 
-let cache: { data: Record<string, RSEntry>; ts: number } | null = null;
+const tickerCache: Record<string, { data: RSEntry; ts: number }> = {};
 const CACHE_TTL = 60 * 60 * 1000;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -51,7 +53,6 @@ async function fetchBars(ticker: string, from: string, to: string, apiKey: strin
   } catch { return null; }
 }
 
-// Return the closing price of the last bar whose timestamp is at or before `cutoffMs`.
 function priceAt(bars: DayBar[], cutoffMs: number): number | null {
   let result: DayBar | null = null;
   for (const b of bars) {
@@ -69,93 +70,63 @@ function computeReturn(bars: DayBar[], msAgo: number): number | null {
   return ((endP - startP) / startP) * 100;
 }
 
-// ─── Core computation ─────────────────────────────────────────────────────────
-
-async function buildCache(apiKey: string): Promise<Record<string, RSEntry>> {
-  const { data: stocks } = await supabaseAdmin
-    .from("admin_stocks")
-    .select("ticker, sector");
-
-  if (!stocks?.length) return {};
-
-  // Collect unique ETFs needed
-  const etfSet = new Set(
-    stocks.map((s: { ticker: string; sector: string }) => SECTOR_ETF[s.sector]).filter(Boolean)
-  );
-  const allTickers = Array.from(
-    new Set([
-      ...stocks.map((s: { ticker: string; sector: string }) => s.ticker),
-      ...Array.from(etfSet),
-    ])
-  );
-
-  // Fetch ~3 months of bars for every ticker in parallel
-  const from = fmt(new Date(Date.now() - 100 * 86_400_000)); // a bit extra for weekends
-  const to   = fmt(new Date());
-
-  const barResults = await Promise.allSettled(
-    allTickers.map(async (ticker) => ({
-      ticker,
-      bars: await fetchBars(ticker as string, from, to, apiKey),
-    }))
-  );
-
-  const barMap: Record<string, DayBar[]> = {};
-  for (const r of barResults) {
-    if (r.status === "fulfilled" && r.value.bars) {
-      barMap[r.value.ticker] = r.value.bars;
-    }
-  }
-
-  const result: Record<string, RSEntry> = {};
-
-  for (const { ticker, sector } of stocks as Array<{ ticker: string; sector: string }>) {
-    const etf = SECTOR_ETF[sector];
-    if (!etf) continue;
-
-    const sb = barMap[ticker];
-    const eb = barMap[etf];
-    if (!sb || !eb) continue;
-
-    const vs1w = (() => {
-      const s = computeReturn(sb, W1), e = computeReturn(eb, W1);
-      return s != null && e != null ? s - e : null;
-    })();
-    const vs1m = (() => {
-      const s = computeReturn(sb, M1), e = computeReturn(eb, M1);
-      return s != null && e != null ? s - e : null;
-    })();
-    const vs3m = (() => {
-      const s = computeReturn(sb, M3), e = computeReturn(eb, M3);
-      return s != null && e != null ? s - e : null;
-    })();
-
-    const score = Math.max(0, Math.min(100, 50 + (vs1m ?? 0) * 5));
-    const trend: RSEntry["trend"] =
-      score >= 60 ? "outperforming" :
-      score <= 40 ? "underperforming" :
-      "inline";
-
-    result[ticker] = { ticker, etf, vs1w, vs1m, vs3m, score, trend };
-  }
-
-  return result;
+function computeVs(stockBars: DayBar[], etfBars: DayBar[], msAgo: number): number | null {
+  const s = computeReturn(stockBars, msAgo);
+  const e = computeReturn(etfBars,   msAgo);
+  return s != null && e != null ? s - e : null;
 }
 
 // ─── Route ────────────────────────────────────────────────────────────────────
+// Only handles ?ticker=X — fetches 2 bars series (stock + ETF) sequentially
+// to stay well within Polygon's free-tier rate limit.
 
 export async function GET(req: NextRequest) {
   const apiKey = process.env.POLYGON_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "POLYGON_API_KEY not set" }, { status: 500 });
 
-  if (!cache || Date.now() - cache.ts > CACHE_TTL) {
-    cache = { data: await buildCache(apiKey), ts: Date.now() };
-  }
-
   const tickerParam = req.nextUrl.searchParams.get("ticker");
-  if (tickerParam) {
-    return NextResponse.json(cache.data[tickerParam.toUpperCase()] ?? null);
+  if (!tickerParam) return NextResponse.json({ error: "ticker required" }, { status: 400 });
+
+  const upper = tickerParam.toUpperCase();
+
+  // Return cached entry if still warm
+  const cached = tickerCache[upper];
+  if (cached && Date.now() - cached.ts < CACHE_TTL) {
+    return NextResponse.json(cached.data);
   }
 
-  return NextResponse.json(cache.data);
+  // Look up this stock's sector
+  const { data: row } = await supabaseAdmin
+    .from("admin_stocks")
+    .select("sector")
+    .eq("ticker", upper)
+    .maybeSingle();
+
+  const etf = row?.sector ? SECTOR_ETF[row.sector] : null;
+  if (!etf) return NextResponse.json(null);
+
+  // Fetch bars for just this stock then its ETF — sequential, not parallel,
+  // so two rapid requests don't both race to Polygon at the same time.
+  const from = fmt(new Date(Date.now() - 100 * 86_400_000));
+  const to   = fmt(new Date());
+
+  const stockBars = await fetchBars(upper, from, to, apiKey);
+  const etfBars   = await fetchBars(etf,   from, to, apiKey);
+
+  if (!stockBars || !etfBars) return NextResponse.json(null);
+
+  const vs1w = computeVs(stockBars, etfBars, W1);
+  const vs1m = computeVs(stockBars, etfBars, M1);
+  const vs3m = computeVs(stockBars, etfBars, M3);
+
+  const score = Math.max(0, Math.min(100, 50 + (vs1m ?? 0) * 5));
+  const trend: RSEntry["trend"] =
+    score >= 60 ? "outperforming" :
+    score <= 40 ? "underperforming" :
+    "inline";
+
+  const entry: RSEntry = { ticker: upper, etf, vs1w, vs1m, vs3m, score, trend };
+  tickerCache[upper] = { data: entry, ts: Date.now() };
+
+  return NextResponse.json(entry);
 }

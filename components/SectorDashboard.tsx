@@ -17,6 +17,11 @@ const SECTORS = [
   { id: "sec-consumer", name: "Consumer",   etf: "XLY", color: "#14b8a6" },
 ];
 
+// Built from SECTORS so there's a single source of truth for the ETF mapping
+const SECTOR_ETF_TICKER: Record<string, string> = Object.fromEntries(
+  SECTORS.map((s) => [s.name, s.etf])
+);
+
 const SECTOR_ID: Record<string, string> = {
   Technology: "sec-tech",
   Energy:     "sec-energy",
@@ -441,7 +446,6 @@ export default function SectorDashboard() {
   const [marketData, setMarketData]   = useState<Record<string, MarketEntry>>({});
   const [stocks, setStocks]           = useState<GraphStock[]>([]);
   const [fundamentals, setFundamentals] = useState<Record<string, FundamentalsEntry>>({});
-  const [rsMap, setRsMap]             = useState<Record<string, { vs1m: number | null }>>({});
   const [loading, setLoading]         = useState(true);
 
   useEffect(() => {
@@ -449,8 +453,7 @@ export default function SectorDashboard() {
       fetch("/api/market-data?includeStreak=true").then((r) => r.ok ? r.json() : null),
       fetch("/api/graph").then((r) => r.ok ? r.json() : null),
       fetch("/api/fundamentals").then((r) => r.ok ? r.json() : null),
-      fetch("/api/relative-strength").then((r) => r.ok ? r.json() : null),
-    ]).then(([mdRes, graphRes, fundRes, rsRes]) => {
+    ]).then(([mdRes, graphRes, fundRes]) => {
       if (mdRes.status === "fulfilled" && mdRes.value) {
         setMarketData(mdRes.value);
       }
@@ -459,9 +462,6 @@ export default function SectorDashboard() {
       }
       if (fundRes.status === "fulfilled" && fundRes.value) {
         setFundamentals(fundRes.value);
-      }
-      if (rsRes.status === "fulfilled" && rsRes.value) {
-        setRsMap(rsRes.value as Record<string, { vs1m: number | null }>);
       }
       setLoading(false);
     });
@@ -488,7 +488,13 @@ export default function SectorDashboard() {
       streakDirection: live?.streakDirection ?? "flat",
       marketCap:       fund?.marketCap ?? null,
       relVolume:       relVol,
-      vs1m:            rsMap[s.ticker]?.vs1m ?? null,
+      vs1m:            (() => {
+        const etfTicker = SECTOR_ETF_TICKER[s.sector];
+        const etfMove   = etfTicker ? (marketData[etfTicker]?.dailyMove ?? null) : null;
+        return live?.dailyMove != null && etfMove != null
+          ? live.dailyMove - etfMove
+          : null;
+      })(),
     };
   });
 
