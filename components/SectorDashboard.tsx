@@ -226,6 +226,18 @@ function StockTable({ rows }: { rows: StockRow[] }) {
               </button>
             );
           })}
+          {sector !== "all" && (
+            <button
+              onClick={() => router.push(`/sector/${sector.replace("sec-", "")}`)}
+              style={{
+                padding: "5px 10px", borderRadius: 20,
+                background: "none", border: "1px solid rgba(255,255,255,0.08)",
+                color: "#3b82f6", fontSize: 12, cursor: "pointer", fontFamily: DM,
+              }}
+            >
+              View sector →
+            </button>
+          )}
         </div>
       </div>
 
@@ -427,17 +439,12 @@ export default function SectorDashboard() {
   const [loading, setLoading]         = useState(true);
 
   useEffect(() => {
-    const mdCached = getCachedMarketData();
-
     Promise.allSettled([
-      mdCached
-        ? Promise.resolve(mdCached)
-        : fetch("/api/market-data").then((r) => r.ok ? r.json() : null),
+      fetch("/api/market-data?includeStreak=true").then((r) => r.ok ? r.json() : null),
       fetch("/api/graph").then((r) => r.ok ? r.json() : null),
       fetch("/api/fundamentals").then((r) => r.ok ? r.json() : null),
     ]).then(([mdRes, graphRes, fundRes]) => {
       if (mdRes.status === "fulfilled" && mdRes.value) {
-        if (!mdCached) setCachedMarketData(mdRes.value);
         setMarketData(mdRes.value);
       }
       if (graphRes.status === "fulfilled" && graphRes.value?.stocks) {
@@ -538,7 +545,7 @@ export default function SectorDashboard() {
                     marketData={marketData}
                     stockCount={stockCountBySector[s.id] ?? 0}
                     maxAbsMove={maxAbsMove}
-                    onClick={() => router.push(`/sector/${s.id}`)}
+                    onClick={() => router.push(`/sector/${s.id.replace("sec-", "")}`)}
                   />
                 ))}
               </div>
