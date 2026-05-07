@@ -25,7 +25,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 // PATCH — partial field update by ticker; used by graph edit mode (x/y) and
 // admin panel (analysis_schedule). All callers pass the ticker as [id].
-const ALLOWED_PATCH_FIELDS = new Set(["x_position", "y_position", "analysis_schedule"]);
+const ALLOWED_PATCH_FIELDS = new Set(["x_position", "y_position", "analysis_schedule", "scenario_schedule"]);
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   if (!await isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

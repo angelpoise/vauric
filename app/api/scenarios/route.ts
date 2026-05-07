@@ -64,11 +64,11 @@ async function generateScenarios(ticker: string): Promise<Scenarios | null> {
   }
 
   const prompt =
-    `You are a stock analyst. Based on the following data for ${ticker}, generate realistic bull, base, and bear case scenarios.\n\n` +
+    `You are a stock analyst. Based on the following data for ${ticker}, generate concise bull, base, and bear case scenarios.\n\n` +
     ctx + "\n" +
-    `Return ONLY a JSON object — no markdown, no explanation — with this exact structure:\n` +
+    `Return ONLY a JSON object — no markdown, no explanation:\n` +
     `{"bull":{"6m":"...","1y":"...","2y":"...","priceTarget":0},"base":{"6m":"...","1y":"...","2y":"...","priceTarget":0},"bear":{"6m":"...","1y":"...","2y":"...","priceTarget":0}}\n\n` +
-    `Each scenario text should be 2-3 sentences. Price targets should be realistic numbers based on current valuation.`;
+    `Each timeframe text must be exactly 1-2 concise sentences. Be specific. Price targets must be realistic numbers.`;
 
   try {
     const anthropic = new Anthropic({ apiKey });
@@ -89,6 +89,9 @@ export async function GET(req: NextRequest) {
   const ticker = req.nextUrl.searchParams.get("ticker")?.toUpperCase();
   if (!ticker) return NextResponse.json({ error: "ticker required" }, { status: 400 });
 
+  // peek=1 — return cached data only, never trigger generation (used on mount)
+  const peek = req.nextUrl.searchParams.get("peek") === "1";
+
   const { data: cached } = await supabaseAdmin
     .from("stock_scenarios")
     .select("bull, base, bear, generated_at")
@@ -98,6 +101,8 @@ export async function GET(req: NextRequest) {
   if (cached && Date.now() - new Date(cached.generated_at as string).getTime() < WEEK_MS) {
     return NextResponse.json({ ...cached, ticker });
   }
+
+  if (peek) return NextResponse.json(null); // cache cold — let client show Generate button
 
   const scenarios = await generateScenarios(ticker);
   if (!scenarios) return NextResponse.json({ error: "Generation failed" }, { status: 500 });

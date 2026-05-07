@@ -18,6 +18,11 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminRequest } from "@/lib/adminSecret";
+import {
+  fetchFundamentalsForTicker,
+  getYahooSession,
+  type FundamentalsEntry,
+} from "@/lib/fundamentalsUtils";
 
 const DAY_MS  = 24 * 60 * 60 * 1000;
 const WEEK_MS =  7 * DAY_MS;
@@ -80,19 +85,27 @@ async function generateAnalysis(ticker: string): Promise<AnalysisResult | null> 
     fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/api/news?ticker=${ticker}&limit=10`),
   ]);
 
-  let fundamentalCtx = "";
+  // Try the in-process fundamentals cache first; fall back to a fresh
+  // Yahoo Finance fetch if the cache is cold (e.g. fresh server start).
+  let f: FundamentalsEntry | null = null;
   if (fundsRes.status === "fulfilled" && fundsRes.value.ok) {
-    const all = await fundsRes.value.json();
-    const f = all[ticker];
-    if (f) {
-      fundamentalCtx =
-        `Business summary: ${f.longBusinessSummary ?? "Not available"}\n` +
-        `Sector: ${f.sector ?? "Unknown"} | Industry: ${f.industry ?? "Unknown"}\n` +
-        `Market Cap: ${f.marketCap ? `$${(f.marketCap / 1e9).toFixed(1)}B` : "n/a"} | ` +
-        `Trailing P/E: ${f.trailingPE?.toFixed(1) ?? "n/a"} | ` +
-        `Forward P/E: ${f.forwardPE?.toFixed(1) ?? "n/a"}\n` +
-        `Full-time employees: ${f.fullTimeEmployees?.toLocaleString() ?? "n/a"}`;
-    }
+    const all = await fundsRes.value.json() as Record<string, FundamentalsEntry>;
+    f = all[ticker] ?? null;
+  }
+  if (!f) {
+    const session = await getYahooSession();
+    if (session) f = await fetchFundamentalsForTicker(ticker, session);
+  }
+
+  let fundamentalCtx = "";
+  if (f) {
+    fundamentalCtx =
+      `Business summary: ${f.longBusinessSummary ?? "Not available"}\n` +
+      `Sector: ${f.sector ?? "Unknown"} | Industry: ${f.industry ?? "Unknown"}\n` +
+      `Market Cap: ${f.marketCap ? `$${(f.marketCap / 1e9).toFixed(1)}B` : "n/a"} | ` +
+      `Trailing P/E: ${f.trailingPE?.toFixed(1) ?? "n/a"} | ` +
+      `Forward P/E: ${f.forwardPE?.toFixed(1) ?? "n/a"}\n` +
+      `Full-time employees: ${f.fullTimeEmployees?.toLocaleString() ?? "n/a"}`;
   }
 
   let newsCtx = "";
@@ -108,7 +121,8 @@ async function generateAnalysis(ticker: string): Promise<AnalysisResult | null> 
     }
   }
 
-  const prompt = `You are a financial analyst. Based on the information below, write a concise, factual analysis of ${ticker}.
+  const company = f?.sector ? `${ticker} (${f.sector})` : ticker;
+  const prompt = `You are a financial analyst. Based on the information below, write a concise, factual analysis of ${company}. Use your training knowledge to supplement any gaps in the provided data.
 
 COMPANY DATA:
 ${fundamentalCtx || "No fundamental data available."}
@@ -183,17 +197,19 @@ export async function GET(req: NextRequest) {
     const analysis = await generateAnalysis(ticker);
     if (!analysis) return NextResponse.json({ error: "Analysis generation failed" }, { status: 500 });
     await saveAnalysis(ticker, analysis);
-    return NextResponse.json(analysis);
+    const now = new Date().toISOString();
+    return NextResponse.json({ ...analysis, last_generated_at: now });
   }
 
   // Cache hit: return immediately. Background auto-regen is disabled — analysis
   // is only regenerated when the user explicitly requests it via refresh=1.
   if (cached) {
     return NextResponse.json({
-      segments:      cached.segments,
-      margins:       cached.margins,
-      guidance:      cached.guidance,
-      relationships: cached.relationships,
+      segments:          cached.segments,
+      margins:           cached.margins,
+      guidance:          cached.guidance,
+      relationships:     cached.relationships,
+      last_generated_at: cached.last_generated_at,
     });
   }
 
@@ -201,7 +217,7 @@ export async function GET(req: NextRequest) {
   const analysis = await generateAnalysis(ticker);
   if (!analysis) return NextResponse.json({ error: "Analysis generation failed" }, { status: 500 });
   await saveAnalysis(ticker, analysis);
-  return NextResponse.json(analysis);
+  return NextResponse.json({ ...analysis, last_generated_at: new Date().toISOString() });
 }
 
 // ─── DELETE — clear cached analysis (admin only) ──────────────────────────────

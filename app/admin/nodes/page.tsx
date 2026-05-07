@@ -28,6 +28,7 @@ interface Stock {
   visit_count: number | null;
   last_visited_at: string | null;
   analysis_schedule: string | null;
+  scenario_schedule: string | null;
 }
 
 type EditMap = Record<string, Partial<Stock>>;
@@ -94,6 +95,15 @@ export default function NodesPage() {
     setStocks((prev) => prev.map((s) => s.ticker === ticker ? { ...s, analysis_schedule: value } : s));
   }
 
+  async function patchScenarioSchedule(ticker: string, value: string) {
+    await adminFetch(`/api/admin/stocks/${ticker}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scenario_schedule: value }),
+    });
+    setStocks((prev) => prev.map((s) => s.ticker === ticker ? { ...s, scenario_schedule: value } : s));
+  }
+
   async function discoverIr(ticker: string, companyName: string) {
     setIrDiscovering((m) => ({ ...m, [ticker]: true }));
     setIrMsg((m) => ({ ...m, [ticker]: "Searching…" }));
@@ -146,7 +156,7 @@ export default function NodesPage() {
     setTimeout(() => setRegenMsg((m) => { const n = { ...m }; delete n[ticker]; return n; }), 3000);
   }
 
-  const HEADERS = ["Ticker", "Company", "Sector", "X", "Y", "IR URL", "Visits", "Last Visit", "Schedule", ""];
+  const HEADERS = ["Ticker", "Company", "Sector", "X", "Y", "IR URL", "Visits", "Last Visit", "Schedule", "Scenario Sched", ""];
 
   return (
     <div>
@@ -240,6 +250,18 @@ export default function NodesPage() {
                       style={{ ...INPUT, width: 110, fontSize: 12, padding: "4px 8px" }}
                       value={s.analysis_schedule ?? "on_visit"}
                       onChange={ev => patchSchedule(s.ticker, ev.target.value)}
+                    >
+                      {SCHEDULES.map(({ value, label }) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                  </td>
+                  {/* Scenario schedule */}
+                  <td style={TD}>
+                    <select
+                      style={{ ...INPUT, width: 110, fontSize: 12, padding: "4px 8px" }}
+                      value={s.scenario_schedule ?? "on_visit"}
+                      onChange={ev => patchScenarioSchedule(s.ticker, ev.target.value)}
                     >
                       {SCHEDULES.map(({ value, label }) => (
                         <option key={value} value={value}>{label}</option>

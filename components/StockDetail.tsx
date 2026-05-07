@@ -915,10 +915,12 @@ export default function StockDetail({ ticker }: { ticker: string }) {
   const [scenarioData, setScenarioData]       = useState<ScenarioData | null>(null);
   const [scenarioLoading, setScenarioLoading] = useState(false);
   const [scenarioTab, setScenarioTab]         = useState<"bull" | "base" | "bear">("base");
+  const [scenarioUpToDate, setScenarioUpToDate] = useState(false);
+  const [analysisUpToDate, setAnalysisUpToDate] = useState(false);
   const [trackedTheses, setTrackedTheses]     = useState<Record<string, string>>({}); // scenario → id
   const [trackingInFlight, setTrackingInFlight] = useState<Set<string>>(new Set());
 
-  interface AnalysisData { segments: string; margins: string; guidance: string; relationships: string; }
+  interface AnalysisData { segments: string; margins: string; guidance: string; relationships: string; last_generated_at?: string; }
   const [analysis, setAnalysis]               = useState<AnalysisData | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisError, setAnalysisError]     = useState(false);
@@ -1052,6 +1054,16 @@ export default function StockDetail({ ticker }: { ticker: string }) {
       .catch(() => {});
   }, [user, ticker]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-fetch cached scenarios on mount — peek only (won't trigger generation)
+  useEffect(() => {
+    if (!isPro) return;
+    setScenarioData(null);
+    fetch(`/api/scenarios?ticker=${ticker}&peek=1`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: ScenarioData | null) => { if (d?.bull) setScenarioData(d); })
+      .catch(() => {});
+  }, [ticker, isPro]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     setEarningsLoading(true);
     fetch(`/api/earnings?ticker=${ticker}`)
@@ -1070,6 +1082,15 @@ export default function StockDetail({ ticker }: { ticker: string }) {
       .then((d) => { if (d && !d.error) setAnalysis(d); else setAnalysisError(true); })
       .catch(() => setAnalysisError(true))
       .finally(() => setAnalysisLoading(false));
+  }
+
+  // Returns true if the content is stale: > 7 days old OR newer significant news exists
+  function isContentStale(lastGeneratedAt: string | null | undefined): boolean {
+    if (!lastGeneratedAt) return true;
+    const age = Date.now() - new Date(lastGeneratedAt).getTime();
+    if (age > 7 * 24 * 60 * 60 * 1000) return true;
+    const genMs = new Date(lastGeneratedAt).getTime();
+    return stockNews.some(a => new Date(a.published_at).getTime() > genMs);
   }
 
   const displayPrice     = live?.price     ?? data.price;
@@ -1382,11 +1403,19 @@ export default function StockDetail({ ticker }: { ticker: string }) {
             <span style={{ fontSize: 10, background: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.25)", borderRadius: 4, padding: "2px 7px", color: "#3b82f6", letterSpacing: "0.06em", textTransform: "uppercase" }}>AI generated</span>
             {isPro && (
               <button
-                onClick={() => loadAnalysis(true)}
+                onClick={() => {
+                  if (analysisLoading) return;
+                  if (!isContentStale(analysis?.last_generated_at)) {
+                    setAnalysisUpToDate(true);
+                    setTimeout(() => setAnalysisUpToDate(false), 2500);
+                    return;
+                  }
+                  loadAnalysis(true);
+                }}
                 disabled={analysisLoading}
-                style={{ background: "none", border: "none", color: "#475569", fontSize: 12, cursor: analysisLoading ? "wait" : "pointer", padding: 0, fontFamily: "inherit" }}
+                style={{ background: "none", border: "none", color: analysisUpToDate ? "#22c55e" : "#475569", fontSize: 12, cursor: analysisLoading ? "wait" : "pointer", padding: 0, fontFamily: "inherit" }}
               >
-                {analysisLoading ? "Generating…" : "↻ Refresh"}
+                {analysisLoading ? "Generating…" : analysisUpToDate ? "Up to date ✓" : "↻ Refresh"}
               </button>
             )}
           </div>
@@ -1573,6 +1602,11 @@ export default function StockDetail({ ticker }: { ticker: string }) {
                       </div>
                       <button
                         onClick={async () => {
+                          if (!isContentStale(scenarioData.generated_at)) {
+                            setScenarioUpToDate(true);
+                            setTimeout(() => setScenarioUpToDate(false), 2500);
+                            return;
+                          }
                           setScenarioLoading(true);
                           setScenarioData(null);
                           await fetch(`/api/scenarios?ticker=${ticker}`, { method: "DELETE" });
@@ -1582,9 +1616,9 @@ export default function StockDetail({ ticker }: { ticker: string }) {
                           } catch { /* ignore */ }
                           finally { setScenarioLoading(false); }
                         }}
-                        style={{ fontSize: 11, color: "#475569", background: "none", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 5, padding: "3px 10px", cursor: "pointer", fontFamily: "inherit" }}
+                        style={{ fontSize: 11, color: scenarioUpToDate ? "#22c55e" : "#475569", background: "none", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 5, padding: "3px 10px", cursor: "pointer", fontFamily: "inherit" }}
                       >
-                        Refresh
+                        {scenarioUpToDate ? "Up to date ✓" : "Refresh"}
                       </button>
                     </div>
                     <p style={{ fontSize: 11, color: "#334155", margin: "10px 0 0", lineHeight: 1.5 }}>
