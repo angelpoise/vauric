@@ -248,7 +248,7 @@ export default function NodesPage() {
                   <td style={TD}>
                     <select
                       style={{ ...INPUT, width: 110, fontSize: 12, padding: "4px 8px" }}
-                      value={s.analysis_schedule ?? "on_visit"}
+                      value={s.analysis_schedule ?? "weekly"}
                       onChange={ev => patchSchedule(s.ticker, ev.target.value)}
                     >
                       {SCHEDULES.map(({ value, label }) => (
@@ -260,7 +260,7 @@ export default function NodesPage() {
                   <td style={TD}>
                     <select
                       style={{ ...INPUT, width: 110, fontSize: 12, padding: "4px 8px" }}
-                      value={s.scenario_schedule ?? "on_visit"}
+                      value={s.scenario_schedule ?? "weekly"}
                       onChange={ev => patchScenarioSchedule(s.ticker, ev.target.value)}
                     >
                       {SCHEDULES.map(({ value, label }) => (

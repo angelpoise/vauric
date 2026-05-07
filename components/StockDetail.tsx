@@ -914,6 +914,7 @@ export default function StockDetail({ ticker }: { ticker: string }) {
   interface ScenarioData { bull: ScenarioCase; base: ScenarioCase; bear: ScenarioCase; generated_at: string; }
   const [scenarioData, setScenarioData]       = useState<ScenarioData | null>(null);
   const [scenarioLoading, setScenarioLoading] = useState(false);
+  const [scenarioPeeking, setScenarioPeeking] = useState(false);
   const [scenarioTab, setScenarioTab]         = useState<"bull" | "base" | "bear">("base");
   const [scenarioUpToDate, setScenarioUpToDate] = useState(false);
   const [analysisUpToDate, setAnalysisUpToDate] = useState(false);
@@ -1054,14 +1055,21 @@ export default function StockDetail({ ticker }: { ticker: string }) {
       .catch(() => {});
   }, [user, ticker]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-fetch cached scenarios on mount — peek only (won't trigger generation)
+  // Auto-fetch cached scenarios on mount — peek only (won't trigger generation).
+  // scenarioPeeking stays true while the check is in flight so the Generate
+  // button never flashes and the user can't accidentally trigger a new generation.
   useEffect(() => {
-    if (!isPro) return;
     setScenarioData(null);
+    if (!isPro) return;
+    setScenarioPeeking(true);
     fetch(`/api/scenarios?ticker=${ticker}&peek=1`)
       .then(r => r.ok ? r.json() : null)
-      .then((d: ScenarioData | null) => { if (d?.bull) setScenarioData(d); })
-      .catch(() => {});
+      .then((d: ScenarioData | null) => {
+        console.log(`[scenarios] peek ${ticker}:`, d ? "cache hit" : "no cache");
+        if (d?.bull) setScenarioData(d);
+      })
+      .catch(() => {})
+      .finally(() => setScenarioPeeking(false));
   }, [ticker, isPro]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -1472,7 +1480,11 @@ export default function StockDetail({ ticker }: { ticker: string }) {
           ) : (
             <div>
               {/* Generate / Refresh controls */}
-              {!scenarioData && !scenarioLoading && (
+              {scenarioPeeking && (
+                <p style={{ fontSize: 13, color: "#334155", padding: "8px 0" }}>Checking for cached scenarios…</p>
+              )}
+
+              {!scenarioData && !scenarioLoading && !scenarioPeeking && (
                 <div style={{ padding: "8px 0 4px" }}>
                   <p style={{ fontSize: 13, color: "#475569", margin: "0 0 14px" }}>
                     Generate AI-powered bull, base, and bear case scenarios for {ticker}.
@@ -1594,12 +1606,9 @@ export default function StockDetail({ ticker }: { ticker: string }) {
 
                     {/* Footer */}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontSize: 10, color: "#334155", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 4, padding: "2px 7px" }}>AI generated</span>
-                        <span style={{ fontSize: 11, color: "#334155" }}>
-                          {new Date(scenarioData.generated_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
-                        </span>
-                      </div>
+                      <span style={{ fontSize: 11, color: "#334155" }}>
+                        Generated {new Date(scenarioData.generated_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                      </span>
                       <button
                         onClick={async () => {
                           if (!isContentStale(scenarioData.generated_at)) {

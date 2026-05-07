@@ -22,6 +22,8 @@ export async function POST(req: NextRequest) {
     .insert({
       ticker: ticker.toUpperCase(), company_name, sector,
       x_position: x_position ?? 0.5, y_position: y_position ?? 0.5,
+      analysis_schedule: "weekly",
+      scenario_schedule: "weekly",
       ...(investor_relations_url ? { investor_relations_url } : {}),
     })
     .select().single();
