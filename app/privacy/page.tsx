@@ -170,6 +170,7 @@ export default function PrivacyPage() {
         {/* Footer */}
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)", marginTop: 64, paddingTop: 24, textAlign: "center", fontFamily: DM, fontSize: 12, color: "#334155" }}>
           <p>© 2026 Vauric &nbsp;·&nbsp; <Link href="/terms" style={{ color: "#334155", textDecoration: "none" }}>Terms of Service</Link></p>
+          <p style={{ marginTop: 6 }}>Vauric is operated by Vauric Ltd (registration pending). Registered in Scotland, United Kingdom.</p>
         </div>
 
       </div>

@@ -69,6 +69,9 @@ export default function TermsPage() {
           {/* 2 */}
           <h2 style={h2style}>2. Acceptable use</h2>
           <p style={prose}>
+            You must be at least 18 years old to use Vauric. By using the platform you confirm that you meet this requirement.
+          </p>
+          <p style={prose}>
             You agree to use Vauric for personal, non-commercial purposes only. You must not:
           </p>
           <ul style={{ ...prose, paddingLeft: 24, margin: "0 0 20px" }}>
@@ -149,6 +152,7 @@ export default function TermsPage() {
         {/* Footer */}
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)", marginTop: 64, paddingTop: 24, textAlign: "center", fontFamily: DM, fontSize: 12, color: "#334155" }}>
           <p>© 2026 Vauric &nbsp;·&nbsp; <Link href="/privacy" style={{ color: "#334155", textDecoration: "none" }}>Privacy Policy</Link></p>
+          <p style={{ marginTop: 6 }}>Vauric is operated by Vauric Ltd (registration pending). Registered in Scotland, United Kingdom.</p>
         </div>
 
       </div>
