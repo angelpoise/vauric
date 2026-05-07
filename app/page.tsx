@@ -513,11 +513,11 @@ export default function Home() {
         }}>
           <p>
             © 2026 Vauric &nbsp;·&nbsp;{" "}
-            <a href="#" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
+            <a href="/privacy" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
               Privacy policy
             </a>
             &nbsp;·&nbsp;{" "}
-            <a href="#" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
+            <a href="/terms" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
               Terms
             </a>
           </p>
