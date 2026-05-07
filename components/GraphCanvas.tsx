@@ -359,6 +359,10 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       return;
     }
 
+    // Timeout: if market data hasn't arrived in 3 s, unblock the render loop
+    // so nodes show their fallback colour rather than staying grey indefinitely.
+    const timeoutId = setTimeout(() => { liveDataReadyRef.current = true; }, 3000);
+
     fetch("/api/market-data")
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
@@ -369,7 +373,8 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         }
         liveDataReadyRef.current = true;
       })
-      .catch(() => { liveDataReadyRef.current = true; });
+      .catch(() => { liveDataReadyRef.current = true; })
+      .finally(() => clearTimeout(timeoutId));
   }, []);
 
   useEffect(() => {

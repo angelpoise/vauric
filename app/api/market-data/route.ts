@@ -89,7 +89,16 @@ function calcStreak(bars: DayBar[]): { streak: number; streakDirection: "up" | "
   return { streak: count, streakDirection: dir };
 }
 
+// Module-level output cache — survives across browser refreshes on the same
+// server instance, avoiding the full Polygon waterfall on every page load.
+let serverCache: { data: Record<string, MarketDataEntry>; ts: number } | null = null;
+const SERVER_TTL = 15 * 60 * 1000; // 15 minutes
+
 export async function GET() {
+  if (serverCache && Date.now() - serverCache.ts < SERVER_TTL) {
+    return NextResponse.json(serverCache.data);
+  }
+
   const apiKey = process.env.POLYGON_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "POLYGON_API_KEY not set" }, { status: 500 });
@@ -192,5 +201,6 @@ export async function GET() {
     }
   }
 
+  serverCache = { data: result, ts: Date.now() };
   return NextResponse.json(result);
 }

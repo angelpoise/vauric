@@ -110,6 +110,40 @@ async function fetchAndMerge(): Promise<EarningsEntry[]> {
 // ─── Route ────────────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
+  // Past earnings path — direct DB query, not from the upcoming cache
+  if (req.nextUrl.searchParams.get("past") === "true") {
+    const tickerParam = req.nextUrl.searchParams.get("ticker");
+    if (!tickerParam) return NextResponse.json({ error: "ticker required" }, { status: 400 });
+
+    const upper = tickerParam.toUpperCase();
+    const today = new Date().toISOString().split("T")[0];
+
+    const [{ data: rows }, { data: stockRow }] = await Promise.all([
+      supabaseAdmin
+        .from("earnings_calendar")
+        .select("ticker, report_date, report_time, eps_estimate")
+        .eq("ticker", upper)
+        .lt("report_date", today)
+        .order("report_date", { ascending: false })
+        .limit(1),
+      supabaseAdmin
+        .from("admin_stocks")
+        .select("company_name")
+        .eq("ticker", upper)
+        .maybeSingle(),
+    ]);
+
+    if (!rows || rows.length === 0) return NextResponse.json([]);
+    const row = rows[0];
+    return NextResponse.json([{
+      ticker:       row.ticker,
+      company_name: (stockRow as { company_name: string | null } | null)?.company_name ?? null,
+      report_date:  row.report_date,
+      report_time:  (row.report_time as EarningsEntry["report_time"]) ?? null,
+      eps_estimate: row.eps_estimate ?? null,
+    }]);
+  }
+
   if (!cache || Date.now() - cache.ts > CACHE_TTL) {
     cache = { data: await fetchAndMerge(), ts: Date.now() };
   }

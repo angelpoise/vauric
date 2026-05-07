@@ -860,7 +860,10 @@ export default function StockDetail({ ticker }: { ticker: string }) {
   const [earningsLoading, setEarningsLoading] = useState(true);
 
   interface NextEarningsData { report_date: string; report_time: string | null; }
-  const [nextEarnings, setNextEarnings] = useState<NextEarningsData | null>(null);
+  const [nextEarnings, setNextEarnings]     = useState<NextEarningsData | null>(null);
+  const [earningsFetched, setEarningsFetched] = useState(false);
+  const [lastEarnings, setLastEarnings]     = useState<NextEarningsData | null>(null);
+  const [lastEarningsFetched, setLastEarningsFetched] = useState(false);
 
   interface AnalysisData { segments: string; margins: string; guidance: string; relationships: string; }
   const [analysis, setAnalysis]               = useState<AnalysisData | null>(null);
@@ -947,12 +950,27 @@ export default function StockDetail({ ticker }: { ticker: string }) {
   }, [ticker]);
 
   useEffect(() => {
+    setEarningsFetched(false);
+    setNextEarnings(null);
+    setLastEarningsFetched(false);
+    setLastEarnings(null);
+
     fetch(`/api/earnings-calendar?ticker=${ticker}&days=90`)
       .then((r) => r.ok ? r.json() : [])
       .then((data: NextEarningsData[]) => {
+        console.log(`[earnings-calendar] ${ticker}:`, data);
         if (Array.isArray(data) && data.length > 0) setNextEarnings(data[0]);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setEarningsFetched(true));
+
+    fetch(`/api/earnings-calendar?ticker=${ticker}&past=true`)
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: NextEarningsData[]) => {
+        if (Array.isArray(data) && data.length > 0) setLastEarnings(data[0]);
+      })
+      .catch(() => {})
+      .finally(() => setLastEarningsFetched(true));
   }, [ticker]);
 
   useEffect(() => {
@@ -1063,18 +1081,38 @@ export default function StockDetail({ ticker }: { ticker: string }) {
               <div style={{ fontSize: 16, color: "#475569", fontWeight: 300 }}>
                 {data.name}
               </div>
-              {nextEarnings && (() => {
-                const d = new Date(nextEarnings.report_date + "T12:00:00");
-                const dateStr = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-                const timeStr =
-                  nextEarnings.report_time === "pre-market"    ? "Pre-market"
-                  : nextEarnings.report_time === "after-hours"   ? "After hours"
-                  : nextEarnings.report_time === "during-market" ? "During market"
-                  : null;
+              {(() => {
+                function earningsLabel(data: NextEarningsData | null): string | null {
+                  if (!data) return null;
+                  const d = new Date(data.report_date + "T12:00:00");
+                  const dateStr = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+                  const timeStr =
+                    data.report_time === "pre-market"    ? "Pre-market"
+                    : data.report_time === "after-hours"   ? "After hours"
+                    : data.report_time === "during-market" ? "During market"
+                    : null;
+                  return timeStr ? `${dateStr} · ${timeStr}` : dateStr;
+                }
                 return (
-                  <div style={{ fontSize: 12, color: "#334155", marginTop: 6 }}>
-                    Next earnings: <span style={{ color: "#475569" }}>{dateStr}</span>
-                    {timeStr && <span style={{ color: "#334155" }}> · {timeStr}</span>}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 6 }}>
+                    {earningsFetched && (
+                      <div style={{ fontSize: 12, color: "#475569" }}>
+                        Next earnings:{" "}
+                        {nextEarnings
+                          ? <span style={{ color: "#64748b", fontWeight: 500 }}>{earningsLabel(nextEarnings)}</span>
+                          : <span style={{ color: "#334155" }}>TBC</span>
+                        }
+                      </div>
+                    )}
+                    {lastEarningsFetched && (
+                      <div style={{ fontSize: 12, color: "#475569" }}>
+                        Last earnings:{" "}
+                        {lastEarnings
+                          ? <span style={{ color: "#64748b", fontWeight: 500 }}>{earningsLabel(lastEarnings)}</span>
+                          : <span style={{ color: "#334155" }}>TBC</span>
+                        }
+                      </div>
+                    )}
                   </div>
                 );
               })()}
