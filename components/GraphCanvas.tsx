@@ -27,6 +27,17 @@ import {
   DEFAULT_GRAPH_SETTINGS,
 } from "@/lib/graphSettingsTypes";
 
+// ─── Module-level position seed ──────────────────────────────────────────────
+// Read sessionStorage synchronously at module evaluation time so positions are
+// available before React mounts the component, eliminating the one-frame flash.
+const sessionPositions: Record<string, { x: number; y: number }> | null = (() => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem("vauric_node_positions");
+    return raw ? (JSON.parse(raw) as Record<string, { x: number; y: number }>) : null;
+  } catch { return null; }
+})();
+
 // ─── Module-level market data prefetch ───────────────────────────────────────
 // Start the fetch the instant this module is imported (before React mounts the
 // component), so data is in flight during canvas setup rather than after it.
@@ -203,15 +214,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
   // Seed stock positions from the session cache (set on previous visit) so the graph
   // shows correct positions immediately instead of flashing fallback coordinates.
   const sectorNodesRef = useRef<SectorNode[]>(sectorNodes ?? DEFAULT_SECTOR_NODES.map((s) => ({ ...s })));
-  const cachedPos: Record<string, { x: number; y: number }> | null =
-    getCachedNodePositions() ?? (() => {
-      try {
-        const raw = sessionStorage.getItem("vauric_node_positions");
-        return raw
-          ? (JSON.parse(raw) as Record<string, { x: number; y: number }>)
-          : null;
-      } catch { return null; }
-    })();
+  const cachedPos = getCachedNodePositions() ?? sessionPositions;
   const seededStockNodes: StockNode[] = cachedPos
     ? FALLBACK_STOCK_NODES.map((n) => {
         const p = cachedPos[n.id];
