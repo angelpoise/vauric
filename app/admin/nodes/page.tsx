@@ -46,6 +46,10 @@ export default function NodesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [err, setErr]             = useState<string | null>(null);
   const [regenMsg, setRegenMsg]   = useState<Record<string, string>>({});
+  const [irDiscovering, setIrDiscovering] = useState<Record<string, boolean>>({});
+  const [irMsg, setIrMsg]         = useState<Record<string, string>>({});
+  const [verifying, setVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<{ checked: number; updated: number; failed: number } | null>(null);
 
   async function load() {
     const r = await adminFetch("/api/admin/stocks");
@@ -90,6 +94,40 @@ export default function NodesPage() {
     setStocks((prev) => prev.map((s) => s.ticker === ticker ? { ...s, analysis_schedule: value } : s));
   }
 
+  async function discoverIr(ticker: string, companyName: string) {
+    setIrDiscovering((m) => ({ ...m, [ticker]: true }));
+    setIrMsg((m) => ({ ...m, [ticker]: "Searching…" }));
+    try {
+      const r = await adminFetch("/api/admin/stocks/discover-ir", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ ticker, companyName }),
+      });
+      const data = await r.json();
+      if (r.ok && data.url) {
+        setIrMsg((m) => ({ ...m, [ticker]: "Found" }));
+        setStocks((prev) => prev.map((s) => s.ticker === ticker ? { ...s, investor_relations_url: data.url } : s));
+      } else {
+        setIrMsg((m) => ({ ...m, [ticker]: data.error ?? "Not found" }));
+      }
+    } catch {
+      setIrMsg((m) => ({ ...m, [ticker]: "Error" }));
+    } finally {
+      setIrDiscovering((m) => ({ ...m, [ticker]: false }));
+      setTimeout(() => setIrMsg((m) => { const n = { ...m }; delete n[ticker]; return n; }), 4000);
+    }
+  }
+
+  async function verifyIrUrls() {
+    setVerifying(true);
+    setVerifyResult(null);
+    try {
+      const r = await adminFetch("/api/admin/stocks/verify-ir");
+      if (r.ok) { setVerifyResult(await r.json()); load(); }
+    } catch { /* ignore */ }
+    finally { setVerifying(false); }
+  }
+
   async function regenAnalysis(ticker: string) {
     setRegenMsg((m) => ({ ...m, [ticker]: "Clearing…" }));
     try {
@@ -112,7 +150,21 @@ export default function NodesPage() {
 
   return (
     <div>
-      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 24 }}>Graph Nodes</h1>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Graph Nodes</h1>
+        <button
+          style={{ ...BTN, background: "rgba(59,130,246,0.1)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.25)", marginLeft: "auto" }}
+          onClick={verifyIrUrls}
+          disabled={verifying}
+        >
+          {verifying ? "Verifying…" : "Verify IR URLs"}
+        </button>
+        {verifyResult && (
+          <span style={{ fontSize: 12, color: "#64748b" }}>
+            Checked {verifyResult.checked} · Updated {verifyResult.updated} · Failed {verifyResult.failed}
+          </span>
+        )}
+      </div>
 
       {/* Add form */}
       <div style={{ ...CARD, marginBottom: 28 }}>
@@ -210,6 +262,14 @@ export default function NodesPage() {
                               title="Clear cached analysis — regenerates on next visit"
                             >
                               {regenMsg[s.ticker] ?? "Regen"}
+                            </button>
+                            <button
+                              style={{ ...BTN, background: "rgba(168,85,247,0.08)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.2)" }}
+                              onClick={() => discoverIr(s.ticker, s.company_name)}
+                              disabled={irDiscovering[s.ticker]}
+                              title="Use Claude web search to find the IR URL"
+                            >
+                              {irDiscovering[s.ticker] ? "…" : irMsg[s.ticker] ?? "Find IR"}
                             </button>
                             <button style={BTN_D} onClick={() => del(s.id)}>Remove</button>
                           </>

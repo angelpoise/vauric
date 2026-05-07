@@ -26,12 +26,23 @@ export async function POST(req: NextRequest) {
     .select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Fire-and-forget: pre-warm the fundamentals cache for the new ticker so its
-  // detail page and AI analysis have real data immediately without waiting for
-  // the next full fundamentals refresh.
-  hydrateSingleTicker(ticker.toUpperCase()).catch((err) =>
-    console.error(`[admin/stocks] fundamentals hydration failed for ${ticker}:`, err)
+  // Fire-and-forget: pre-warm fundamentals and discover the IR URL in parallel.
+  const upper = ticker.toUpperCase();
+  hydrateSingleTicker(upper).catch((err) =>
+    console.error(`[admin/stocks] fundamentals hydration failed for ${upper}:`, err)
   );
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const adminSecret = req.headers.get("authorization") ?? "";
+  if (!investor_relations_url) {
+    fetch(`${appUrl}/api/admin/stocks/discover-ir`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", Authorization: adminSecret },
+      body:    JSON.stringify({ ticker: upper, companyName: company_name }),
+    }).catch((err) =>
+      console.error(`[admin/stocks] IR discovery failed for ${upper}:`, err)
+    );
+  }
 
   revalidatePath("/api/graph");
   revalidatePath("/graph");
