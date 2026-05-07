@@ -1433,22 +1433,6 @@ export default function StockDetail({ ticker }: { ticker: string }) {
             <p style={{ fontSize: 13, color: "#334155", margin: 0 }}>No relative strength data available.</p>
           ) : (
             <>
-              {/* Overall score pill */}
-              <div style={{ marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{
-                  fontSize: 12, fontWeight: 500,
-                  padding: "4px 10px", borderRadius: 20,
-                  color:      RS_TREND_COLOR[rsData.trend],
-                  background: RS_TREND_COLOR[rsData.trend] + "18",
-                  border:     `1px solid ${RS_TREND_COLOR[rsData.trend]}35`,
-                }}>
-                  {rsData.trend === "outperforming" ? "↑ Outperforming sector"
-                    : rsData.trend === "underperforming" ? "↓ Underperforming sector"
-                    : "→ In line with sector"}
-                </span>
-                <span style={{ fontSize: 11, color: "#334155" }}>Score {rsData.score.toFixed(0)}/100</span>
-              </div>
-
               {/* Per-timeframe bars */}
               {([
                 { label: "1W", value: rsData.vs1w },
