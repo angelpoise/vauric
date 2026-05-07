@@ -18,8 +18,9 @@ export async function GET(req: NextRequest) {
   const ticker = req.nextUrl.searchParams.get("ticker")?.toUpperCase();
   if (!ticker) return NextResponse.json({ error: "ticker required" }, { status: 400 });
 
-  // peek=1 — return cached data only, never trigger generation (used by client on mount)
-  const peek = req.nextUrl.searchParams.get("peek") === "1";
+  // peek=1 (legacy) or readonly=true — return cached data only, never generate
+  const readonly = req.nextUrl.searchParams.get("readonly") === "true" ||
+                   req.nextUrl.searchParams.get("peek")     === "1";
 
   const { data: cached } = await supabaseAdmin
     .from("stock_scenarios")
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
   const isFresh = ageMs !== null && ageMs < WEEK_MS;
 
   console.log(
-    `[scenarios] ticker=${ticker} peek=${peek}`,
+    `[scenarios] ticker=${ticker} readonly=${readonly}`,
     `cached=${cached ? "yes" : "no"}`,
     `generated_at=${(cached as { generated_at?: string } | null)?.generated_at ?? "n/a"}`,
     `age_days=${ageMs !== null ? (ageMs / 86_400_000).toFixed(1) : "n/a"}`,
@@ -39,13 +40,15 @@ export async function GET(req: NextRequest) {
     `path=${!cached ? "no-cache" : isFresh ? "cache-hit" : "stale"}`,
   );
 
+  // Cache hit (fresh)
   if (cached && isFresh) {
     return NextResponse.json({ ...cached, ticker });
   }
 
-  if (peek) return NextResponse.json(null);
+  // No cache or stale + readonly — tell client to show "being prepared" message
+  if (readonly) return NextResponse.json({ cached: false });
 
-  // Generate fresh scenarios
+  // No cache or stale + not readonly — generate (admin / scheduled only)
   const scenarios = await generateScenarios(ticker);
   if (!scenarios) return NextResponse.json({ error: "Generation failed" }, { status: 500 });
   await saveScenarios(ticker, scenarios);

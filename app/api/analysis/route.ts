@@ -20,8 +20,12 @@ import { isAdminRequest } from "@/lib/adminSecret";
 import { generateAnalysis, saveAnalysis } from "@/lib/generateAnalysis";
 
 export async function GET(req: NextRequest) {
-  const ticker  = req.nextUrl.searchParams.get("ticker")?.toUpperCase();
+  const ticker   = req.nextUrl.searchParams.get("ticker")?.toUpperCase();
   if (!ticker) return NextResponse.json({ error: "ticker required" }, { status: 400 });
+
+  // readonly=true — only return cached content, never generate.
+  // StockDetail always calls with this param; generation is scheduled-only.
+  const readonly = req.nextUrl.searchParams.get("readonly") === "true";
 
   const { data: cached } = await supabaseAdmin
     .from("company_analysis")
@@ -30,13 +34,13 @@ export async function GET(req: NextRequest) {
     .single();
 
   console.log(
-    `[analysis] ticker=${ticker}`,
+    `[analysis] ticker=${ticker} readonly=${readonly}`,
     `cached=${cached ? "yes" : "no"}`,
     `last_generated_at=${(cached as { last_generated_at?: string } | null)?.last_generated_at ?? "n/a"}`,
-    `path=${cached ? "cache-hit" : "generate"}`,
+    `path=${cached ? "cache-hit" : readonly ? "no-cache-readonly" : "generate"}`,
   );
 
-  // Cache hit — always return if row exists (no TTL, schedule handles refresh)
+  // Cache hit — return immediately regardless of readonly flag
   if (cached) {
     return NextResponse.json({
       segments:          cached.segments,
@@ -47,7 +51,12 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // No cache — generate synchronously
+  // No cache + readonly — tell the client to show the "being prepared" message
+  if (readonly) {
+    return NextResponse.json({ cached: false });
+  }
+
+  // No cache + not readonly — generate (admin panel / scheduled route only)
   const analysis = await generateAnalysis(ticker);
   if (!analysis) return NextResponse.json({ error: "Analysis generation failed" }, { status: 500 });
   await saveAnalysis(ticker, analysis);

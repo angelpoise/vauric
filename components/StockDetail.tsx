@@ -656,9 +656,9 @@ const ANALYSIS_MSGS = [
 ];
 
 const SCENARIO_MSGS = [
-  "Modelling bull case…",
+  "Stress-testing bull case…",
   "Assessing base case…",
-  "Stress-testing bear case…",
+  "Modelling bear case…",
   "Calculating price targets…",
 ];
 
@@ -1101,6 +1101,8 @@ export default function StockDetail({ ticker }: { ticker: string }) {
       .finally(() => setEarningsLoading(false));
   }, [ticker]);
 
+  const BEING_PREPARED = "Analysis is being prepared — check back in a few minutes.";
+
   async function handleGenerateAnalysis() {
     if (analysisLoading) return;
     setAnalysisLoading(true);
@@ -1108,12 +1110,16 @@ export default function StockDetail({ ticker }: { ticker: string }) {
     setAnalysisVisible(false);
     try {
       const [data] = await Promise.all([
-        fetch(`/api/analysis?ticker=${ticker}`)
+        fetch(`/api/analysis?ticker=${ticker}&readonly=true`)
           .then(r => r.ok ? r.json() : null)
-          .catch(() => null) as Promise<(AnalysisData & { error?: string }) | null>,
+          .catch(() => null) as Promise<(AnalysisData & { error?: string; cached?: boolean }) | null>,
         new Promise<void>(res => setTimeout(res, 2500)),
       ]);
-      if (data && !data.error) {
+      if (data && data.cached === false) {
+        // Not yet generated — show "being prepared" state
+        setAnalysis({ segments: BEING_PREPARED, margins: "", guidance: "", relationships: "" });
+        requestAnimationFrame(() => requestAnimationFrame(() => setAnalysisVisible(true)));
+      } else if (data && !data.error) {
         setAnalysis(data);
         requestAnimationFrame(() => requestAnimationFrame(() => setAnalysisVisible(true)));
       } else {
@@ -1130,12 +1136,17 @@ export default function StockDetail({ ticker }: { ticker: string }) {
     setScenarioVisible(false);
     try {
       const [data] = await Promise.all([
-        fetch(`/api/scenarios?ticker=${ticker}`)
+        fetch(`/api/scenarios?ticker=${ticker}&readonly=true`)
           .then(r => r.ok ? r.json() : null)
-          .catch(() => null) as Promise<ScenarioData | null>,
+          .catch(() => null) as Promise<(ScenarioData & { cached?: boolean }) | null>,
         new Promise<void>(res => setTimeout(res, 2500)),
       ]);
-      if (data?.bull) {
+      if (data && data.cached === false) {
+        // Not yet generated — show "being prepared" state using placeholder data
+        const placeholder = { "6m": BEING_PREPARED, "1y": "", "2y": "", priceTarget: 0 };
+        setScenarioData({ bull: placeholder, base: placeholder, bear: placeholder, generated_at: "" });
+        requestAnimationFrame(() => requestAnimationFrame(() => setScenarioVisible(true)));
+      } else if (data?.bull) {
         setScenarioData(data);
         requestAnimationFrame(() => requestAnimationFrame(() => setScenarioVisible(true)));
       }
