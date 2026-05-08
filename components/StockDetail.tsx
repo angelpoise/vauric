@@ -670,9 +670,6 @@ function daysAgo(dateStr: string | null | undefined): string {
   return `${d} days ago`;
 }
 
-const SECTOR_ETF: Record<string, string> = {
-  tech: "XLK", energy: "XLE", health: "XLV", finance: "XLF", consumer: "XLY",
-};
 
 const RS_TREND_COLOR = { outperforming: "#22c55e", inline: "#64748b", underperforming: "#ef4444" };
 
@@ -1155,14 +1152,6 @@ export default function StockDetail({ ticker }: { ticker: string }) {
     }
   }
 
-  // Returns true if the content is stale: > 7 days old OR newer significant news exists
-  function isContentStale(lastGeneratedAt: string | null | undefined): boolean {
-    if (!lastGeneratedAt) return true;
-    const age = Date.now() - new Date(lastGeneratedAt).getTime();
-    if (age > 7 * 24 * 60 * 60 * 1000) return true;
-    const genMs = new Date(lastGeneratedAt).getTime();
-    return stockNews.some(a => new Date(a.published_at).getTime() > genMs);
-  }
 
   const displayPrice     = live?.price     ?? data.price;
   const displayMove      = live?.dailyMove ?? data.dailyMove;

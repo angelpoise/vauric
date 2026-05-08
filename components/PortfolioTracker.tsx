@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useUser, useAuth } from "@clerk/nextjs";
 import UpgradeButton from "@/components/UpgradeButton";
-import { moveColor, moveFill } from "@/lib/graphTypes";
 import { getCachedMarketData, setCachedMarketData } from "@/lib/marketDataCache";
 
 const DM = 'var(--font-dm-sans), "DM Sans", sans-serif';

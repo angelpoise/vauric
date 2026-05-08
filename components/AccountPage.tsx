@@ -508,7 +508,7 @@ function ThesesTab({ userId, isPro }: { userId: string; isPro: boolean }) {
         <p style={{ fontSize: 13, color: "#334155", margin: 0 }}>Loading…</p>
       ) : theses.length === 0 ? (
         <p style={{ fontSize: 13, color: "#334155", margin: 0 }}>
-          No tracked theses. Open any stock page, generate scenarios, and click "Track thesis".
+          No tracked theses. Open any stock page, generate scenarios, and click &ldquo;Track thesis&rdquo;.
         </p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

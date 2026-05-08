@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Fetch current market prices
-  let prices: Record<string, number> = {};
+  const prices: Record<string, number> = {};
   try {
     const mdRes = await fetch(`${appUrl}/api/market-data`);
     if (mdRes.ok) {

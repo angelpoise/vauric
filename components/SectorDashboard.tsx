@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { moveColor, moveFill } from "@/lib/graphTypes";
-import { getCachedMarketData, setCachedMarketData } from "@/lib/marketDataCache";
 
 const DM = 'var(--font-dm-sans), "DM Sans", sans-serif';
 
@@ -78,7 +77,6 @@ type SortKey = "ticker" | "dailyMove" | "dailyMoveDollar" | "price" | "streak" |
 const fmtPct   = (n: number | null) => n == null ? "—" : `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
 const fmtDollar = (n: number | null) => n == null ? "—" : `${n >= 0 ? "+" : "−"}$${Math.abs(n).toFixed(2)}`;
 const fmtPrice  = (n: number | null) => n == null ? "—" : `$${n.toFixed(2)}`;
-const fmtRV     = (n: number | null) => n == null ? "—" : `${n.toFixed(2)}×`;
 
 // ─── Section 1: Sector cards ──────────────────────────────────────────────────
 

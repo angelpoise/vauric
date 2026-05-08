@@ -346,7 +346,6 @@ export default function NodesPage() {
                     ? (parentNode.display_name ?? parentNode.company_name ?? parentNode.etf_ticker ?? "—")
                     : "—";
                 const label = isStock ? (n.ticker ?? "—") : (n.display_name ?? n.company_name ?? n.etf_ticker ?? "—");
-                const tk = n.ticker ?? n.id;
 
                 return (
                   <tr key={n.id}>
