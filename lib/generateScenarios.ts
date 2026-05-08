@@ -75,9 +75,14 @@ export async function generateScenarios(ticker: string): Promise<Scenarios | nul
 }
 
 export async function saveScenarios(ticker: string, scenarios: Scenarios): Promise<void> {
-  await supabaseAdmin.from("stock_scenarios").upsert({
-    ticker,
-    ...scenarios,
-    generated_at: new Date().toISOString(),
-  });
+  const payload = { ticker, ...scenarios, generated_at: new Date().toISOString() };
+  console.log("[saveScenarios] upserting", ticker, JSON.stringify(payload));
+  const { error } = await supabaseAdmin
+    .from("stock_scenarios")
+    .upsert(payload);
+  if (error) {
+    console.error("[saveScenarios] upsert error", JSON.stringify(error));
+  } else {
+    console.log("[saveScenarios] upsert success", ticker);
+  }
 }

@@ -83,7 +83,14 @@ export async function generateAnalysis(ticker: string): Promise<AnalysisResult |
 }
 
 export async function saveAnalysis(ticker: string, analysis: AnalysisResult): Promise<void> {
-  await supabaseAdmin
+  const payload = { ticker, ...analysis, last_generated_at: new Date().toISOString() };
+  console.log("[saveAnalysis] upserting", ticker, JSON.stringify(payload));
+  const { error } = await supabaseAdmin
     .from("company_analysis")
-    .upsert({ ticker, ...analysis, last_generated_at: new Date().toISOString() });
+    .upsert(payload);
+  if (error) {
+    console.error("[saveAnalysis] upsert error", JSON.stringify(error));
+  } else {
+    console.log("[saveAnalysis] upsert success", ticker);
+  }
 }
