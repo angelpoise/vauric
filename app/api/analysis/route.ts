@@ -1,4 +1,4 @@
-// Required Supabase schema:
+// company_analysis schema (ticker is any node identifier — stock ticker, ETF ticker, or node name):
 //
 //   CREATE TABLE company_analysis (
 //     ticker            TEXT PRIMARY KEY,
@@ -19,12 +19,28 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminRequest } from "@/lib/adminSecret";
 import { generateAnalysis, saveAnalysis } from "@/lib/generateAnalysis";
 
+// Resolve node type for a given identifier so the right prompt is used.
+async function resolveNodeType(id: string): Promise<{ nodeType: "stock" | "sector" | "subsector" | "subsubsector"; displayName: string }> {
+  const { data } = await supabaseAdmin
+    .from("admin_nodes")
+    .select("node_type, company_name, display_name, ticker, etf_ticker")
+    .or(`ticker.eq.${id},etf_ticker.eq.${id},company_name.eq.${id}`)
+    .maybeSingle();
+
+  if (!data) return { nodeType: "stock", displayName: id };
+  const displayName = data.display_name ?? data.company_name ?? data.etf_ticker ?? data.ticker ?? id;
+  return {
+    nodeType: data.node_type as "stock" | "sector" | "subsector" | "subsubsector",
+    displayName,
+  };
+}
+
 export async function GET(req: NextRequest) {
-  const ticker   = req.nextUrl.searchParams.get("ticker")?.toUpperCase();
+  // ticker is the analysis cache key — can be a stock ticker (NVDA), ETF ticker (XLK/SOXX),
+  // or a hierarchy node name (Semiconductors). Do NOT force uppercase — names are case-sensitive.
+  const ticker = req.nextUrl.searchParams.get("ticker")?.trim();
   if (!ticker) return NextResponse.json({ error: "ticker required" }, { status: 400 });
 
-  // readonly=true — only return cached content, never generate.
-  // StockDetail always calls with this param; generation is scheduled-only.
   const readonly = req.nextUrl.searchParams.get("readonly") === "true";
 
   const { data: cached } = await supabaseAdmin
@@ -36,11 +52,9 @@ export async function GET(req: NextRequest) {
   console.log(
     `[analysis] ticker=${ticker} readonly=${readonly}`,
     `cached=${cached ? "yes" : "no"}`,
-    `last_generated_at=${(cached as { last_generated_at?: string } | null)?.last_generated_at ?? "n/a"}`,
     `path=${cached ? "cache-hit" : readonly ? "no-cache-readonly" : "generate"}`,
   );
 
-  // Cache hit — return immediately regardless of readonly flag
   if (cached) {
     return NextResponse.json({
       segments:          cached.segments,
@@ -51,30 +65,25 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // No cache + readonly — tell the client to show the "being prepared" message
-  if (readonly) {
-    return NextResponse.json({ cached: false });
-  }
+  if (readonly) return NextResponse.json({ cached: false });
 
-  // No cache + not readonly — generate (admin panel / scheduled route only)
-  const analysis = await generateAnalysis(ticker);
+  // Determine node type so the right prompt is used
+  const { nodeType, displayName } = await resolveNodeType(ticker);
+  console.log(`[analysis] generating for ${ticker} nodeType=${nodeType}`);
+
+  const analysis = await generateAnalysis(ticker, nodeType, displayName);
   if (!analysis) return NextResponse.json({ error: "Analysis generation failed" }, { status: 500 });
   await saveAnalysis(ticker, analysis);
   return NextResponse.json({ ...analysis, last_generated_at: new Date().toISOString() });
 }
 
-// DELETE — clear cached analysis (admin only, or internal pipeline)
 export async function DELETE(req: NextRequest) {
-  const hasAuth    = !!req.headers.get("authorization");
+  const hasAuth     = !!req.headers.get("authorization");
   const hasPipeline = req.headers.get("x-pipeline-secret") === process.env.PIPELINE_SECRET;
-  if (!hasAuth && !hasPipeline) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (hasAuth && !await isAdminRequest(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!hasAuth && !hasPipeline) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (hasAuth && !await isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const ticker = req.nextUrl.searchParams.get("ticker")?.toUpperCase();
+  const ticker = req.nextUrl.searchParams.get("ticker")?.trim();
   if (!ticker) return NextResponse.json({ error: "ticker required" }, { status: 400 });
 
   await supabaseAdmin.from("company_analysis").delete().eq("ticker", ticker);

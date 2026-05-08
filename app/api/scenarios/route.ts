@@ -15,7 +15,7 @@ import { generateScenarios, saveScenarios } from "@/lib/generateScenarios";
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 export async function GET(req: NextRequest) {
-  const ticker = req.nextUrl.searchParams.get("ticker")?.toUpperCase();
+  const ticker = req.nextUrl.searchParams.get("ticker")?.trim();
   if (!ticker) return NextResponse.json({ error: "ticker required" }, { status: 400 });
 
   // peek=1 (legacy) or readonly=true — return cached data only, never generate
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const ticker = req.nextUrl.searchParams.get("ticker")?.toUpperCase();
+  const ticker = req.nextUrl.searchParams.get("ticker")?.trim();
   if (!ticker) return NextResponse.json({ error: "ticker required" }, { status: 400 });
   try {
     const { error } = await supabaseAdmin.from("stock_scenarios").delete().eq("ticker", ticker);

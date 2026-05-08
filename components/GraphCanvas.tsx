@@ -1123,8 +1123,10 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
           return;
         }
         const hit = hitTest(mx, my);
-        if (hit?.kind === "stock")  routerRef.current.push(`/stock/${hit.ticker}`);
-        if (hit?.kind === "sector") routerRef.current.push(`/sector/${ETF_TO_SLUG[hit.id] ?? hit.id}`);
+        if (hit?.kind === "stock")        routerRef.current.push(`/stock/${hit.ticker}`);
+        if (hit?.kind === "sector")       routerRef.current.push(`/sector/${hit.id}`);
+        if (hit?.kind === "subsector")    routerRef.current.push(`/subsector/${encodeURIComponent(hit.name)}`);
+        if (hit?.kind === "subsubsector") routerRef.current.push(`/subsubsector/${encodeURIComponent(hit.name)}`);
       }
     }
 

@@ -93,6 +93,23 @@ function TypePill({ type }: { type: string }) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+// Canonical analysis/scenarios cache key for any node type
+function nodeAnalysisKey(n: Node): string | null {
+  if (n.node_type === "stock") return n.ticker;
+  return n.etf_ticker ?? n.company_name;
+}
+
+type EditFormData = {
+  company_name: string;
+  display_name: string;
+  etf_ticker:   string;
+  colour:       string;
+  parent_node_id: string;
+  ticker:       string;
+  sector:       string;
+  investor_relations_url: string;
+};
+
 export default function NodesPage() {
   const [nodes, setNodes]           = useState<Node[]>([]);
   const [form, setForm]             = useState<FormState>(BLANK_FORM);
@@ -104,6 +121,9 @@ export default function NodesPage() {
   const [irMsg, setIrMsg]           = useState<Record<string, string>>({});
   const [verifying, setVerifying]   = useState(false);
   const [verifyResult, setVerifyResult] = useState<{ checked: number; updated: number; failed: number } | null>(null);
+  const [editingNode, setEditingNode]   = useState<Node | null>(null);
+  const [editForm, setEditForm]         = useState<EditFormData | null>(null);
+  const [editSaving, setEditSaving]     = useState(false);
 
   async function load() {
     const r = await adminFetch("/api/admin/stocks");
@@ -192,28 +212,66 @@ export default function NodesPage() {
     catch { /* ignore */ } finally { setVerifying(false); }
   }
 
-  async function regenAnalysis(ticker: string) {
-    setRegenMsg((m) => ({ ...m, [ticker]: "Clearing…" }));
+  async function regenAnalysis(key: string) {
+    setRegenMsg((m) => ({ ...m, [key]: "Clearing…" }));
     try {
-      const delR = await adminFetch(`/api/analysis?ticker=${ticker}`, { method: "DELETE" });
-      if (!delR.ok) { setRegenMsg((m) => ({ ...m, [ticker]: `Error ${delR.status}` })); return; }
-      setRegenMsg((m) => ({ ...m, [ticker]: "Generating…" }));
-      const genR = await adminFetch(`/api/analysis?ticker=${ticker}`);
-      setRegenMsg((m) => ({ ...m, [ticker]: genR.ok ? "Done ✓" : `Error ${genR.status}` }));
-    } catch { setRegenMsg((m) => ({ ...m, [ticker]: "Error" })); }
-    setTimeout(() => setRegenMsg((m) => { const n = { ...m }; delete n[ticker]; return n; }), 3000);
+      const delR = await adminFetch(`/api/analysis?ticker=${encodeURIComponent(key)}`, { method: "DELETE" });
+      if (!delR.ok) { setRegenMsg((m) => ({ ...m, [key]: `Error ${delR.status}` })); return; }
+      setRegenMsg((m) => ({ ...m, [key]: "Generating…" }));
+      const genR = await adminFetch(`/api/analysis?ticker=${encodeURIComponent(key)}`);
+      setRegenMsg((m) => ({ ...m, [key]: genR.ok ? "Done ✓" : `Error ${genR.status}` }));
+    } catch { setRegenMsg((m) => ({ ...m, [key]: "Error" })); }
+    setTimeout(() => setRegenMsg((m) => { const n = { ...m }; delete n[key]; return n; }), 3000);
   }
 
-  async function regenScenarios(ticker: string) {
-    setRegenScMsg((m) => ({ ...m, [ticker]: "Clearing…" }));
+  async function regenScenarios(key: string) {
+    setRegenScMsg((m) => ({ ...m, [key]: "Clearing…" }));
     try {
-      const delR = await adminFetch(`/api/scenarios?ticker=${ticker}`, { method: "DELETE" });
-      if (!delR.ok) { setRegenScMsg((m) => ({ ...m, [ticker]: `Error ${delR.status}` })); return; }
-      setRegenScMsg((m) => ({ ...m, [ticker]: "Generating…" }));
-      const genR = await adminFetch(`/api/scenarios?ticker=${ticker}`);
-      setRegenScMsg((m) => ({ ...m, [ticker]: genR.ok ? "Done ✓" : `Error ${genR.status}` }));
-    } catch { setRegenScMsg((m) => ({ ...m, [ticker]: "Error" })); }
-    setTimeout(() => setRegenScMsg((m) => { const n = { ...m }; delete n[ticker]; return n; }), 3000);
+      const delR = await adminFetch(`/api/scenarios?ticker=${encodeURIComponent(key)}`, { method: "DELETE" });
+      if (!delR.ok) { setRegenScMsg((m) => ({ ...m, [key]: `Error ${delR.status}` })); return; }
+      setRegenScMsg((m) => ({ ...m, [key]: "Generating…" }));
+      const genR = await adminFetch(`/api/scenarios?ticker=${encodeURIComponent(key)}`);
+      setRegenScMsg((m) => ({ ...m, [key]: genR.ok ? "Done ✓" : `Error ${genR.status}` }));
+    } catch { setRegenScMsg((m) => ({ ...m, [key]: "Error" })); }
+    setTimeout(() => setRegenScMsg((m) => { const n = { ...m }; delete n[key]; return n; }), 3000);
+  }
+
+  function openEdit(n: Node) {
+    setEditingNode(n);
+    setEditForm({
+      company_name:           n.company_name ?? "",
+      display_name:           n.display_name ?? "",
+      etf_ticker:             n.etf_ticker ?? "",
+      colour:                 n.colour ?? "#64748b",
+      parent_node_id:         n.parent_node_id ?? "",
+      ticker:                 n.ticker ?? "",
+      sector:                 n.sector ?? "",
+      investor_relations_url: n.investor_relations_url ?? "",
+    });
+  }
+
+  async function saveEdit() {
+    if (!editingNode || !editForm) return;
+    setEditSaving(true);
+    const body: Record<string, unknown> = {};
+    if (editingNode.node_type === "stock") {
+      body.company_name           = editForm.company_name;
+      body.sector                 = editForm.sector;
+      body.investor_relations_url = editForm.investor_relations_url || null;
+    } else {
+      body.company_name   = editForm.company_name;
+      body.display_name   = editForm.display_name || editForm.company_name;
+      body.etf_ticker     = editForm.etf_ticker || null;
+      body.colour         = editForm.colour || null;
+      if (editForm.parent_node_id) body.parent_node_id = editForm.parent_node_id;
+    }
+    await adminFetch(`/api/admin/stocks/${editingNode.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    setEditSaving(false);
+    setEditingNode(null);
+    setEditForm(null);
+    load();
   }
 
   const parentOptions = form.node_type === "subsector"
@@ -379,24 +437,38 @@ export default function NodesPage() {
                     </td>
                     <td style={TD}>
                       <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                        {isStock && n.ticker && (<>
-                          <button
-                            style={{ ...BTN, background: "rgba(59,130,246,0.08)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.2)" }}
-                            onClick={() => regenAnalysis(n.ticker!)} title="Regen analysis">
-                            {regenMsg[n.ticker] ?? "Regen"}
-                          </button>
-                          <button
-                            style={{ ...BTN, background: "rgba(34,197,94,0.08)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.2)" }}
-                            onClick={() => regenScenarios(n.ticker!)} title="Regen scenarios">
-                            {regenScMsg[n.ticker] ?? "Regen SC"}
-                          </button>
+                        {/* Regen analysis — all node types with an analysis key */}
+                        {nodeAnalysisKey(n) && (() => { const k = nodeAnalysisKey(n)!; return (
+                          <>
+                            <button
+                              style={{ ...BTN, background: "rgba(59,130,246,0.08)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.2)" }}
+                              onClick={() => regenAnalysis(k)} title="Regen analysis">
+                              {regenMsg[k] ?? "Regen"}
+                            </button>
+                            <button
+                              style={{ ...BTN, background: "rgba(34,197,94,0.08)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.2)" }}
+                              onClick={() => regenScenarios(k)} title="Regen scenarios">
+                              {regenScMsg[k] ?? "Regen SC"}
+                            </button>
+                          </>
+                        ); })()}
+                        {/* Find IR — stocks only */}
+                        {isStock && n.ticker && (
                           <button
                             style={{ ...BTN, background: "rgba(168,85,247,0.08)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.2)" }}
                             onClick={() => discoverIr(n.ticker!, n.company_name ?? "")}
-                            disabled={irDiscovering[n.ticker]}>
+                            disabled={!!irDiscovering[n.ticker]}>
                             {irDiscovering[n.ticker] ? "…" : irMsg[n.ticker] ?? "Find IR"}
                           </button>
-                        </>)}
+                        )}
+                        {/* Edit — hierarchy nodes */}
+                        {!isStock && (
+                          <button
+                            style={{ ...BTN, background: "rgba(255,255,255,0.05)", color: "#94a3b8", border: "1px solid rgba(255,255,255,0.1)" }}
+                            onClick={() => openEdit(n)}>
+                            Edit
+                          </button>
+                        )}
                         <button style={BTN_D} onClick={() => del(n.id)}>Remove</button>
                       </div>
                     </td>
@@ -408,5 +480,69 @@ export default function NodesPage() {
         </div>
       </div>
     </div>
+
+    {/* ── Edit modal ─────────────────────────────────────────────────── */}
+    {editingNode && editForm && (
+      <>
+        <div onClick={() => { setEditingNode(null); setEditForm(null); }}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 50 }} />
+        <div style={{
+          position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+          zIndex: 51, background: "#0d1117", border: "1px solid rgba(255,255,255,0.1)",
+          borderRadius: 12, padding: 28, width: 480,
+          fontFamily: '"DM Sans", sans-serif',
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: "#f1f5f9", marginBottom: 20 }}>
+            Edit {NODE_TYPE_LABELS[editingNode.node_type]} — {editingNode.display_name ?? editingNode.company_name ?? editingNode.etf_ticker}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+            {editingNode.node_type === "sector" && (<>
+              <div><div style={{ fontSize: 11, color: "#475569", marginBottom: 5 }}>Display name</div>
+                <input style={INPUT} value={editForm.company_name} onChange={(e) => setEditForm({ ...editForm, company_name: e.target.value })} /></div>
+              <div><div style={{ fontSize: 11, color: "#475569", marginBottom: 5 }}>ETF ticker</div>
+                <input style={INPUT} value={editForm.etf_ticker} onChange={(e) => setEditForm({ ...editForm, etf_ticker: e.target.value.toUpperCase() })} /></div>
+              <div><div style={{ fontSize: 11, color: "#475569", marginBottom: 5 }}>Colour</div>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <input type="color" value={editForm.colour} onChange={(e) => setEditForm({ ...editForm, colour: e.target.value })}
+                    style={{ width: 40, height: 36, borderRadius: 6, border: "1px solid rgba(255,255,255,0.1)", background: "none", cursor: "pointer", padding: 2 }} />
+                  <span style={{ fontSize: 12, color: "#64748b", fontFamily: "monospace" }}>{editForm.colour}</span>
+                </div>
+              </div>
+            </>)}
+            {(editingNode.node_type === "subsector" || editingNode.node_type === "subsubsector") && (<>
+              <div><div style={{ fontSize: 11, color: "#475569", marginBottom: 5 }}>Name</div>
+                <input style={INPUT} value={editForm.company_name} onChange={(e) => setEditForm({ ...editForm, company_name: e.target.value })} /></div>
+              <div><div style={{ fontSize: 11, color: "#475569", marginBottom: 5 }}>
+                Parent {editingNode.node_type === "subsector" ? "sector" : "sub-sector"}
+              </div>
+                <select style={INPUT} value={editForm.parent_node_id}
+                  onChange={(e) => setEditForm({ ...editForm, parent_node_id: e.target.value })}>
+                  <option value="">— unchanged —</option>
+                  {(editingNode.node_type === "subsector" ? sectorNodes : subsectorNodes)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.display_name ?? p.company_name ?? p.etf_ticker ?? p.id}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div><div style={{ fontSize: 11, color: "#475569", marginBottom: 5 }}>ETF ticker (optional)</div>
+                <input style={INPUT} placeholder="e.g. SOXX" value={editForm.etf_ticker} onChange={(e) => setEditForm({ ...editForm, etf_ticker: e.target.value.toUpperCase() })} /></div>
+            </>)}
+          </div>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <button onClick={() => { setEditingNode(null); setEditForm(null); }}
+              style={{ background: "none", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, color: "#64748b", fontSize: 12, padding: "6px 14px", cursor: "pointer", fontFamily: "inherit" }}>
+              Cancel
+            </button>
+            <button onClick={saveEdit} disabled={editSaving}
+              style={{ ...BTN, opacity: editSaving ? 0.6 : 1 }}>
+              {editSaving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </div>
+      </>
+    )}
+  </div>
   );
 }
