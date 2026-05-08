@@ -213,6 +213,23 @@ export default function NodesPage() {
     catch { /* ignore */ } finally { setVerifying(false); }
   }
 
+  const [clearingOverviews, setClearingOverviews] = useState(false);
+  const [overviewsClearedMsg, setOverviewsClearedMsg] = useState<string | null>(null);
+
+  async function clearAllOverviews() {
+    if (!confirm("Clear cached overviews for all hierarchy nodes? They will regenerate on next page visit.")) return;
+    setClearingOverviews(true);
+    try {
+      const r = await adminFetch("/api/admin/nodes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "clear-overviews" }),
+      });
+      setOverviewsClearedMsg(r.ok ? "Overviews cleared ✓" : `Error ${r.status}`);
+    } catch { setOverviewsClearedMsg("Error"); }
+    finally { setClearingOverviews(false); setTimeout(() => setOverviewsClearedMsg(null), 4000); }
+  }
+
   async function regenAnalysis(key: string) {
     setRegenMsg((m) => ({ ...m, [key]: "Clearing…" }));
     try {
@@ -315,6 +332,12 @@ export default function NodesPage() {
           ))}
         </div>
 
+        <button
+          style={{ ...BTN, background: "rgba(245,158,11,0.1)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.25)" }}
+          onClick={clearAllOverviews} disabled={clearingOverviews}
+        >
+          {clearingOverviews ? "Clearing…" : overviewsClearedMsg ?? "Clear All Overviews"}
+        </button>
         <button
           style={{ ...BTN, background: "rgba(59,130,246,0.1)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.25)", marginLeft: "auto" }}
           onClick={verifyIrUrls} disabled={verifying}

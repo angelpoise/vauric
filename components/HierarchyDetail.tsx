@@ -62,21 +62,18 @@ function fmtVol(v: number) {
 type MetricRow = { label: string; value: string };
 
 function buildEtfMetrics(f: FundamentalsEntry | null): MetricRow[] {
-  const p   = (v: number | null | undefined, fn: (n: number) => string) => v != null ? fn(v) : "—";
-  const px  = (v: number | null | undefined) => p(v, (n) => `$${n.toFixed(2)}`);
+  const p  = (v: number | null | undefined, fn: (n: number) => string) => v != null ? fn(v) : "—";
+  const px = (v: number | null | undefined) => p(v, (n) => `$${n.toFixed(2)}`);
   const pct = (v: number | null | undefined) => p(v, (n) => `${(n * 100).toFixed(2)}%`);
   return [
-    { label: "AUM",            value: p(f?.totalAssets ?? f?.marketCap, fmtMktCap) },
-    { label: "Yield",          value: pct(f?.fundYield) },
-    { label: "YTD Return",     value: pct(f?.ytdReturn) },
-    { label: "3Y Avg Return",  value: pct(f?.threeYearAvgReturn) },
-    { label: "Beta (vs SPY)",  value: p(f?.beta, (n) => n.toFixed(2)) },
-    { label: "Avg Volume",     value: p(f?.averageVolume, fmtVol) },
-    { label: "52W High",       value: px(f?.fiftyTwoWeekHigh) },
-    { label: "52W Low",        value: px(f?.fiftyTwoWeekLow) },
-    { label: "50D Average",    value: px(f?.fiftyDayAverage) },
-    { label: "200D Average",   value: px(f?.twoHundredDayAverage) },
-    { label: "Expense Ratio",  value: pct(f?.expenseRatio) },
+    { label: "AUM",           value: p(f?.totalAssets ?? f?.marketCap, fmtMktCap) },
+    { label: "Yield",         value: pct(f?.fundYield) },
+    { label: "Beta (vs SPY)", value: p(f?.beta, (n) => n.toFixed(2)) },
+    { label: "Avg Volume",    value: p(f?.averageVolume, fmtVol) },
+    { label: "52W High",      value: px(f?.fiftyTwoWeekHigh) },
+    { label: "52W Low",       value: px(f?.fiftyTwoWeekLow) },
+    { label: "50D Average",   value: px(f?.fiftyDayAverage) },
+    { label: "200D Average",  value: px(f?.twoHundredDayAverage) },
   ];
 }
 
@@ -243,15 +240,13 @@ export default function HierarchyDetail({ node, stocks, analysisKey, initialFund
   }, [etf]);
 
   // ── Overview ──────────────────────────────────────────────────────────────
-  const yahooOverview = fundamentals?.longBusinessSummary ?? null;
-  const [overview, setOverview]           = useState<string | null>(yahooOverview ?? initialOverview ?? null);
+  // For hierarchy nodes: always use DB cached_overview or Claude generation.
+  // Yahoo's longBusinessSummary for ETFs describes fund mechanics ("invests
+  // substantially all assets in securities comprising the index…"), not the
+  // sector itself — it's not useful. Claude generates sector-specific content.
+  const [overview, setOverview]           = useState<string | null>(initialOverview ?? null);
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [overviewTriggered, setOverviewTriggered] = useState(false);
-
-  // When fundamentals loads from server, prefer Yahoo description
-  useEffect(() => {
-    if (fundamentals?.longBusinessSummary) setOverview(fundamentals.longBusinessSummary);
-  }, [fundamentals]);
 
   // If no overview yet, trigger background generation once
   useEffect(() => {
@@ -356,13 +351,15 @@ export default function HierarchyDetail({ node, stocks, analysisKey, initialFund
   const sentimentScore = aggregateSentiment(constituentTickers);
   const sentimentCol   = sentimentScore != null ? (sentimentScore > 50 ? "#22c55e" : sentimentScore < 50 ? "#ef4444" : "#64748b") : "#64748b";
 
-  // Constituents grid — ETF holdings with live price data
-  const cachedMd    = getCachedMarketData();
-  const constituents = holdings.slice(0, 12).map((h) => ({
-    ...h,
-    liveMove: cachedMd?.[h.symbol]?.dailyMove ?? null,
-  }));
+  // Constituents — intersection of ETF holdings AND tracked admin_nodes stocks.
+  // Filter first, then slice, so we show up to 12 *tracked* holdings, not 12
+  // arbitrary ETF holdings that may not be in the graph.
   const knownTickers = new Set(stocks.map((s) => s.ticker));
+  const cachedMd     = getCachedMarketData();
+  const constituents = holdings
+    .filter((h) => knownTickers.has(h.symbol))
+    .slice(0, 12)
+    .map((h) => ({ ...h, liveMove: cachedMd?.[h.symbol]?.dailyMove ?? null }));
 
   // ─────────────────────────────────────────────────────────────────────────
 

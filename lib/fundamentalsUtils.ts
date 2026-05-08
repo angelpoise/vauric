@@ -99,16 +99,17 @@ export async function fetchFundamentalsForTicker(
   try {
     const url =
       `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}` +
-      `?modules=summaryDetail,assetProfile,fundProfile&crumb=${encodeURIComponent(session.crumb)}`;
+      `?modules=summaryDetail,assetProfile,fundProfile,defaultKeyStatistics&crumb=${encodeURIComponent(session.crumb)}`;
     const res = await fetch(url, {
       headers: { "User-Agent": UA, Cookie: session.cookie },
     });
     if (!res.ok) return null;
     const json = await res.json();
     const result = json?.quoteSummary?.result?.[0] as Record<string, unknown> | null | undefined;
-    const sd = result?.summaryDetail  as Record<string, unknown> | null | undefined;
-    const ap = result?.assetProfile   as Record<string, unknown> | null | undefined;
-    const fp = result?.fundProfile    as Record<string, unknown> | null | undefined;
+    const sd  = result?.summaryDetail       as Record<string, unknown> | null | undefined;
+    const ap  = result?.assetProfile        as Record<string, unknown> | null | undefined;
+    const fp  = result?.fundProfile         as Record<string, unknown> | null | undefined;
+    const dks = result?.defaultKeyStatistics as Record<string, unknown> | null | undefined;
     if (!sd) return null;
 
     return {
@@ -117,7 +118,8 @@ export async function fetchFundamentalsForTicker(
       open:                         num(sd, "open"),
       dayLow:                       num(sd, "dayLow"),
       dayHigh:                      num(sd, "dayHigh"),
-      beta:                         num(sd, "beta"),
+      // summaryDetail.beta works for stocks; ETFs sometimes put it in defaultKeyStatistics
+      beta:                         num(sd, "beta") ?? num(dks ?? {}, "beta"),
       trailingPE:                   num(sd, "trailingPE"),
       forwardPE:                    num(sd, "forwardPE"),
       volume:                       num(sd, "regularMarketVolume"),
