@@ -932,7 +932,7 @@ export default function StockDetail({ ticker }: { ticker: string }) {
   const [rsData, setRsData]     = useState<RSData | null>(null);
   const [rsLoading, setRsLoading] = useState(true);
 
-  interface ScenarioCase { "6m": string; "1y": string; "2y": string; priceTarget: number; }
+  interface ScenarioCase { "6m": string; "1y": string; "2y": string; target6m: { low: number; high: number }; target1y: { low: number; high: number }; target2y: { low: number; high: number }; }
   interface ScenarioData { bull: ScenarioCase; base: ScenarioCase; bear: ScenarioCase; generated_at: string; }
   const [scenarioData, setScenarioData]       = useState<ScenarioData | null>(null);
   const [scenarioLoading, setScenarioLoading] = useState(false);
@@ -1136,14 +1136,14 @@ export default function StockDetail({ ticker }: { ticker: string }) {
     setScenarioVisible(false);
     try {
       const [data] = await Promise.all([
-        fetch(`/api/scenarios?ticker=${ticker}&readonly=true`)
+        fetch(`/api/scenarios?ticker=${ticker}`)
           .then(r => r.ok ? r.json() : null)
           .catch(() => null) as Promise<(ScenarioData & { cached?: boolean }) | null>,
         new Promise<void>(res => setTimeout(res, 2500)),
       ]);
       if (data && data.cached === false) {
         // Not yet generated — show "being prepared" state using placeholder data
-        const placeholder = { "6m": BEING_PREPARED, "1y": "", "2y": "", priceTarget: 0 };
+        const placeholder = { "6m": BEING_PREPARED, "1y": "", "2y": "", target6m: { low: 0, high: 0 }, target1y: { low: 0, high: 0 }, target2y: { low: 0, high: 0 } };
         setScenarioData({ bull: placeholder, base: placeholder, bear: placeholder, generated_at: "" });
         requestAnimationFrame(() => requestAnimationFrame(() => setScenarioVisible(true)));
       } else if (data?.bull) {
@@ -1571,10 +1571,10 @@ export default function StockDetail({ ticker }: { ticker: string }) {
                 ];
                 const active = scenarioData[scenarioTab];
                 const activeColor = TABS.find(t => t.key === scenarioTab)!.color;
-                const timeframes: Array<{ key: "6m" | "1y" | "2y"; label: string }> = [
-                  { key: "6m", label: "6 months" },
-                  { key: "1y", label: "1 year" },
-                  { key: "2y", label: "2+ years" },
+                const timeframes: Array<{ key: "6m" | "1y" | "2y"; label: string; targetKey: "target6m" | "target1y" | "target2y"; targetLabel: string }> = [
+                  { key: "6m", label: "6 months",  targetKey: "target6m", targetLabel: "6M Target" },
+                  { key: "1y", label: "1 year",    targetKey: "target1y", targetLabel: "1Y Target" },
+                  { key: "2y", label: "2+ years",  targetKey: "target2y", targetLabel: "2Y Target" },
                 ];
                 const isTracked = !!trackedTheses[scenarioTab];
                 const inFlight  = trackingInFlight.has(scenarioTab);
@@ -1638,24 +1638,24 @@ export default function StockDetail({ ticker }: { ticker: string }) {
                       </button>
                     </div>
 
-                    {/* Price target pill */}
-                    <div style={{ marginBottom: 16 }}>
-                      <span style={{
-                        fontSize: 13, fontWeight: 600, padding: "4px 12px", borderRadius: 20,
-                        background: `${activeColor}18`, border: `1px solid ${activeColor}40`, color: activeColor,
-                      }}>
-                        Target: ${active.priceTarget.toLocaleString()}
-                      </span>
-                    </div>
-
                     {/* Timeframe cards */}
                     <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
-                      {timeframes.map(tf => (
-                        <div key={tf.key} style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "12px 14px" }}>
-                          <div style={{ fontSize: 10, fontWeight: 600, color: activeColor, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 6 }}>{tf.label}</div>
-                          <div style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.6 }}>{active[tf.key]}</div>
-                        </div>
-                      ))}
+                      {timeframes.map(tf => {
+                        const tgt = active[tf.targetKey];
+                        return (
+                          <div key={tf.key} style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "12px 14px" }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                              <div style={{ fontSize: 10, fontWeight: 600, color: activeColor, letterSpacing: "0.07em", textTransform: "uppercase" }}>{tf.label}</div>
+                              {tgt && (tgt.low > 0 || tgt.high > 0) && (
+                                <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 10, background: `${activeColor}18`, border: `1px solid ${activeColor}40`, color: activeColor }}>
+                                  {tf.targetLabel}: ${tgt.low.toLocaleString()} – ${tgt.high.toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.6 }}>{active[tf.key]}</div>
+                          </div>
+                        );
+                      })}
                     </div>
 
                     {/* Footer */}
