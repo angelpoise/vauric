@@ -56,15 +56,20 @@ export async function generateAnalysis(
   const label   = FIELD_LABELS[nodeType] ?? FIELD_LABELS.stock;
   const name    = displayName ?? ticker;
 
-  // Fetch fundamentals (works for both stock tickers and ETF tickers via Yahoo Finance)
+  // Fetch fundamentals + news in parallel.
+  // For stocks: the /api/fundamentals cache covers them; for ETFs we fall back
+  // to a direct Yahoo call (using the shared cached session in the ETF holdings route).
+  const [fundsRes, newsRes] = await Promise.allSettled([
+    fetch(`${APP_URL}/api/fundamentals`),
+    fetch(`${APP_URL}/api/news?ticker=${encodeURIComponent(ticker)}&limit=10`),
+  ]);
+
+  // Resolve fundamentals — prefer in-process cache, fall back to direct Yahoo
   let f: FundamentalsEntry | null = null;
-  try {
-    const fundsRes = await fetch(`${APP_URL}/api/fundamentals`);
-    if (fundsRes.ok) {
-      const all = await fundsRes.json() as Record<string, FundamentalsEntry>;
-      f = all[ticker] ?? null;
-    }
-  } catch { /* ignore */ }
+  if (fundsRes.status === "fulfilled" && fundsRes.value.ok) {
+    const all = await fundsRes.value.json() as Record<string, FundamentalsEntry>;
+    f = all[ticker] ?? null;
+  }
   if (!f) {
     const session = await getYahooSession();
     if (session) f = await fetchFundamentalsForTicker(ticker, session);
@@ -88,21 +93,19 @@ export async function generateAnalysis(
     }
   }
 
+  // Resolve news
   let newsCtx = "";
-  try {
-    const newsRes = await fetch(`${APP_URL}/api/news?ticker=${ticker}&limit=10`);
-    if (newsRes.ok) {
-      const articles = await newsRes.json();
-      if (Array.isArray(articles) && articles.length > 0) {
-        newsCtx = articles
-          .slice(0, 10)
-          .map((a: { headline: string; published_at: string }) =>
-            `- ${a.headline} (${new Date(a.published_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })})`
-          )
-          .join("\n");
-      }
+  if (newsRes.status === "fulfilled" && newsRes.value.ok) {
+    const articles = await newsRes.value.json();
+    if (Array.isArray(articles) && articles.length > 0) {
+      newsCtx = articles
+        .slice(0, 10)
+        .map((a: { headline: string; published_at: string }) =>
+          `- ${a.headline} (${new Date(a.published_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })})`
+        )
+        .join("\n");
     }
-  } catch { /* ignore */ }
+  }
 
   const subject = isStock ? (f?.sector ? `${name} (${f.sector})` : name) : name;
   const nodeTypeLabel = nodeType === "subsubsector" ? "investment theme / sub-sub-sector" : nodeType;
