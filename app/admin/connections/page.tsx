@@ -70,6 +70,7 @@ export default function ConnectionsPage() {
   const [nodeA, setNodeA]             = useState("");
   const [nodeB, setNodeB]             = useState("");
   const [tierFilter, setTierFilter]   = useState<number | null>(null);
+  const [search, setSearch]           = useState("");
   const [err, setErr]                 = useState<string | null>(null);
 
   const autoTier = useMemo(
@@ -99,9 +100,14 @@ export default function ConnectionsPage() {
     return g;
   }, [nodes]);
 
-  const displayed = tierFilter === null
-    ? connections
-    : connections.filter((c) => c.tier === tierFilter);
+  const displayed = useMemo(() => {
+    const q = search.trim().toUpperCase();
+    return connections.filter((c) => {
+      if (tierFilter !== null && c.tier !== tierFilter) return false;
+      if (q && !c.ticker_a.toUpperCase().includes(q) && !c.ticker_b.toUpperCase().includes(q)) return false;
+      return true;
+    });
+  }, [connections, tierFilter, search]);
 
   const tierCounts = useMemo(() => {
     const c: Record<number, number> = { 1: 0, 2: 0, 3: 0 };
@@ -186,8 +192,14 @@ export default function ConnectionsPage() {
 
       {/* Filter bar + table */}
       <div style={CARD}>
-        {/* Tier filter tabs */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+        {/* Search + tier filter */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            style={{ ...INPUT, width: 180, fontSize: 12, padding: "5px 10px" }}
+            placeholder="Search ticker…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
           {([null, 1, 2, 3] as const).map((t) => {
             const count = t === null ? connections.length : tierCounts[t];
             const active = tierFilter === t;
@@ -206,6 +218,11 @@ export default function ConnectionsPage() {
               </button>
             );
           })}
+          {(search || tierFilter !== null) && (
+            <span style={{ fontSize: 11, color: "#334155" }}>
+              Showing {displayed.length} of {connections.length}
+            </span>
+          )}
         </div>
 
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
