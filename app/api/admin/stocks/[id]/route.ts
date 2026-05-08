@@ -32,7 +32,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 // PATCH — partial update by ticker (stocks) or id (hierarchy)
 const ALLOWED_PATCH_FIELDS = new Set([
   "x_position", "y_position", "analysis_schedule", "scenario_schedule",
-  "colour", "etf_ticker", "display_name", "parent_node_id", "tags",
+  "colour", "etf_ticker", "display_name", "parent_node_id", "sector",
 ]);
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
