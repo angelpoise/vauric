@@ -5,30 +5,36 @@ import HierarchyDetail, { type HierarchyNode, type ConstituentStock } from "@/co
 interface Props { params: { name: string } }
 
 export default async function SubsectorPage({ params }: Props) {
-  // Next.js App Router auto-decodes path segments, but run decodeURIComponent
-  // as a safety net for any double-encoded edge cases.
-  const name = decodeURIComponent(params.name);
+  const raw     = params.name;
+  const decoded = decodeURIComponent(raw);
 
-  const { data: node } = await supabaseAdmin
+  console.log(`[subsector] params.name=${JSON.stringify(raw)} decoded=${JSON.stringify(decoded)}`);
+
+  const { data: node, error } = await supabaseAdmin
     .from("admin_nodes")
     .select("id, node_type, company_name, display_name, etf_ticker, colour, x_position, y_position")
     .eq("node_type", "subsector")
-    .eq("company_name", name)
+    .eq("company_name", decoded)
     .maybeSingle();
 
-  if (!node) return notFound();
+  console.log(`[subsector] query company_name=${JSON.stringify(decoded)}`,
+    `→ node=${node ? JSON.stringify({ id: node.id, company_name: node.company_name, node_type: node.node_type }) : "null"}`,
+    `error=${error ? JSON.stringify(error) : "none"}`);
 
-  // Stocks connected to this subsector via admin_connections.
-  // Query both orderings since connections can be stored in either direction.
+  if (!node) {
+    console.log(`[subsector] returning notFound for decoded=${JSON.stringify(decoded)}`);
+    return notFound();
+  }
+
   const { data: connsA } = await supabaseAdmin
     .from("admin_connections")
     .select("ticker_b")
-    .eq("ticker_a", name);
+    .eq("ticker_a", decoded);
 
   const { data: connsB } = await supabaseAdmin
     .from("admin_connections")
     .select("ticker_a")
-    .eq("ticker_b", name);
+    .eq("ticker_b", decoded);
 
   const connectedIds = new Set<string>([
     ...(connsA ?? []).map((c) => c.ticker_b as string),
@@ -45,7 +51,7 @@ export default async function SubsectorPage({ params }: Props) {
     stocks = (stockRows ?? []) as ConstituentStock[];
   }
 
-  const analysisKey = node.etf_ticker ?? name;
+  const analysisKey = node.etf_ticker ?? decoded;
 
   return (
     <HierarchyDetail
