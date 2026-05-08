@@ -50,7 +50,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     ? supabaseAdmin.from("admin_nodes").update(body).eq("id", params.id)
     : supabaseAdmin.from("admin_nodes").update(body).eq("ticker", params.id.toUpperCase());
   const { error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error(`[admin/nodes PATCH] id=${params.id} error:`, JSON.stringify(error));
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
   revalidatePath("/api/graph");
   return NextResponse.json({ ok: true });
 }

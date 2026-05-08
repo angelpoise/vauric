@@ -25,10 +25,10 @@ import { adminFetch } from "@/lib/adminFetch";
 // ─── Sector localStorage helpers ──────────────────────────────────────────────
 
 const BUILT_IN_SECTORS: Array<Omit<SectorNode, "colour">> = [
-  { id: "sec-tech",    kind: "sector", name: "Technology", etf: "XLK", price: 224.18, dailyMove:  1.2, x:  500, y: 420, notifications: [] },
-  { id: "sec-energy",  kind: "sector", name: "Energy",     etf: "XLE", price:  93.42, dailyMove: -0.8, x: 1100, y: 360, notifications: [] },
-  { id: "sec-health",  kind: "sector", name: "Healthcare", etf: "XLV", price: 143.76, dailyMove:  0.3, x:  440, y: 750, notifications: [] },
-  { id: "sec-finance", kind: "sector", name: "Finance",    etf: "XLF", price:  45.21, dailyMove:  0.7, x: 1155, y: 710, notifications: [] },
+  { id: "XLK",  kind: "sector", name: "Technology",         etf: "XLK",  price: 224.18, dailyMove:  1.2, x:  500, y: 420, notifications: [] },
+  { id: "XLE",  kind: "sector", name: "Energy",             etf: "XLE",  price:  93.42, dailyMove: -0.8, x: 1100, y: 360, notifications: [] },
+  { id: "XLV",  kind: "sector", name: "Healthcare",         etf: "XLV",  price: 143.76, dailyMove:  0.3, x:  440, y: 750, notifications: [] },
+  { id: "XLF",  kind: "sector", name: "Financial Services", etf: "XLF",  price:  45.21, dailyMove:  0.7, x: 1155, y: 710, notifications: [] },
 ];
 
 type SectorPositions = Record<string, { x: number; y: number }>;
@@ -76,14 +76,12 @@ function loadSectors(): SectorNode[] {
   return [...builtIn, ...custom];
 }
 
-function writeSectorPositions(pending: Record<string, { x: number; y: number }>) {
+function writeHierarchyPositions(pending: Record<string, { x: number; y: number }>) {
   try {
     const stored: SectorPositions = JSON.parse(
       localStorage.getItem("vauric_sector_positions") ?? "{}"
     );
-    for (const [id, pos] of Object.entries(pending)) {
-      if (id.startsWith("sec-")) stored[id] = pos;
-    }
+    for (const [id, pos] of Object.entries(pending)) stored[id] = pos;
     localStorage.setItem("vauric_sector_positions", JSON.stringify(stored));
   } catch { /* ignore */ }
 }
@@ -222,10 +220,14 @@ export default function GraphLayout() {
   async function handleSave() {
     setSaving(true);
     try {
-      const stockEntries = Object.entries(pendingPositions).filter(([id]) => !id.startsWith("sec-"));
-      const sectorEntries = Object.entries(pendingPositions).filter(([id]) => id.startsWith("sec-"));
+      // knownTickers is populated by onGraphLoaded and contains only stock tickers.
+      // All other node IDs (sector ETF tickers, subsector/subsubsector names) are
+      // hierarchy nodes whose positions are persisted to localStorage, not the DB.
+      const stockSet = new Set(knownTickers);
+      const stockEntries    = Object.entries(pendingPositions).filter(([id]) =>  stockSet.has(id));
+      const hierarchyEntries = Object.entries(pendingPositions).filter(([id]) => !stockSet.has(id));
 
-      await Promise.all(
+      const results = await Promise.allSettled(
         stockEntries.map(([ticker, { x, y }]) =>
           adminFetch(`/api/admin/stocks/${ticker}`, {
             method: "PATCH",
@@ -234,15 +236,23 @@ export default function GraphLayout() {
               x_position: x / 1600,
               y_position: y / 1100,
             }),
+          }).then(async (r) => {
+            if (!r.ok) {
+              const body = await r.json().catch(() => ({}));
+              console.error(`[graph/save] PATCH failed for ${ticker}: ${r.status}`, body);
+            }
+            return r;
           })
         )
       );
 
-      if (sectorEntries.length > 0) {
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed > 0) console.error(`[graph/save] ${failed} stock position(s) failed to save`);
+
+      if (hierarchyEntries.length > 0) {
         const pending: Record<string, { x: number; y: number }> = {};
-        for (const [id, pos] of sectorEntries) pending[id] = pos;
-        writeSectorPositions(pending);
-        // Update sectors state so positions are reflected
+        for (const [id, pos] of hierarchyEntries) pending[id] = pos;
+        writeHierarchyPositions(pending);
         setSectors((prev) => prev.map((s) => {
           const p = pending[s.id];
           return p ? { ...s, x: p.x, y: p.y } : s;
@@ -250,10 +260,7 @@ export default function GraphLayout() {
       }
 
       setPendingPositions({});
-      // Update snapshot so any further drags revert to the newly saved positions
       canvasRef.current?.snapshotPositions();
-      // Invalidate the /api/graph Next.js cache so the next page load
-      // fetches fresh positions from the database rather than the stale cache.
       adminFetch("/api/admin/revalidate", { method: "POST" }).catch(() => {});
     } finally {
       setSaving(false);
