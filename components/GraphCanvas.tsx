@@ -796,9 +796,23 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         const rawMove  = liveDataReadyRef.current ? (live?.dailyMove ?? (node as { dailyMove?: number }).dailyMove ?? 0) : 0;
         // For sectors: use stored colour if no live data available, otherwise use market colour
         const marketCol  = moveColor(rawMove);
-        const col = (node.kind === "sector" && node.colour && (!liveDataReadyRef.current || !live))
-          ? node.colour
-          : marketCol;
+        const col = (() => {
+          if (node.kind === "sector") {
+            // Prefer live ETF market colour; fall back to stored brand colour
+            return (node.colour && (!liveDataReadyRef.current || !live))
+              ? node.colour
+              : marketCol;
+          }
+          if (node.kind === "subsector" || node.kind === "subsubsector") {
+            // When live sector ETF data is present use market colour directly;
+            // otherwise inherit the parent sector's stored brand colour so
+            // hierarchy rings are never rendered as neutral grey.
+            if (liveDataReadyRef.current && live) return marketCol;
+            const parentSector = gd.nodeById.get(node.sectorEtf) as { colour?: string } | undefined;
+            return parentSector?.colour ?? marketCol;
+          }
+          return marketCol;
+        })();
         const fillCol  = moveFill(rawMove);
         const isHovered  = node.id === hid;
         const isNeighbor = hovNeighbors?.has(node.id) ?? false;
@@ -878,9 +892,14 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
     // ── Node draw helpers ────────────────────────────────────────────────────
 
     function withOpacity(col: string, alpha: number): string {
-      return col.startsWith("rgb(")
-        ? col.replace("rgb(", "rgba(").replace(")", `, ${alpha})`)
-        : col;
+      if (col.startsWith("rgb(")) return col.replace("rgb(", "rgba(").replace(")", `, ${alpha})`);
+      if (col.startsWith("#") && col.length === 7) {
+        const r = parseInt(col.slice(1, 3), 16);
+        const g = parseInt(col.slice(3, 5), 16);
+        const b = parseInt(col.slice(5, 7), 16);
+        return `rgba(${r},${g},${b},${alpha})`;
+      }
+      return col;
     }
 
     function drawSectorNode(
@@ -927,18 +946,18 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       const pulse = 1 + Math.sin(t * 0.6 + node.x * 0.011) * 0.025;
       c.beginPath();
       c.arc(0, 0, r * pulse, 0, Math.PI * 2);
-      c.strokeStyle = col;
+      c.strokeStyle = withOpacity(col, 0.75);
       c.lineWidth   = 1.8;
       c.stroke();
 
-      c.fillStyle    = col;
+      c.fillStyle    = withOpacity(col, 0.65);
       c.font         = `400 9px "DM Sans", sans-serif`;
       c.textAlign    = "center";
       c.textBaseline = "top";
       c.fillText(node.name, 0, r + 7);
 
       if (node.etf) {
-        c.fillStyle = withOpacity(col, 0.55);
+        c.fillStyle = withOpacity(col, 0.45);
         c.font      = `300 8px "DM Sans", sans-serif`;
         c.fillText(node.etf, 0, r + 17);
       }
@@ -954,11 +973,11 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       const pulse = 1 + Math.sin(t * 0.5 + node.x * 0.013) * 0.02;
       c.beginPath();
       c.arc(0, 0, r * pulse, 0, Math.PI * 2);
-      c.strokeStyle = withOpacity(col, 0.75);
+      c.strokeStyle = withOpacity(col, 0.55);
       c.lineWidth   = 1.2;
       c.stroke();
 
-      c.fillStyle    = withOpacity(col, 0.75);
+      c.fillStyle    = withOpacity(col, 0.45);
       c.font         = `400 8px "DM Sans", sans-serif`;
       c.textAlign    = "center";
       c.textBaseline = "top";
