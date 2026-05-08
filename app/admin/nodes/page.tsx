@@ -479,9 +479,8 @@ export default function NodesPage() {
           </table>
         </div>
       </div>
-    </div>
 
-    {/* ── Edit modal ─────────────────────────────────────────────────── */}
+      {/* ── Edit modal ─────────────────────────────────────────────────── */}
     {editingNode && editForm && (
       <>
         <div onClick={() => { setEditingNode(null); setEditForm(null); }}
@@ -543,6 +542,6 @@ export default function NodesPage() {
         </div>
       </>
     )}
-  </div>
+    </div>
   );
 }
