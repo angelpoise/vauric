@@ -793,7 +793,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
           : (node.kind === "subsector" || node.kind === "subsubsector") ? node.sectorEtf
           : node.id;
         const live     = liveDataRef.current[liveKey];
-        const rawMove  = liveDataReadyRef.current ? (live?.dailyMove ?? node.dailyMove) : 0;
+        const rawMove  = liveDataReadyRef.current ? (live?.dailyMove ?? (node as { dailyMove?: number }).dailyMove ?? 0) : 0;
         // For sectors: use stored colour if no live data available, otherwise use market colour
         const marketCol  = moveColor(rawMove);
         const col = (node.kind === "sector" && node.colour && (!liveDataReadyRef.current || !live))

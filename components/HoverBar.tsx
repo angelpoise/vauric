@@ -1,6 +1,6 @@
 "use client";
 
-import { type GNode, NOTIF, moveColor } from "@/lib/graphTypes";
+import { type GNode, type SubSectorNode, type SubSubSectorNode, NOTIF, moveColor } from "@/lib/graphTypes";
 
 export const HBAR_H = 68;
 
@@ -11,23 +11,45 @@ interface Props {
 
 function Divider() {
   return (
-    <div
-      style={{
-        width: 1,
-        height: 28,
-        background: "rgba(255,255,255,0.07)",
-        flexShrink: 0,
-      }}
-    />
+    <div style={{ width: 1, height: 28, background: "rgba(255,255,255,0.07)", flexShrink: 0 }} />
   );
 }
 
+// Defensive accessors for fields that only exist on stock/sector nodes but may be
+// dynamically merged onto hierarchy nodes by GraphCanvas.setHover via live ETF data.
+function nodePrice(node: GNode): number {
+  return (node as { price?: number }).price ?? 0;
+}
+function nodeDailyMove(node: GNode): number {
+  return (node as { dailyMove?: number }).dailyMove ?? 0;
+}
+
+// Primary identifier shown large on the left
+function nodeIdentifier(node: GNode): string {
+  if (node.kind === "stock")         return node.ticker;
+  if (node.kind === "sector")        return node.etf;
+  // subsector/subsubsector: use own ETF if present, otherwise the name
+  return (node as SubSectorNode | SubSubSectorNode).etf ?? node.name;
+}
+
+// Secondary label shown below the identifier
+function nodeSubtitle(node: GNode): string | null {
+  if (node.kind === "sector")        return "Sector ETF";
+  if (node.kind === "subsector")     return `${(node as SubSectorNode).sectorEtf} · Sub-sector`;
+  if (node.kind === "subsubsector")  return `${(node as SubSubSectorNode).sectorEtf} · Sub-sub-sector`;
+  return null;
+}
 
 export default function HoverBar({ node, leftOffset }: Props) {
-  const col = node ? moveColor(node.dailyMove) : "#64748b";
-  const pctSign = node && node.dailyMove >= 0 ? "+" : "";
-  const dollarMove = node ? (node.price * node.dailyMove) / 100 : 0;
-  const dolSign = node && node.dailyMove >= 0 ? "+" : "-";
+  const move     = node ? nodeDailyMove(node) : 0;
+  const price    = node ? nodePrice(node) : 0;
+  const col      = moveColor(move);
+  const pctSign  = move >= 0 ? "+" : "";
+  const dolSign  = move >= 0 ? "+" : "-";
+  const dollarMove = price > 0 ? Math.abs((price * move) / 100) : 0;
+
+  // Whether we have meaningful live price data to display
+  const hasLiveData = price > 0 || move !== 0;
 
   return (
     <div
@@ -53,38 +75,23 @@ export default function HoverBar({ node, leftOffset }: Props) {
     >
       {node ? (
         <>
-          {/* Ticker */}
+          {/* Primary identifier (ticker for stocks, ETF or name for hierarchy) */}
           <div style={{ flexShrink: 0 }}>
-            <div
-              style={{
-                fontSize: 18,
-                fontWeight: 700,
-                color: "#f1f5f9",
-                letterSpacing: "0.05em",
-                lineHeight: 1,
-              }}
-            >
-              {node.kind === "stock" ? node.ticker : node.etf}
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#f1f5f9", letterSpacing: "0.05em", lineHeight: 1 }}>
+              {nodeIdentifier(node)}
             </div>
           </div>
 
           <Divider />
 
-          {/* Company name */}
+          {/* Display name + optional subtitle */}
           <div style={{ flexShrink: 0 }}>
-            <div
-              style={{
-                fontSize: 13,
-                color: "#94a3b8",
-                fontWeight: 300,
-                whiteSpace: "nowrap",
-              }}
-            >
+            <div style={{ fontSize: 13, color: "#94a3b8", fontWeight: 300, whiteSpace: "nowrap" }}>
               {node.name}
             </div>
-            {node.kind === "sector" && (
+            {nodeSubtitle(node) && (
               <div style={{ fontSize: 11, color: "#475569", fontWeight: 300, marginTop: 2 }}>
-                Sector ETF
+                {nodeSubtitle(node)}
               </div>
             )}
           </div>
@@ -94,7 +101,7 @@ export default function HoverBar({ node, leftOffset }: Props) {
           {/* Price */}
           <div style={{ flexShrink: 0 }}>
             <div style={{ fontSize: 15, fontWeight: 500, color: "#f1f5f9" }}>
-              ${node.price.toFixed(2)}
+              {hasLiveData && price > 0 ? `$${price.toFixed(2)}` : "—"}
             </div>
           </div>
 
@@ -102,62 +109,37 @@ export default function HoverBar({ node, leftOffset }: Props) {
 
           {/* Daily move % */}
           <div style={{ flexShrink: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: col }}>
-              {pctSign}{node.dailyMove.toFixed(2)}%
+            <div style={{ fontSize: 14, fontWeight: 600, color: hasLiveData ? col : "#334155" }}>
+              {hasLiveData ? `${pctSign}${move.toFixed(2)}%` : "—"}
             </div>
           </div>
 
-          {/* Daily move $ */}
-          <div style={{ flexShrink: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 400, color: col + "bb" }}>
-              {dolSign}${Math.abs(dollarMove).toFixed(2)}
+          {/* Daily move $ — only shown for stock nodes and when price is available */}
+          {node.kind === "stock" && hasLiveData && price > 0 && (
+            <div style={{ flexShrink: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 400, color: col + "bb" }}>
+                {dolSign}${dollarMove.toFixed(2)}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Notifications */}
+          {/* Notification pills */}
           {node.notifications.length > 0 && (
             <>
               <Divider />
-              <div
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  alignItems: "center",
-                  flexWrap: "nowrap",
-                  overflow: "hidden",
-                }}
-              >
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "nowrap", overflow: "hidden" }}>
                 {node.notifications.map((n, i) => (
                   <div
                     key={i}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
+                      display: "flex", alignItems: "center", gap: 6,
                       background: NOTIF[n.type].color + "14",
                       border: `1px solid ${NOTIF[n.type].color}30`,
-                      borderRadius: 20,
-                      padding: "3px 10px 3px 7px",
-                      flexShrink: 0,
+                      borderRadius: 20, padding: "3px 10px 3px 7px", flexShrink: 0,
                     }}
                   >
-                    <div
-                      style={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: "50%",
-                        background: NOTIF[n.type].color,
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span
-                      style={{
-                        fontSize: 11,
-                        color: NOTIF[n.type].color,
-                        fontWeight: 400,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: NOTIF[n.type].color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 11, color: NOTIF[n.type].color, fontWeight: 400, whiteSpace: "nowrap" }}>
                       {NOTIF[n.type].label}
                     </span>
                   </div>
@@ -165,11 +147,10 @@ export default function HoverBar({ node, leftOffset }: Props) {
               </div>
             </>
           )}
-
         </>
       ) : (
         <div style={{ fontSize: 13, color: "#334155" }}>
-          Hover over a node to see stock info
+          Hover over a node for details
         </div>
       )}
     </div>
