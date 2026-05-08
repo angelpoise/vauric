@@ -5,6 +5,8 @@ import HierarchyDetail, { type HierarchyNode, type ConstituentStock } from "@/co
 interface Props { params: { name: string } }
 
 export default async function SubsectorPage({ params }: Props) {
+  // Next.js App Router auto-decodes path segments, but run decodeURIComponent
+  // as a safety net for any double-encoded edge cases.
   const name = decodeURIComponent(params.name);
 
   const { data: node } = await supabaseAdmin
@@ -16,17 +18,22 @@ export default async function SubsectorPage({ params }: Props) {
 
   if (!node) return notFound();
 
-  // Stocks connected to this subsector via admin_connections
-  const { data: conns } = await supabaseAdmin
+  // Stocks connected to this subsector via admin_connections.
+  // Query both orderings since connections can be stored in either direction.
+  const { data: connsA } = await supabaseAdmin
     .from("admin_connections")
-    .select("ticker_a, ticker_b")
-    .or(`ticker_a.eq.${name},ticker_b.eq.${name}`);
+    .select("ticker_b")
+    .eq("ticker_a", name);
 
-  const connectedIds = new Set<string>();
-  for (const c of conns ?? []) {
-    const other = c.ticker_a === name ? c.ticker_b : c.ticker_a;
-    connectedIds.add(other);
-  }
+  const { data: connsB } = await supabaseAdmin
+    .from("admin_connections")
+    .select("ticker_a")
+    .eq("ticker_b", name);
+
+  const connectedIds = new Set<string>([
+    ...(connsA ?? []).map((c) => c.ticker_b as string),
+    ...(connsB ?? []).map((c) => c.ticker_a as string),
+  ]);
 
   let stocks: ConstituentStock[] = [];
   if (connectedIds.size > 0) {
@@ -38,7 +45,6 @@ export default async function SubsectorPage({ params }: Props) {
     stocks = (stockRows ?? []) as ConstituentStock[];
   }
 
-  // Analysis key: own ETF if available, else company_name
   const analysisKey = node.etf_ticker ?? name;
 
   return (

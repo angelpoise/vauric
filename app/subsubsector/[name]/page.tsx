@@ -16,17 +16,21 @@ export default async function SubSubSectorPage({ params }: Props) {
 
   if (!node) return notFound();
 
-  // Stocks connected to this sub-sub-sector via admin_connections
-  const { data: conns } = await supabaseAdmin
+  // Stocks connected to this sub-sub-sector via admin_connections.
+  const { data: connsA } = await supabaseAdmin
     .from("admin_connections")
-    .select("ticker_a, ticker_b")
-    .or(`ticker_a.eq.${name},ticker_b.eq.${name}`);
+    .select("ticker_b")
+    .eq("ticker_a", name);
 
-  const connectedIds = new Set<string>();
-  for (const c of conns ?? []) {
-    const other = c.ticker_a === name ? c.ticker_b : c.ticker_a;
-    connectedIds.add(other);
-  }
+  const { data: connsB } = await supabaseAdmin
+    .from("admin_connections")
+    .select("ticker_a")
+    .eq("ticker_b", name);
+
+  const connectedIds = new Set<string>([
+    ...(connsA ?? []).map((c) => c.ticker_b as string),
+    ...(connsB ?? []).map((c) => c.ticker_a as string),
+  ]);
 
   let stocks: ConstituentStock[] = [];
   if (connectedIds.size > 0) {
@@ -38,7 +42,6 @@ export default async function SubSubSectorPage({ params }: Props) {
     stocks = (stockRows ?? []) as ConstituentStock[];
   }
 
-  // Analysis key: own ETF if available, else company_name
   const analysisKey = node.etf_ticker ?? name;
 
   return (
