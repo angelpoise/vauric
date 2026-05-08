@@ -35,8 +35,9 @@ export async function GET(req: NextRequest) {
 
   // Fetch all stocks with their schedule and the latest cached analysis age
   const { data: stocks, error: stocksErr } = await supabaseAdmin
-    .from("admin_stocks")
-    .select("ticker, analysis_schedule");
+    .from("admin_nodes")
+    .select("ticker, analysis_schedule")
+    .eq("node_type", "stock");
 
   if (stocksErr || !stocks) {
     return NextResponse.json({ error: "Failed to fetch stocks" }, { status: 500 });

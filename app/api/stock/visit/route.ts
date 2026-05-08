@@ -1,8 +1,8 @@
-// Required Supabase schema additions to admin_stocks:
+// Required Supabase schema additions to admin_nodes:
 //
-//   ALTER TABLE admin_stocks ADD COLUMN IF NOT EXISTS visit_count INTEGER DEFAULT 0;
-//   ALTER TABLE admin_stocks ADD COLUMN IF NOT EXISTS last_visited_at TIMESTAMPTZ;
-//   ALTER TABLE admin_stocks ADD COLUMN IF NOT EXISTS analysis_schedule TEXT DEFAULT 'on_visit';
+//   ALTER TABLE admin_nodes ADD COLUMN IF NOT EXISTS visit_count INTEGER DEFAULT 0;
+//   ALTER TABLE admin_nodes ADD COLUMN IF NOT EXISTS last_visited_at TIMESTAMPTZ;
+//   ALTER TABLE admin_nodes ADD COLUMN IF NOT EXISTS analysis_schedule TEXT DEFAULT 'on_visit';
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -15,13 +15,13 @@ export async function POST(req: NextRequest) {
 
     // Read current count then increment (race condition acceptable for a view counter)
     const { data } = await supabaseAdmin
-      .from("admin_stocks")
+      .from("admin_nodes")
       .select("visit_count")
       .eq("ticker", ticker)
       .single();
 
     await supabaseAdmin
-      .from("admin_stocks")
+      .from("admin_nodes")
       .update({
         visit_count:     (data?.visit_count ?? 0) + 1,
         last_visited_at: new Date().toISOString(),

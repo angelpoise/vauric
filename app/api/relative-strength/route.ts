@@ -97,9 +97,10 @@ export async function GET(req: NextRequest) {
 
   // Look up this stock's sector
   const { data: row } = await supabaseAdmin
-    .from("admin_stocks")
+    .from("admin_nodes")
     .select("sector")
     .eq("ticker", upper)
+    .eq("node_type", "stock")
     .maybeSingle();
 
   const etf = row?.sector ? SECTOR_ETF[row.sector] : null;

@@ -41,8 +41,9 @@ export async function GET(req: NextRequest) {
   }
 
   const { data: stocks } = await supabaseAdmin
-    .from("admin_stocks")
+    .from("admin_nodes")
     .select("ticker, company_name, investor_relations_url")
+    .eq("node_type", "stock")
     .not("investor_relations_url", "is", null);
 
   if (!stocks?.length) return NextResponse.json({ checked: 0, updated: 0, failed: 0 });

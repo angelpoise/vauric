@@ -9,7 +9,7 @@
 //     last_generated_at TIMESTAMPTZ DEFAULT NOW()
 //   );
 //
-//   -- admin_stocks must also have:
+//   -- admin_nodes must also have:
 //   --   analysis_schedule TEXT DEFAULT 'weekly'
 //   --   last_visited_at   TIMESTAMPTZ
 //   --   visit_count       INTEGER DEFAULT 0

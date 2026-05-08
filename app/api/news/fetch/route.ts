@@ -161,11 +161,12 @@ export async function GET(req: NextRequest) {
   const today      = fmt(now);
   const twoDaysAgo = fmt(new Date(cutoffMs));
 
-  // Fetch tickers dynamically from admin_stocks so newly added stocks are
+  // Fetch tickers dynamically from admin_nodes so newly added stocks are
   // included automatically without a code change.
   const { data: stockRows } = await supabase
-    .from("admin_stocks")
+    .from("admin_nodes")
     .select("ticker")
+    .eq("node_type", "stock")
     .order("ticker");
   const graphTickers: string[] = stockRows?.map((r: { ticker: string }) => r.ticker) ?? [];
 

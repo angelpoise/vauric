@@ -9,7 +9,7 @@ function extractUrl(text: string): string | null {
 
 /**
  * Uses Claude with web_search to find the official IR page for a stock,
- * then persists the URL to admin_stocks.
+ * then persists the URL to admin_nodes.
  * Returns the URL on success, null if not found or on error.
  */
 export async function discoverIR(ticker: string, companyName: string): Promise<string | null> {
@@ -45,7 +45,7 @@ export async function discoverIR(ticker: string, companyName: string): Promise<s
     if (!url) return null;
 
     await supabaseAdmin
-      .from("admin_stocks")
+      .from("admin_nodes")
       .update({ investor_relations_url: url })
       .eq("ticker", upper);
 

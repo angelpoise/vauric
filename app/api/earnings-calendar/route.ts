@@ -46,8 +46,9 @@ async function fetchAndMerge(): Promise<EarningsEntry[]> {
       .lte("report_date", ahead30)
       .order("report_date", { ascending: true }),
     supabaseAdmin
-      .from("admin_stocks")
-      .select("ticker, company_name"),
+      .from("admin_nodes")
+      .select("ticker, company_name")
+      .eq("node_type", "stock"),
   ]);
 
   const nameMap: Record<string, string> = {};
@@ -127,9 +128,10 @@ export async function GET(req: NextRequest) {
         .order("report_date", { ascending: false })
         .limit(1),
       supabaseAdmin
-        .from("admin_stocks")
+        .from("admin_nodes")
         .select("company_name")
         .eq("ticker", upper)
+        .eq("node_type", "stock")
         .maybeSingle(),
     ]);
 

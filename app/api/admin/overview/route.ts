@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
   if (!await isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const [stocksRes, articlesRes, configRes] = await Promise.all([
-    supabaseAdmin.from("admin_stocks").select("id", { count: "exact", head: true }),
+    supabaseAdmin.from("admin_nodes").select("id", { count: "exact", head: true }),
     supabaseAdmin.from("news").select("id", { count: "exact", head: true }),
     supabaseAdmin.from("pipeline_config").select("news_pipeline_enabled, last_run_at").eq("id", 1).single(),
   ]);

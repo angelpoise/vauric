@@ -7,6 +7,8 @@ import {
   type GNode,
   type StockNode,
   type SectorNode,
+  type SubSectorNode,
+  type SubSubSectorNode,
   type NotifType,
   NOTIF,
   moveColor,
@@ -80,21 +82,48 @@ export interface GraphCanvasHandle {
   restorePositions: () => void;
 }
 
-// ─── Static sector node defaults ─────────────────────────────────────────────
+// ─── Static sector node defaults (ids = ETF tickers) ────────────────────────
 
 const DEFAULT_SECTOR_NODES: SectorNode[] = [
-  { id: "sec-tech",    kind: "sector", name: "Technology", etf: "XLK", price: 224.18, dailyMove:  1.2, x:  500, y: 420, notifications: [] },
-  { id: "sec-energy",  kind: "sector", name: "Energy",     etf: "XLE", price:  93.42, dailyMove: -0.8, x: 1100, y: 360, notifications: [] },
-  { id: "sec-health",  kind: "sector", name: "Healthcare", etf: "XLV", price: 143.76, dailyMove:  0.3, x:  440, y: 750, notifications: [] },
-  { id: "sec-finance", kind: "sector", name: "Finance",    etf: "XLF", price:  45.21, dailyMove:  0.7, x: 1155, y: 710, notifications: [] },
+  { id: "XLK",  kind: "sector", name: "Technology",         etf: "XLK",  price: 224.18, dailyMove:  1.2, x:  500, y: 420, notifications: [] },
+  { id: "XLE",  kind: "sector", name: "Energy",             etf: "XLE",  price:  93.42, dailyMove: -0.8, x: 1100, y: 360, notifications: [] },
+  { id: "XLV",  kind: "sector", name: "Healthcare",         etf: "XLV",  price: 143.76, dailyMove:  0.3, x:  440, y: 750, notifications: [] },
+  { id: "XLF",  kind: "sector", name: "Financial Services", etf: "XLF",  price:  45.21, dailyMove:  0.7, x: 1155, y: 710, notifications: [] },
+  { id: "XLI",  kind: "sector", name: "Industrials",        etf: "XLI",  price:  62.00, dailyMove:  0.0, x:  800, y: 165, notifications: [] },
+  { id: "XLY",  kind: "sector", name: "Consumer Discr.",    etf: "XLY",  price:  72.00, dailyMove:  0.0, x:  800, y: 935, notifications: [] },
+  { id: "XLC",  kind: "sector", name: "Communication",      etf: "XLC",  price:  80.00, dailyMove:  0.0, x: 1360, y: 550, notifications: [] },
+  { id: "XLB",  kind: "sector", name: "Materials",          etf: "XLB",  price:  85.00, dailyMove:  0.0, x:  240, y: 550, notifications: [] },
+  { id: "XLRE", kind: "sector", name: "Real Estate",        etf: "XLRE", price:  42.00, dailyMove:  0.0, x:  320, y: 935, notifications: [] },
+  { id: "XLU",  kind: "sector", name: "Utilities",          etf: "XLU",  price:  68.00, dailyMove:  0.0, x: 1280, y: 165, notifications: [] },
 ];
 
+// Maps sector text field on stock rows → sector node id (= ETF ticker)
 const SECTOR_MAP: Record<string, string> = {
-  Technology: "sec-tech",
-  Energy:     "sec-energy",
-  Healthcare: "sec-health",
-  Finance:    "sec-finance",
-  Consumer:   "sec-consumer",
+  Technology:              "XLK",
+  Energy:                  "XLE",
+  Healthcare:              "XLV",
+  Finance:                 "XLF",
+  "Financial Services":    "XLF",
+  Consumer:                "XLY",
+  "Consumer Discretionary":"XLY",
+  Industrials:             "XLI",
+  "Communication Services":"XLC",
+  Materials:               "XLB",
+  "Real Estate":           "XLRE",
+  Utilities:               "XLU",
+};
+
+// Maps sector ETF ticker → filter sector string used by filtersTypes.ts
+const ETF_TO_FILTER_ID: Record<string, string> = {
+  XLK: "tech", XLF: "finance", XLV: "health", XLE: "energy", XLY: "consumer",
+  // New sectors fall back to "consumer" to remain visible under the default all-sectors filter
+  XLI: "consumer", XLC: "consumer", XLB: "consumer", XLRE: "consumer", XLU: "consumer",
+};
+
+// Maps sector ETF ticker → routing slug
+const ETF_TO_SLUG: Record<string, string> = {
+  XLK: "tech", XLF: "finance", XLV: "health", XLE: "energy", XLY: "consumer",
+  XLI: "industrials", XLC: "communication", XLB: "materials", XLRE: "real-estate", XLU: "utilities",
 };
 
 // ─── Fallback stock data (used if /api/graph fetch fails) ─────────────────────
@@ -148,8 +177,13 @@ interface GraphData {
   adjacency: Map<string, Set<string>>;
 }
 
-function buildGraphData(sectorNodes: SectorNode[], stockNodes: StockNode[], extraEdges: Edge[]): GraphData {
-  const nodes: GNode[] = [...sectorNodes, ...stockNodes];
+function buildGraphData(
+  sectorNodes: SectorNode[],
+  stockNodes:  StockNode[],
+  extraEdges:  Edge[],
+  subNodes:    Array<SubSectorNode | SubSubSectorNode> = [],
+): GraphData {
+  const nodes: GNode[] = [...sectorNodes, ...subNodes, ...stockNodes];
   const sectorEdges: Edge[] = stockNodes.map((n) => ({ source: n.id, target: n.sectorId }));
   const edges: Edge[] = [...sectorEdges, ...extraEdges];
 
@@ -189,8 +223,21 @@ interface DbStock {
 }
 
 interface DbConnection {
-  ticker_a: string;
-  ticker_b: string;
+  ticker_a:   string;
+  ticker_b:   string;
+  is_primary: boolean;
+}
+
+interface DbHierarchyNode {
+  id:             string;
+  node_type:      "sector" | "subsector" | "subsubsector";
+  company_name:   string;
+  display_name:   string | null;
+  etf_ticker:     string | null;
+  colour:         string | null;
+  parent_node_id: string | null;
+  x_position:     number;
+  y_position:     number;
 }
 
 const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
@@ -290,43 +337,134 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       const existing = currentById.get(s.id);
       return existing ? { ...s, x: existing.x, y: existing.y } : { ...s };
     });
-    graphDataRef.current = buildGraphData(sectorNodesRef.current, stockNodesRef.current, extraEdgesRef.current);
+    const existingSubs = graphDataRef.current.nodes.filter(
+      (n): n is SubSectorNode | SubSubSectorNode => n.kind === "subsector" || n.kind === "subsubsector"
+    );
+    graphDataRef.current = buildGraphData(sectorNodesRef.current, stockNodesRef.current, extraEdgesRef.current, existingSubs);
   }, [sectorNodes]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch graph structure (stocks + connections) from database
+  // Fetch graph structure (stocks + hierarchy + connections) from database
   useEffect(() => {
     fetch("/api/graph")
       .then((r) => r.ok ? r.json() : null)
-      .then((data: { stocks: DbStock[]; connections: DbConnection[] } | null) => {
-        if (!data || !data.stocks?.length) return;
-        const stockNodes: StockNode[] = data.stocks.map((s) => ({
+      .then((data: { stocks: DbStock[]; hierarchy: DbHierarchyNode[]; connections: DbConnection[] } | null) => {
+        if (!data) return;
+
+        // ── Build a lookup: DB uuid → ETF ticker, for resolving parent_node_id
+        const uuidToEtf = new Map<string, string>();
+        for (const h of data.hierarchy ?? []) {
+          if (h.node_type === "sector" && h.etf_ticker) uuidToEtf.set(h.id, h.etf_ticker);
+        }
+        // Also map subsector uuid → its parent sector ETF
+        const uuidToSectorEtf = new Map<string, string>();
+        for (const h of data.hierarchy ?? []) {
+          if (h.node_type === "subsector" && h.parent_node_id) {
+            const sectorEtf = uuidToEtf.get(h.parent_node_id);
+            if (sectorEtf) uuidToSectorEtf.set(h.id, sectorEtf);
+          }
+        }
+
+        // ── Build hierarchy nodes
+        const dbSectorNodes: SectorNode[] = [];
+        const subNodes: Array<SubSectorNode | SubSubSectorNode> = [];
+
+        for (const h of data.hierarchy ?? []) {
+          const label = h.display_name ?? h.company_name;
+          const x     = h.x_position * 1600;
+          const y     = h.y_position * 1100;
+
+          if (h.node_type === "sector") {
+            const etf = h.etf_ticker ?? h.company_name;
+            dbSectorNodes.push({
+              id: etf, kind: "sector", name: label, etf,
+              price: 0, dailyMove: 0, x, y,
+              colour: h.colour ?? undefined,
+              notifications: [],
+            });
+          } else if (h.node_type === "subsector") {
+            const sectorEtf = h.parent_node_id ? (uuidToEtf.get(h.parent_node_id) ?? "XLK") : "XLK";
+            subNodes.push({
+              id: h.company_name, kind: "subsector", name: label,
+              etf: h.etf_ticker ?? undefined,
+              parentId: sectorEtf,
+              sectorEtf,
+              colour: h.colour ?? undefined,
+              x, y, notifications: [],
+            });
+          } else if (h.node_type === "subsubsector") {
+            const parentSectorEtf = h.parent_node_id ? (uuidToSectorEtf.get(h.parent_node_id) ?? "XLK") : "XLK";
+            subNodes.push({
+              id: h.company_name, kind: "subsubsector", name: label,
+              etf: h.etf_ticker ?? undefined,
+              parentId: h.company_name, // overridden below with actual parent name
+              sectorEtf: parentSectorEtf,
+              colour: h.colour ?? undefined,
+              x, y, notifications: [],
+            });
+          }
+        }
+
+        // Fix subsubsector parentId to the subsector's company_name
+        const uuidToName = new Map<string, string>();
+        for (const h of data.hierarchy ?? []) uuidToName.set(h.id, h.company_name);
+        for (const n of subNodes) {
+          if (n.kind === "subsubsector") {
+            const rawH = (data.hierarchy ?? []).find((h) => h.company_name === n.name);
+            if (rawH?.parent_node_id) (n as SubSubSectorNode).parentId = uuidToName.get(rawH.parent_node_id) ?? n.parentId;
+          }
+        }
+
+        // ── Prefer DB sectors; fall back to defaults for any missing ETFs
+        const dbEtfs = new Set(dbSectorNodes.map((s) => s.etf));
+        const fallbackSectors = DEFAULT_SECTOR_NODES.filter((s) => !dbEtfs.has(s.etf));
+        const mergedSectors = [...dbSectorNodes, ...fallbackSectors];
+
+        // Preserve any dragged positions from the current ref
+        const currentById = new Map(graphDataRef.current.nodes.map((n) => [n.id, n]));
+        const finalSectors = mergedSectors.map((s) => {
+          const cur = currentById.get(s.id);
+          return cur ? { ...s, x: cur.x, y: cur.y } : s;
+        });
+
+        sectorNodesRef.current = finalSectors;
+
+        // ── Stock nodes
+        const stockNodes: StockNode[] = (data.stocks ?? []).map((s) => ({
           id:           s.ticker,
           kind:         "stock" as const,
           ticker:       s.ticker,
           name:         s.company_name,
           price:        0,
           dailyMove:    0,
-          sectorId:     SECTOR_MAP[s.sector] ?? "sec-tech",
+          sectorId:     SECTOR_MAP[s.sector] ?? "XLK",
           x:            s.x_position * 1600,
           y:            s.y_position * 1100,
           notifications: [],
         }));
+
+        // ── Extra edges (stock-stock + hierarchy connections)
         const extraEdges: Edge[] = (data.connections ?? []).map((c) => ({
           source: c.ticker_a,
           target: c.ticker_b,
         }));
+
         stockNodesRef.current = stockNodes;
         extraEdgesRef.current = extraEdges;
-        graphDataRef.current = buildGraphData(sectorNodesRef.current, stockNodes, extraEdges);
+        graphDataRef.current = buildGraphData(finalSectors, stockNodes, extraEdges, subNodes);
+
         onGraphLoadedRef.current?.(stockNodes.map((n) => n.ticker));
-        // Cache positions so back-navigation doesn't flash fallback coordinates
+
         const posMap: Record<string, { x: number; y: number }> = {};
         for (const n of stockNodes) posMap[n.id] = { x: n.x, y: n.y };
         setCachedNodePositions(posMap);
         try {
           sessionStorage.setItem("vauric_node_positions", JSON.stringify(posMap));
-        } catch { /* ignore — private browsing or storage quota */ }
-        console.log(`[graph] loaded ${stockNodes.length} stock nodes, ${extraEdges.length} connections`);
+        } catch { /* ignore */ }
+
+        console.log(
+          `[graph] loaded ${stockNodes.length} stocks, ${dbSectorNodes.length} sectors,`,
+          `${subNodes.length} sub/subsubsectors, ${extraEdges.length} connections`,
+        );
       })
       .catch((err) => console.error('[graph] fetch failed:', err));
   }, []);
@@ -344,11 +482,11 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
   // Sector dots: sector-level news articles shown as yellow "news" dots on sector rings.
   useEffect(() => {
     const SECTOR_NODE_MAP: Record<string, string> = {
-      tech:     "sec-tech",
-      energy:   "sec-energy",
-      health:   "sec-health",
-      finance:  "sec-finance",
-      consumer: "sec-consumer",
+      tech:     "XLK",
+      energy:   "XLE",
+      health:   "XLV",
+      finance:  "XLF",
+      consumer: "XLY",
     };
 
     Promise.allSettled([
@@ -490,7 +628,9 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
     // ── Node radius ──────────────────────────────────────────────────────────
 
     function nodeRadius(n: GNode): number {
-      if (n.kind === "sector") return 44;
+      if (n.kind === "sector")       return 44;
+      if (n.kind === "subsector")    return 31;
+      if (n.kind === "subsubsector") return 22;
       const conns = graphDataRef.current.adjacency.get(n.id)?.size ?? 0;
       return Math.min(28, 12 + conns * 2.2);
     }
@@ -513,12 +653,12 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
     // ── Filter helpers ───────────────────────────────────────────────────────
 
     function isNodeFiltered(node: GNode): boolean {
-      if (node.kind === "sector") return false;
+      if (node.kind === "sector" || node.kind === "subsector" || node.kind === "subsubsector") return false;
       const f    = activeFiltersRef.current;
       const live = liveDataRef.current[node.ticker];
       const fund = fundamentalsRef.current[node.ticker] as FundEntry | undefined;
 
-      const sid = node.sectorId.replace("sec-", "");
+      const sid = ETF_TO_FILTER_ID[node.sectorId] ?? node.sectorId.replace("sec-", "");
       if (!f.sectors.includes(sid)) return true;
 
       const notifs = notificationsRef.current[(node as StockNode).ticker] ?? node.notifications;
@@ -583,7 +723,9 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
     }
 
     function effectiveRadius(node: GNode): number {
-      if (node.kind === "sector") return 44;
+      if (node.kind === "sector")       return 44;
+      if (node.kind === "subsector")    return 31;
+      if (node.kind === "subsubsector") return 22;
       // Use graphSettingsRef (not activeFiltersRef) for nodeSize so that filter
       // presets — which spread DEFAULT_FILTERS — cannot accidentally resize nodes.
       // Opacity-only filtering must never affect the radius calculation.
@@ -647,7 +789,9 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       for (const node of gd.nodes) {
         const pos        = worldPos(node, t);
         const r          = effectiveRadius(node);
-        const liveKey  = node.kind === "sector" ? node.etf : node.id;
+        const liveKey  = node.kind === "sector" ? node.etf
+          : (node.kind === "subsector" || node.kind === "subsubsector") ? node.sectorEtf
+          : node.id;
         const live     = liveDataRef.current[liveKey];
         const rawMove  = liveDataReadyRef.current ? (live?.dailyMove ?? node.dailyMove) : 0;
         // For sectors: use stored colour if no live data available, otherwise use market colour
@@ -676,6 +820,10 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
 
         if (node.kind === "sector") {
           drawSectorNode(ctx, node, r, col, t, rawMove);
+        } else if (node.kind === "subsector") {
+          drawSubSectorNode(ctx, node, r, col, t);
+        } else if (node.kind === "subsubsector") {
+          drawSubSubSectorNode(ctx, node, r, col, t);
         } else {
           drawStockNode(ctx, node, r, col, fillCol);
           // Amber ring for stocks held in the user's portfolio
@@ -691,7 +839,9 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         const gs = graphSettingsRef.current;
         const liveNotifs = (node.kind === "stock"
           ? (notificationsRef.current[node.ticker] ?? node.notifications)
-          : node.notifications
+          : node.kind === "sector"
+            ? (notificationsRef.current[node.id] ?? node.notifications)
+            : node.notifications
         ).filter((n) => !gs.hiddenNotifTypes.includes(n.type));
 
         liveNotifs.forEach((notif, i) => {
@@ -767,6 +917,54 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       c.fillText(`${node.etf}  ${sign}${move.toFixed(1)}%`, 0, r + 23);
     }
 
+    function drawSubSectorNode(
+      c: CanvasRenderingContext2D,
+      node: SubSectorNode,
+      r: number,
+      col: string,
+      t: number,
+    ) {
+      const pulse = 1 + Math.sin(t * 0.6 + node.x * 0.011) * 0.025;
+      c.beginPath();
+      c.arc(0, 0, r * pulse, 0, Math.PI * 2);
+      c.strokeStyle = col;
+      c.lineWidth   = 1.8;
+      c.stroke();
+
+      c.fillStyle    = col;
+      c.font         = `400 9px "DM Sans", sans-serif`;
+      c.textAlign    = "center";
+      c.textBaseline = "top";
+      c.fillText(node.name, 0, r + 7);
+
+      if (node.etf) {
+        c.fillStyle = withOpacity(col, 0.55);
+        c.font      = `300 8px "DM Sans", sans-serif`;
+        c.fillText(node.etf, 0, r + 17);
+      }
+    }
+
+    function drawSubSubSectorNode(
+      c: CanvasRenderingContext2D,
+      node: SubSubSectorNode,
+      r: number,
+      col: string,
+      t: number,
+    ) {
+      const pulse = 1 + Math.sin(t * 0.5 + node.x * 0.013) * 0.02;
+      c.beginPath();
+      c.arc(0, 0, r * pulse, 0, Math.PI * 2);
+      c.strokeStyle = withOpacity(col, 0.75);
+      c.lineWidth   = 1.2;
+      c.stroke();
+
+      c.fillStyle    = withOpacity(col, 0.75);
+      c.font         = `400 8px "DM Sans", sans-serif`;
+      c.textAlign    = "center";
+      c.textBaseline = "top";
+      c.fillText(node.name, 0, r + 6);
+    }
+
     function drawStockNode(
       c: CanvasRenderingContext2D,
       node: StockNode,
@@ -801,11 +999,15 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
 
     function setHover(node: GNode | null) {
       if (node) {
-        const liveKey   = node.kind === "sector" ? node.etf : node.id;
+        const liveKey   = node.kind === "sector" ? node.etf
+          : (node.kind === "subsector" || node.kind === "subsubsector") ? node.sectorEtf
+          : node.id;
         const live      = liveDataRef.current[liveKey];
         const liveNotifs = node.kind === "stock"
           ? (notificationsRef.current[node.ticker] ?? node.notifications)
-          : node.notifications;
+          : node.kind === "sector"
+            ? (notificationsRef.current[node.id] ?? node.notifications)
+            : node.notifications;
         const merged: GNode = {
           ...node,
           ...(live ? { price: live.price, dailyMove: live.dailyMove } : {}),
@@ -828,8 +1030,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
 
       if (editModeRef.current) {
         const hit = hitTest(mx, my);
-        // Allow dragging both stock and sector nodes in edit mode
-        if (hit && (hit.kind === "stock" || hit.kind === "sector")) {
+        if (hit && (hit.kind === "stock" || hit.kind === "sector" || hit.kind === "subsector" || hit.kind === "subsubsector")) {
           draggingNodeRef.current = hit;
           canvas.style.cursor = "move";
           return;
@@ -895,14 +1096,14 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         }
         const hit = hitTest(mx, my);
         if (hit?.kind === "stock")  routerRef.current.push(`/stock/${hit.ticker}`);
-        if (hit?.kind === "sector") routerRef.current.push(`/sector/${hit.id.replace("sec-", "")}`);
+        if (hit?.kind === "sector") routerRef.current.push(`/sector/${ETF_TO_SLUG[hit.id] ?? hit.id}`);
       }
     }
 
     function onWindowMouseUp() {
       if (editModeRef.current && draggingNodeRef.current) {
         const node = draggingNodeRef.current;
-        const nodeId = node.kind === "stock" ? node.ticker : node.id;
+        const nodeId = node.kind === "stock" ? (node as StockNode).ticker : node.id;
         onNodeDragEndRef.current?.(nodeId, node.x, node.y);
         draggingNodeRef.current = null;
       }

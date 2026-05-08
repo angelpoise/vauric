@@ -10,11 +10,12 @@ interface Props {
 export default async function StockPage({ params }: Props) {
   const ticker = params.ticker.toUpperCase();
 
-  // Validate ticker against admin_stocks — unknown strings return 404
+  // Validate ticker against admin_nodes — unknown strings return 404
   const { data } = await supabaseAdmin
-    .from("admin_stocks")
+    .from("admin_nodes")
     .select("ticker")
     .eq("ticker", ticker)
+    .eq("node_type", "stock")
     .maybeSingle();
 
   if (!data) return notFound();

@@ -33,10 +33,28 @@ export interface SectorNode extends BaseNode {
   etf: string;
   price: number;
   dailyMove: number;
-  colour?: string; // fixed brand colour; if absent, uses live market colour
+  colour?: string;
 }
 
-export type GNode = StockNode | SectorNode;
+export interface SubSectorNode extends BaseNode {
+  kind: "subsector";
+  name: string;
+  etf?: string;
+  parentId: string;    // ETF ticker of parent sector
+  sectorEtf: string;  // ancestor sector ETF for colour lookup
+  colour?: string;
+}
+
+export interface SubSubSectorNode extends BaseNode {
+  kind: "subsubsector";
+  name: string;
+  etf?: string;
+  parentId: string;    // company_name of parent subsector
+  sectorEtf: string;  // ancestor sector ETF for colour lookup
+  colour?: string;
+}
+
+export type GNode = StockNode | SectorNode | SubSectorNode | SubSubSectorNode;
 
 export const NOTIF: Record<NotifType, { color: string; label: string }> = {
   news:      { color: "#facc15", label: "News" },

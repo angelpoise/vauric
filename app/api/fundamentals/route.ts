@@ -18,11 +18,12 @@ export async function GET() {
     return NextResponse.json(fundamentalsCache);
   }
 
-  // Fetch tickers dynamically from admin_stocks — no hardcoded list needed.
+  // Fetch tickers dynamically from admin_nodes — no hardcoded list needed.
   // Newly added stocks are picked up on the next cache refresh automatically.
   const { data: stockRows } = await supabase
-    .from("admin_stocks")
+    .from("admin_nodes")
     .select("ticker")
+    .eq("node_type", "stock")
     .order("ticker");
 
   const tickers: string[] = stockRows?.map((r: { ticker: string }) => r.ticker) ?? [];
