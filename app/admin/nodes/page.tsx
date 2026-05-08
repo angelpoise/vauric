@@ -5,9 +5,9 @@ import { useState, useEffect } from "react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const LEGACY_SECTORS = ["Technology", "Energy", "Healthcare", "Finance", "Consumer",
-  "Financial Services", "Industrials", "Consumer Discretionary", "Communication Services",
-  "Materials", "Real Estate", "Utilities"];
+const LEGACY_SECTORS = ["Technology", "Energy", "Healthcare", "Finance",
+  "Financial Services", "Consumer Staples", "Consumer Discretionary",
+  "Industrials", "Communication Services", "Materials", "Real Estate", "Utilities"];
 
 const SCHEDULES = [
   { value: "on_visit", label: "On visit" },

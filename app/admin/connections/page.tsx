@@ -12,16 +12,23 @@ const TD:   React.CSSProperties = { padding: "10px 16px 10px 0", borderBottom: "
 
 // Mirrors GraphCanvas SECTOR_MAP — sector text field → ETF ticker node ID
 const SECTOR_ETF: Record<string, string> = {
-  Technology: "XLK", Energy: "XLE", Healthcare: "XLV",
-  Finance: "XLF", "Financial Services": "XLF",
-  Consumer: "XLY", "Consumer Discretionary": "XLY",
-  Industrials: "XLI", "Communication Services": "XLC",
-  Materials: "XLB", "Real Estate": "XLRE", Utilities: "XLU",
+  Technology:              "XLK",
+  Energy:                  "XLE",
+  Healthcare:              "XLV",
+  Finance:                 "XLF",
+  "Financial Services":    "XLF",
+  "Consumer Staples":      "XLP",
+  "Consumer Discretionary":"XLY",
+  Industrials:             "XLI",
+  "Communication Services":"XLC",
+  Materials:               "XLB",
+  "Real Estate":           "XLRE",
+  Utilities:               "XLU",
 };
 
 const ALL_SECTORS = [
   "Technology", "Energy", "Healthcare", "Finance", "Financial Services",
-  "Consumer", "Consumer Discretionary", "Industrials", "Communication Services",
+  "Consumer Staples", "Consumer Discretionary", "Industrials", "Communication Services",
   "Materials", "Real Estate", "Utilities",
 ];
 

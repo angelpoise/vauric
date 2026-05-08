@@ -94,7 +94,8 @@ const DEFAULT_SECTOR_NODES: SectorNode[] = [
   { id: "XLV",  kind: "sector", name: "Healthcare",         etf: "XLV",  price: 143.76, dailyMove:  0.3, x:  440, y: 750, notifications: [] },
   { id: "XLF",  kind: "sector", name: "Financial Services", etf: "XLF",  price:  45.21, dailyMove:  0.7, x: 1155, y: 710, notifications: [] },
   { id: "XLI",  kind: "sector", name: "Industrials",        etf: "XLI",  price:  62.00, dailyMove:  0.0, x:  800, y: 165, notifications: [] },
-  { id: "XLY",  kind: "sector", name: "Consumer Discr.",    etf: "XLY",  price:  72.00, dailyMove:  0.0, x:  800, y: 935, notifications: [] },
+  { id: "XLP",  kind: "sector", name: "Consumer Staples",   etf: "XLP",  price:   0.00, dailyMove:  0.0, x:  640, y: 935, notifications: [] },
+  { id: "XLY",  kind: "sector", name: "Consumer Discr.",    etf: "XLY",  price:  72.00, dailyMove:  0.0, x:  960, y: 935, notifications: [] },
   { id: "XLC",  kind: "sector", name: "Communication",      etf: "XLC",  price:  80.00, dailyMove:  0.0, x: 1360, y: 550, notifications: [] },
   { id: "XLB",  kind: "sector", name: "Materials",          etf: "XLB",  price:  85.00, dailyMove:  0.0, x:  240, y: 550, notifications: [] },
   { id: "XLRE", kind: "sector", name: "Real Estate",        etf: "XLRE", price:  42.00, dailyMove:  0.0, x:  320, y: 935, notifications: [] },
@@ -108,7 +109,7 @@ const SECTOR_MAP: Record<string, string> = {
   Healthcare:              "XLV",
   Finance:                 "XLF",
   "Financial Services":    "XLF",
-  Consumer:                "XLY",
+  "Consumer Staples":      "XLP",
   "Consumer Discretionary":"XLY",
   Industrials:             "XLI",
   "Communication Services":"XLC",
@@ -120,14 +121,15 @@ const SECTOR_MAP: Record<string, string> = {
 // Maps sector ETF ticker → filter sector string used by filtersTypes.ts
 const ETF_TO_FILTER_ID: Record<string, string> = {
   XLK: "tech", XLF: "finance", XLV: "health", XLE: "energy", XLY: "consumer",
-  // New sectors fall back to "consumer" to remain visible under the default all-sectors filter
-  XLI: "consumer", XLC: "consumer", XLB: "consumer", XLRE: "consumer", XLU: "consumer",
+  // Newer sectors fall back to "consumer" to remain visible under the default all-sectors filter
+  XLP: "consumer", XLI: "consumer", XLC: "consumer", XLB: "consumer", XLRE: "consumer", XLU: "consumer",
 };
 
 // Maps sector ETF ticker → routing slug
 const ETF_TO_SLUG: Record<string, string> = {
   XLK: "tech", XLF: "finance", XLV: "health", XLE: "energy", XLY: "consumer",
-  XLI: "industrials", XLC: "communication", XLB: "materials", XLRE: "real-estate", XLU: "utilities",
+  XLP: "consumer-staples", XLI: "industrials", XLC: "communication",
+  XLB: "materials", XLRE: "real-estate", XLU: "utilities",
 };
 
 // ─── Fallback stock data (used if /api/graph fetch fails) ─────────────────────
