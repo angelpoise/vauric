@@ -1,44 +1,31 @@
 import { notFound, redirect } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getYahooSession, fetchFundamentalsForTicker, type FundamentalsEntry } from "@/lib/fundamentalsUtils";
 import HierarchyDetail, { type HierarchyNode, type ConstituentStock } from "@/components/HierarchyDetail";
 
-// Legacy slug → ETF ticker (for URLs generated before Build 2c)
 const SLUG_TO_ETF: Record<string, string> = {
-  tech:     "XLK",
-  energy:   "XLE",
-  health:   "XLV",
-  healthcare: "XLV",
-  finance:  "XLF",
-  consumer: "XLY",
-  industrials: "XLI",
-  communication: "XLC",
-  materials: "XLB",
-  "real-estate": "XLRE",
-  utilities: "XLU",
+  tech: "XLK", energy: "XLE", health: "XLV", healthcare: "XLV",
+  finance: "XLF", consumer: "XLY", industrials: "XLI",
+  communication: "XLC", materials: "XLB", "real-estate": "XLRE", utilities: "XLU",
 };
 
 interface Props { params: { etf: string } }
 
 export default async function SectorPage({ params }: Props) {
   const raw = params.etf;
-
-  // Redirect old slug URLs (e.g. /sector/tech → /sector/XLK)
-  if (SLUG_TO_ETF[raw.toLowerCase()]) {
-    redirect(`/sector/${SLUG_TO_ETF[raw.toLowerCase()]}`);
-  }
+  if (SLUG_TO_ETF[raw.toLowerCase()]) redirect(`/sector/${SLUG_TO_ETF[raw.toLowerCase()]}`);
 
   const etf = raw.toUpperCase();
 
   const { data: node } = await supabaseAdmin
     .from("admin_nodes")
-    .select("id, node_type, company_name, display_name, etf_ticker, colour, x_position, y_position")
+    .select("id, node_type, company_name, display_name, etf_ticker, colour, x_position, y_position, cached_overview")
     .eq("node_type", "sector")
     .eq("etf_ticker", etf)
     .maybeSingle();
 
   if (!node) return notFound();
 
-  // Constituent stocks: admin_nodes rows where sector matches the sector's display name
   const sectorName = node.display_name ?? node.company_name ?? "";
   const { data: stocks } = await supabaseAdmin
     .from("admin_nodes")
@@ -47,13 +34,22 @@ export default async function SectorPage({ params }: Props) {
     .eq("sector", sectorName)
     .order("company_name");
 
-  const analysisKey = node.etf_ticker ?? sectorName;
+  // Fetch ETF fundamentals server-side so HierarchyDetail has data on first render
+  let etfFundamentals: FundamentalsEntry | null = null;
+  try {
+    const session = await getYahooSession();
+    if (session) etfFundamentals = await fetchFundamentalsForTicker(etf, session);
+  } catch { /* non-fatal */ }
+
+  const analysisKey = etf;
 
   return (
     <HierarchyDetail
       node={node as HierarchyNode}
       stocks={(stocks ?? []) as ConstituentStock[]}
       analysisKey={analysisKey}
+      initialFundamentals={etfFundamentals}
+      initialOverview={node.cached_overview ?? null}
     />
   );
 }

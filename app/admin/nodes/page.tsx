@@ -124,6 +124,7 @@ export default function NodesPage() {
   const [editingNode, setEditingNode]   = useState<Node | null>(null);
   const [editForm, setEditForm]         = useState<EditFormData | null>(null);
   const [editSaving, setEditSaving]     = useState(false);
+  const [regenOverviewMsg, setRegenOverviewMsg] = useState<Record<string, string>>({});
 
   async function load() {
     const r = await adminFetch("/api/admin/stocks");
@@ -234,6 +235,21 @@ export default function NodesPage() {
       setRegenScMsg((m) => ({ ...m, [key]: genR.ok ? "Done ✓" : `Error ${genR.status}` }));
     } catch { setRegenScMsg((m) => ({ ...m, [key]: "Error" })); }
     setTimeout(() => setRegenScMsg((m) => { const n = { ...m }; delete n[key]; return n; }), 3000);
+  }
+
+  async function regenOverview(nodeId: string) {
+    setRegenOverviewMsg((m) => ({ ...m, [nodeId]: "Clearing…" }));
+    try {
+      await adminFetch(`/api/hierarchy/overview?nodeId=${nodeId}`, { method: "DELETE" });
+      setRegenOverviewMsg((m) => ({ ...m, [nodeId]: "Generating…" }));
+      const r = await adminFetch("/api/hierarchy/overview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nodeId }),
+      });
+      setRegenOverviewMsg((m) => ({ ...m, [nodeId]: r.ok ? "Done ✓" : `Error ${r.status}` }));
+    } catch { setRegenOverviewMsg((m) => ({ ...m, [nodeId]: "Error" })); }
+    setTimeout(() => setRegenOverviewMsg((m) => { const n = { ...m }; delete n[nodeId]; return n; }), 3000);
   }
 
   function openEdit(n: Node) {
@@ -461,13 +477,20 @@ export default function NodesPage() {
                             {irDiscovering[n.ticker] ? "…" : irMsg[n.ticker] ?? "Find IR"}
                           </button>
                         )}
-                        {/* Edit — hierarchy nodes */}
+                        {/* Edit + Regen Overview — hierarchy nodes */}
                         {!isStock && (
-                          <button
-                            style={{ ...BTN, background: "rgba(255,255,255,0.05)", color: "#94a3b8", border: "1px solid rgba(255,255,255,0.1)" }}
-                            onClick={() => openEdit(n)}>
-                            Edit
-                          </button>
+                          <>
+                            <button
+                              style={{ ...BTN, background: "rgba(245,158,11,0.08)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.2)" }}
+                              onClick={() => regenOverview(n.id)} title="Clear and regenerate overview">
+                              {regenOverviewMsg[n.id] ?? "Regen Overview"}
+                            </button>
+                            <button
+                              style={{ ...BTN, background: "rgba(255,255,255,0.05)", color: "#94a3b8", border: "1px solid rgba(255,255,255,0.1)" }}
+                              onClick={() => openEdit(n)}>
+                              Edit
+                            </button>
+                          </>
                         )}
                         <button style={BTN_D} onClick={() => del(n.id)}>Remove</button>
                       </div>

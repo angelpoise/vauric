@@ -25,6 +25,13 @@ export interface FundamentalsEntry {
   industry:                     string | null;
   website:                      string | null;
   fullTimeEmployees:            number | null;
+  // ETF-specific fields (null for stocks)
+  totalAssets:                  number | null;
+  fundYield:                    number | null; // decimal, e.g. 0.0051 = 0.51%
+  ytdReturn:                    number | null;
+  threeYearAvgReturn:           number | null;
+  fiveYearAvgReturn:            number | null;
+  expenseRatio:                 number | null;
 }
 
 const UA =
@@ -92,15 +99,16 @@ export async function fetchFundamentalsForTicker(
   try {
     const url =
       `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}` +
-      `?modules=summaryDetail,assetProfile&crumb=${encodeURIComponent(session.crumb)}`;
+      `?modules=summaryDetail,assetProfile,fundProfile&crumb=${encodeURIComponent(session.crumb)}`;
     const res = await fetch(url, {
       headers: { "User-Agent": UA, Cookie: session.cookie },
     });
     if (!res.ok) return null;
     const json = await res.json();
     const result = json?.quoteSummary?.result?.[0] as Record<string, unknown> | null | undefined;
-    const sd = result?.summaryDetail as Record<string, unknown> | null | undefined;
-    const ap = result?.assetProfile as Record<string, unknown> | null | undefined;
+    const sd = result?.summaryDetail  as Record<string, unknown> | null | undefined;
+    const ap = result?.assetProfile   as Record<string, unknown> | null | undefined;
+    const fp = result?.fundProfile    as Record<string, unknown> | null | undefined;
     if (!sd) return null;
 
     return {
@@ -120,10 +128,17 @@ export async function fetchFundamentalsForTicker(
       fiftyDayAverage:              num(sd, "fiftyDayAverage"),
       twoHundredDayAverage:         num(sd, "twoHundredDayAverage"),
       longBusinessSummary: typeof ap?.longBusinessSummary === "string" ? ap.longBusinessSummary : null,
-      sector:              typeof ap?.sector    === "string" ? ap.sector    : null,
-      industry:            typeof ap?.industry   === "string" ? ap.industry   : null,
-      website:             typeof ap?.website    === "string" ? ap.website    : null,
-      fullTimeEmployees:   typeof ap?.fullTimeEmployees === "number" ? ap.fullTimeEmployees : null,
+      sector:              typeof ap?.sector             === "string" ? ap.sector             : null,
+      industry:            typeof ap?.industry           === "string" ? ap.industry           : null,
+      website:             typeof ap?.website            === "string" ? ap.website            : null,
+      fullTimeEmployees:   typeof ap?.fullTimeEmployees  === "number" ? ap.fullTimeEmployees  : null,
+      // ETF-specific (populated for ETF tickers, null for stocks)
+      totalAssets:       num(sd, "totalAssets"),
+      fundYield:         num(sd, "yield") ?? num(fp ?? {}, "yield"),
+      ytdReturn:         num(sd, "ytdReturn"),
+      threeYearAvgReturn: num(sd, "threeYearAverageReturn"),
+      fiveYearAvgReturn:  num(sd, "fiveYearAverageReturn"),
+      expenseRatio:      num(fp ?? {}, "annualReportExpenseRatio"),
     };
   } catch {
     return null;
