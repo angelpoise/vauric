@@ -17,7 +17,7 @@ export async function GET() {
       .order("node_type"),
     supabase
       .from("admin_connections")
-      .select("ticker_a, ticker_b, is_primary")
+      .select("ticker_a, ticker_b, tier")
       .order("ticker_a"),
   ]);
 

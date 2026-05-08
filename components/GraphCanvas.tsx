@@ -30,6 +30,10 @@ import {
   DEFAULT_GRAPH_SETTINGS,
 } from "@/lib/graphSettingsTypes";
 
+// Muted amber rendered for hierarchy nodes that have no ETF ticker assigned.
+// Visually distinct from both the green/red performance colours and neutral grey.
+const NO_ETF_COLOR = "rgb(168, 130, 52)";
+
 // ─── Module-level position seed ──────────────────────────────────────────────
 // Read sessionStorage synchronously at module evaluation time so positions are
 // available before React mounts the component, eliminating the one-frame flash.
@@ -223,9 +227,9 @@ interface DbStock {
 }
 
 interface DbConnection {
-  ticker_a:   string;
-  ticker_b:   string;
-  is_primary: boolean;
+  ticker_a: string;
+  ticker_b: string;
+  tier:     number;
 }
 
 interface DbHierarchyNode {
@@ -789,8 +793,10 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       for (const node of gd.nodes) {
         const pos        = worldPos(node, t);
         const r          = effectiveRadius(node);
+        // Subsectors/subsubsectors: use own ETF first for live colour; fall back to
+        // parent sector's ETF only if the node has no ETF of its own.
         const liveKey  = node.kind === "sector" ? node.etf
-          : (node.kind === "subsector" || node.kind === "subsubsector") ? node.sectorEtf
+          : (node.kind === "subsector" || node.kind === "subsubsector") ? (node.etf ?? node.sectorEtf)
           : node.id;
         const live     = liveDataRef.current[liveKey];
         const rawMove  = liveDataReadyRef.current ? (live?.dailyMove ?? (node as { dailyMove?: number }).dailyMove ?? 0) : 0;
@@ -798,16 +804,15 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         const marketCol  = moveColor(rawMove);
         const col = (() => {
           if (node.kind === "sector") {
-            // Prefer live ETF market colour; fall back to stored brand colour
             return (node.colour && (!liveDataReadyRef.current || !live))
-              ? node.colour
-              : marketCol;
+              ? node.colour : marketCol;
           }
           if (node.kind === "subsector" || node.kind === "subsubsector") {
-            // When live sector ETF data is present use market colour directly;
-            // otherwise inherit the parent sector's stored brand colour so
-            // hierarchy rings are never rendered as neutral grey.
+            // No ETF assigned → amber "no ETF tracking" colour
+            if (!node.etf) return NO_ETF_COLOR;
+            // Has own ETF with live data → use that ETF's performance colour
             if (liveDataReadyRef.current && live) return marketCol;
+            // Own ETF data not yet loaded → fall back to parent sector brand colour
             const parentSector = gd.nodeById.get(node.sectorEtf) as { colour?: string } | undefined;
             return parentSector?.colour ?? marketCol;
           }
@@ -1018,10 +1023,14 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
 
     function setHover(node: GNode | null) {
       if (node) {
-        const liveKey   = node.kind === "sector" ? node.etf
-          : (node.kind === "subsector" || node.kind === "subsubsector") ? node.sectorEtf
+        const liveKey = node.kind === "sector" ? node.etf
+          : (node.kind === "subsector" || node.kind === "subsubsector") ? (node.etf ?? node.sectorEtf)
           : node.id;
-        const live      = liveDataRef.current[liveKey];
+        const live = liveDataRef.current[liveKey];
+        // Only merge live price/move when the node has its own ETF (or is a sector).
+        // Nodes with no ETF should not inherit the parent sector's price/move.
+        const hasOwnEtf = node.kind === "sector" ||
+          ((node.kind === "subsector" || node.kind === "subsubsector") && !!node.etf);
         const liveNotifs = node.kind === "stock"
           ? (notificationsRef.current[node.ticker] ?? node.notifications)
           : node.kind === "sector"
@@ -1029,7 +1038,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
             : node.notifications;
         const merged: GNode = {
           ...node,
-          ...(live ? { price: live.price, dailyMove: live.dailyMove } : {}),
+          ...(live && hasOwnEtf ? { price: live.price, dailyMove: live.dailyMove } : {}),
           notifications: liveNotifs,
         };
         setHoverNode(merged);

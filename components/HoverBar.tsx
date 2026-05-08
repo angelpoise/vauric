@@ -51,6 +51,11 @@ export default function HoverBar({ node, leftOffset }: Props) {
   // Whether we have meaningful live price data to display
   const hasLiveData = price > 0 || move !== 0;
 
+  // Hierarchy node with no ETF ticker — show informational note instead of price
+  const hasNoEtf = node
+    && (node.kind === "subsector" || node.kind === "subsubsector")
+    && !(node as SubSectorNode | SubSubSectorNode).etf;
+
   return (
     <div
       style={{
@@ -98,29 +103,40 @@ export default function HoverBar({ node, leftOffset }: Props) {
 
           <Divider />
 
-          {/* Price */}
-          <div style={{ flexShrink: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 500, color: "#f1f5f9" }}>
-              {hasLiveData && price > 0 ? `$${price.toFixed(2)}` : "—"}
-            </div>
-          </div>
-
-          <Divider />
-
-          {/* Daily move % */}
-          <div style={{ flexShrink: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: hasLiveData ? col : "#334155" }}>
-              {hasLiveData ? `${pctSign}${move.toFixed(2)}%` : "—"}
-            </div>
-          </div>
-
-          {/* Daily move $ — only shown for stock nodes and when price is available */}
-          {node.kind === "stock" && hasLiveData && price > 0 && (
-            <div style={{ flexShrink: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 400, color: col + "bb" }}>
-                {dolSign}${dollarMove.toFixed(2)}
+          {hasNoEtf ? (
+            <>
+              <Divider />
+              <div style={{ flexShrink: 0, fontSize: 12, color: "#64748b", fontStyle: "italic" }}>
+                No ETF tracking
               </div>
-            </div>
+            </>
+          ) : (
+            <>
+              {/* Price */}
+              <div style={{ flexShrink: 0 }}>
+                <div style={{ fontSize: 15, fontWeight: 500, color: "#f1f5f9" }}>
+                  {hasLiveData && price > 0 ? `$${price.toFixed(2)}` : "—"}
+                </div>
+              </div>
+
+              <Divider />
+
+              {/* Daily move % */}
+              <div style={{ flexShrink: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: hasLiveData ? col : "#334155" }}>
+                  {hasLiveData ? `${pctSign}${move.toFixed(2)}%` : "—"}
+                </div>
+              </div>
+
+              {/* Daily move $ — only shown for stock nodes with available price */}
+              {node.kind === "stock" && hasLiveData && price > 0 && (
+                <div style={{ flexShrink: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 400, color: col + "bb" }}>
+                    {dolSign}${dollarMove.toFixed(2)}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {/* Notification pills */}

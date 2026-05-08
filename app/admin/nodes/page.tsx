@@ -53,7 +53,6 @@ interface Node {
   // common
   x_position: number;
   y_position: number;
-  tags: string[];
 }
 
 type FormState = {
@@ -68,14 +67,13 @@ type FormState = {
   parent_node_id: string;
   x_position: number;
   y_position: number;
-  tags: string;
 };
 
 const BLANK_FORM: FormState = {
   node_type: "stock",
   ticker: "", company_name: "", sector: "Technology", investor_relations_url: "",
   display_name: "", etf_ticker: "", colour: "#3b82f6", parent_node_id: "",
-  x_position: 0.5, y_position: 0.5, tags: "",
+  x_position: 0.5, y_position: 0.5,
 };
 
 function fmtDate(iso: string | null): string {
@@ -132,7 +130,6 @@ export default function NodesPage() {
         x_position: form.x_position,
         y_position: form.y_position,
         investor_relations_url: form.investor_relations_url || undefined,
-        tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
       };
     } else {
       body = {
@@ -144,7 +141,6 @@ export default function NodesPage() {
         parent_node_id: form.parent_node_id || undefined,
         x_position: form.x_position,
         y_position: form.y_position,
-        tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
       };
     }
     const r = await adminFetch("/api/admin/stocks", {
@@ -286,29 +282,27 @@ export default function NodesPage() {
               <input style={INPUT} placeholder="X" type="number" step="0.01" value={form.x_position} onChange={(e) => setForm({ ...form, x_position: +e.target.value })} />
               <input style={INPUT} placeholder="Y" type="number" step="0.01" value={form.y_position} onChange={(e) => setForm({ ...form, y_position: +e.target.value })} />
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 10, marginBottom: 10 }}>
+            <div style={{ marginBottom: 10 }}>
               <input style={INPUT} placeholder="IR URL (optional)" value={form.investor_relations_url} onChange={(e) => setForm({ ...form, investor_relations_url: e.target.value })} />
-              <input style={INPUT} placeholder="Tags (comma-sep)" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} />
             </div>
           </>
         )}
 
         {(form.node_type === "sector") && (
           <>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 80px 80px 100px", gap: 10, marginBottom: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 80px 80px", gap: 10, marginBottom: 10 }}>
               <input style={INPUT} placeholder="Display name (e.g. Technology)" value={form.company_name} onChange={(e) => setForm({ ...form, company_name: e.target.value })} />
               <input style={INPUT} placeholder="ETF ticker (e.g. XLK)" value={form.etf_ticker} onChange={(e) => setForm({ ...form, etf_ticker: e.target.value.toUpperCase() })} />
               <input style={INPUT} placeholder="Colour (#hex)" value={form.colour} onChange={(e) => setForm({ ...form, colour: e.target.value })} />
               <input style={INPUT} placeholder="X" type="number" step="0.01" value={form.x_position} onChange={(e) => setForm({ ...form, x_position: +e.target.value })} />
               <input style={INPUT} placeholder="Y" type="number" step="0.01" value={form.y_position} onChange={(e) => setForm({ ...form, y_position: +e.target.value })} />
-              <input style={INPUT} placeholder="Tags (comma-sep)" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} />
             </div>
           </>
         )}
 
         {(form.node_type === "subsector" || form.node_type === "subsubsector") && (
           <>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 80px 80px 100px", gap: 10, marginBottom: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 80px 80px", gap: 10, marginBottom: 10 }}>
               <input style={INPUT} placeholder="Name (e.g. Semiconductors)" value={form.company_name} onChange={(e) => setForm({ ...form, company_name: e.target.value })} />
               <select style={INPUT} value={form.parent_node_id} onChange={(e) => setForm({ ...form, parent_node_id: e.target.value })}>
                 <option value="">— Select parent —</option>
@@ -317,7 +311,6 @@ export default function NodesPage() {
               <input style={INPUT} placeholder="ETF (optional)" value={form.etf_ticker} onChange={(e) => setForm({ ...form, etf_ticker: e.target.value.toUpperCase() })} />
               <input style={INPUT} placeholder="X" type="number" step="0.01" value={form.x_position} onChange={(e) => setForm({ ...form, x_position: +e.target.value })} />
               <input style={INPUT} placeholder="Y" type="number" step="0.01" value={form.y_position} onChange={(e) => setForm({ ...form, y_position: +e.target.value })} />
-              <input style={INPUT} placeholder="Tags (comma-sep)" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} />
             </div>
           </>
         )}
@@ -335,7 +328,7 @@ export default function NodesPage() {
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
             <thead>
               <tr>
-                {["Type", "Name / Ticker", "Parent / Sector", "ETF", "Tags", "Last Visit", "Schedule", ""].map((h) => (
+                {["Type", "Name / Ticker", "Parent / Sector", "ETF", "Last Visit", "Schedule", ""].map((h) => (
                   <th key={h} style={TH}>{h}</th>
                 ))}
               </tr>
@@ -366,9 +359,6 @@ export default function NodesPage() {
                     </td>
                     <td style={{ ...TD, fontSize: 12, color: "#64748b" }}>{parentLabel}</td>
                     <td style={{ ...TD, fontSize: 12, color: "#64748b" }}>{n.etf_ticker ?? "—"}</td>
-                    <td style={{ ...TD, fontSize: 11, color: "#475569" }}>
-                      {n.tags?.length ? n.tags.join(", ") : "—"}
-                    </td>
                     <td style={{ ...TD, fontSize: 12, color: "#64748b" }}>
                       {isStock ? fmtDate(n.last_visited_at) : "—"}
                     </td>
