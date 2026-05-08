@@ -220,26 +220,21 @@ export default function GraphLayout() {
   async function handleSave() {
     setSaving(true);
     try {
-      // knownTickers is populated by onGraphLoaded and contains only stock tickers.
-      // All other node IDs (sector ETF tickers, subsector/subsubsector names) are
-      // hierarchy nodes whose positions are persisted to localStorage, not the DB.
-      const stockSet = new Set(knownTickers);
-      const stockEntries    = Object.entries(pendingPositions).filter(([id]) =>  stockSet.has(id));
-      const hierarchyEntries = Object.entries(pendingPositions).filter(([id]) => !stockSet.has(id));
-
+      // PATCH every pending position to the DB regardless of node type.
+      // The PATCH handler resolves by: UUID → ticker → etf_ticker → company_name,
+      // so stocks, sectors (XLK), subsectors (Semiconductors) and subsubsectors
+      // all persist correctly. Previously hierarchy nodes only went to localStorage
+      // and were overridden by DB positions on every refresh.
       const results = await Promise.allSettled(
-        stockEntries.map(([ticker, { x, y }]) =>
-          adminFetch(`/api/admin/stocks/${ticker}`, {
+        Object.entries(pendingPositions).map(([id, { x, y }]) =>
+          adminFetch(`/api/admin/stocks/${encodeURIComponent(id)}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              x_position: x / 1600,
-              y_position: y / 1100,
-            }),
+            body: JSON.stringify({ x_position: x / 1600, y_position: y / 1100 }),
           }).then(async (r) => {
             if (!r.ok) {
               const body = await r.json().catch(() => ({}));
-              console.error(`[graph/save] PATCH failed for ${ticker}: ${r.status}`, body);
+              console.error(`[graph/save] PATCH failed for ${id}: ${r.status}`, body);
             }
             return r;
           })
@@ -247,17 +242,7 @@ export default function GraphLayout() {
       );
 
       const failed = results.filter((r) => r.status === "rejected").length;
-      if (failed > 0) console.error(`[graph/save] ${failed} stock position(s) failed to save`);
-
-      if (hierarchyEntries.length > 0) {
-        const pending: Record<string, { x: number; y: number }> = {};
-        for (const [id, pos] of hierarchyEntries) pending[id] = pos;
-        writeHierarchyPositions(pending);
-        setSectors((prev) => prev.map((s) => {
-          const p = pending[s.id];
-          return p ? { ...s, x: p.x, y: p.y } : s;
-        }));
-      }
+      if (failed > 0) console.error(`[graph/save] ${failed} position(s) failed to save`);
 
       setPendingPositions({});
       canvasRef.current?.snapshotPositions();

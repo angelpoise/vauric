@@ -44,12 +44,45 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (Object.keys(body).length === 0) {
     return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
   }
-  // UUIDs go by id; stock tickers go by ticker column
+  // Resolve the target row in priority order:
+  //   UUID        → match admin_nodes.id directly
+  //   uppercase   → match admin_nodes.ticker (stocks)
+  //   uppercase   → match admin_nodes.etf_ticker (sectors)
+  //   as-is       → match admin_nodes.company_name (subsectors/subsubsectors)
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(params.id);
-  const query = isUUID
-    ? supabaseAdmin.from("admin_nodes").update(body).eq("id", params.id)
-    : supabaseAdmin.from("admin_nodes").update(body).eq("ticker", params.id.toUpperCase());
-  const { error } = await query;
+  let targetId: string | null = null;
+
+  if (isUUID) {
+    targetId = params.id;
+  } else {
+    const upper = params.id.toUpperCase();
+
+    // 1. Stock ticker
+    const { data: byTicker } = await supabaseAdmin
+      .from("admin_nodes").select("id").eq("ticker", upper).maybeSingle();
+    if (byTicker) {
+      targetId = byTicker.id as string;
+    } else {
+      // 2. Sector ETF ticker
+      const { data: byEtf } = await supabaseAdmin
+        .from("admin_nodes").select("id").eq("etf_ticker", upper).maybeSingle();
+      if (byEtf) {
+        targetId = byEtf.id as string;
+      } else {
+        // 3. Sub-sector / sub-sub-sector company_name (case-sensitive, as stored)
+        const { data: byName } = await supabaseAdmin
+          .from("admin_nodes").select("id").eq("company_name", params.id).maybeSingle();
+        if (byName) targetId = byName.id as string;
+      }
+    }
+  }
+
+  if (!targetId) {
+    console.error(`[admin/nodes PATCH] node not found for id=${params.id}`);
+    return NextResponse.json({ error: "Node not found" }, { status: 404 });
+  }
+
+  const { error } = await supabaseAdmin.from("admin_nodes").update(body).eq("id", targetId);
   if (error) {
     console.error(`[admin/nodes PATCH] id=${params.id} error:`, JSON.stringify(error));
     return NextResponse.json({ error: error.message }, { status: 500 });
