@@ -130,6 +130,41 @@ export async function fetchFundamentalsForTicker(
   }
 }
 
+export interface EtfHolding {
+  symbol: string;
+  holdingName: string;
+  holdingPercent: number; // 0–1
+}
+
+/** Fetch top ETF holdings from Yahoo Finance's topHoldings module. */
+export async function fetchEtfHoldings(
+  symbol: string,
+  session: { cookie: string; crumb: string },
+): Promise<EtfHolding[]> {
+  try {
+    const url =
+      `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${symbol}` +
+      `?modules=topHoldings&crumb=${encodeURIComponent(session.crumb)}`;
+    const res = await fetch(url, {
+      headers: { "User-Agent": UA, Cookie: session.cookie },
+    });
+    if (!res.ok) return [];
+    const json = await res.json();
+    const th = json?.quoteSummary?.result?.[0]?.topHoldings as
+      | { holdings?: Array<{ symbol?: string; holdingName?: string; holdingPercent?: { raw?: number } }> }
+      | null | undefined;
+    return (th?.holdings ?? [])
+      .filter((h) => !!h.symbol)
+      .map((h) => ({
+        symbol:         h.symbol!,
+        holdingName:    h.holdingName ?? h.symbol!,
+        holdingPercent: h.holdingPercent?.raw ?? 0,
+      }));
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Fetches fundamentals for a single ticker and merges it into the shared
  * module cache so it is immediately available without waiting for the next

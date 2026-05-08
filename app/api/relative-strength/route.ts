@@ -103,7 +103,9 @@ export async function GET(req: NextRequest) {
     .eq("node_type", "stock")
     .maybeSingle();
 
-  const etf = row?.sector ? SECTOR_ETF[row.sector] : null;
+  // For stocks: compare vs their sector ETF.
+  // For non-stocks (ETFs, hierarchy identifiers): compare vs SPY directly.
+  const etf = row?.sector ? SECTOR_ETF[row.sector] : (upper !== "SPY" ? "SPY" : null);
   if (!etf) return NextResponse.json(null);
 
   // Fetch bars for just this stock then its ETF — sequential, not parallel,
