@@ -127,11 +127,13 @@ const SECTOR_MAP: Record<string, string> = {
   Utilities:               "XLU",
 };
 
-// Maps sector ETF ticker → filter sector string used by filtersTypes.ts
+// Maps sector ETF ticker → filter ID (now identical — each sector is its own filter entry).
+// Legacy "sec-*" IDs cover the hardcoded fallback stock nodes used before DB data loads.
 const ETF_TO_FILTER_ID: Record<string, string> = {
-  XLK: "tech", XLF: "finance", XLV: "health", XLE: "energy", XLY: "consumer",
-  // Newer sectors fall back to "consumer" to remain visible under the default all-sectors filter
-  XLP: "consumer", XLI: "consumer", XLC: "consumer", XLB: "consumer", XLRE: "consumer", XLU: "consumer",
+  XLK: "XLK", XLE: "XLE", XLV: "XLV", XLF: "XLF", XLI: "XLI",
+  XLP: "XLP", XLY: "XLY", XLC: "XLC", XLB: "XLB", XLRE: "XLRE", XLU: "XLU",
+  "sec-tech": "XLK", "sec-energy": "XLE", "sec-health": "XLV",
+  "sec-finance": "XLF", "sec-consumer": "XLY",
 };
 
 
@@ -866,9 +868,20 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       const live = liveDataRef.current[node.ticker];
       const fund = fundamentalsRef.current[node.ticker] as FundEntry | undefined;
 
-      const sid = ETF_TO_FILTER_ID[node.sectorId] ?? node.sectorId.replace("sec-", "");
+      const sid = ETF_TO_FILTER_ID[node.sectorId] ?? node.sectorId;
       if (!f.sectors.includes(sid)) return true;
 
+      // Sub-sector filter: stock must connect to at least one selected subsector
+      if (f.subSectors.length > 0) {
+        const adj = graphDataRef.current.adjacency.get(node.id) ?? new Set<string>();
+        if (!f.subSectors.some((id) => adj.has(id))) return true;
+      }
+
+      // Industry filter: stock must connect to at least one selected industry
+      if (f.industries.length > 0) {
+        const adj = graphDataRef.current.adjacency.get(node.id) ?? new Set<string>();
+        if (!f.industries.some((id) => adj.has(id))) return true;
+      }
 
       const move = live?.dailyMove ?? 0;
       if (f.dailyMove.min !== null && move < f.dailyMove.min) return true;

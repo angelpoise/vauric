@@ -2,26 +2,34 @@ export interface FilterRange { min: number | null; max: number | null; }
 
 export interface ActiveFilters {
   dailyMove:       FilterRange;
-  sectors:         string[];       // subset of ALL_SECTORS
-  marketCapTiers:  string[];       // subset of ALL_CAP_TIERS
+  sectors:         string[];    // ETF codes of visible sectors (subset of ALL_SECTORS)
+  subSectors:      string[];    // subsector IDs to include; empty = no filter (show all)
+  industries:      string[];    // industry IDs to include;  empty = no filter (show all)
+  marketCapTiers:  string[];    // subset of ALL_CAP_TIERS
   price:           FilterRange;
   trailingPE:      FilterRange;
   beta:            FilterRange;
   avgVolumeMin:    number | null;
-  fiftyTwoWeekPos: string[];       // subset of ALL_52W_POS
+  fiftyTwoWeekPos: string[];    // subset of ALL_52W_POS
   relVolumeMin:    number | null;
   streak:          "any" | "up" | "down";
   nodeSize:        "connections" | "marketcap";
   sentimentMin:    number | null;
 }
 
-export const ALL_SECTORS     = ["tech", "energy", "health", "finance", "consumer"] as const;
+// All 11 GICS sector ETF codes
+export const ALL_SECTORS = [
+  "XLK", "XLE", "XLV", "XLF", "XLI",
+  "XLP", "XLY", "XLC", "XLB", "XLRE", "XLU",
+] as const;
 export const ALL_CAP_TIERS   = ["mega", "large", "mid", "small"] as const;
 export const ALL_52W_POS     = ["low", "mid", "high"] as const;
 
 export const DEFAULT_FILTERS: ActiveFilters = {
   dailyMove:       { min: null, max: null },
   sectors:         [...ALL_SECTORS],
+  subSectors:      [],   // empty = show all regardless of subsector
+  industries:      [],   // empty = show all regardless of industry
   marketCapTiers:  [...ALL_CAP_TIERS],
   price:           { min: null, max: null },
   trailingPE:      { min: null, max: null },
@@ -38,6 +46,8 @@ export function countActiveFilters(f: ActiveFilters): number {
   let n = 0;
   if (f.dailyMove.min !== null || f.dailyMove.max !== null)             n++;
   if (f.sectors.length < ALL_SECTORS.length)                            n++;
+  if (f.subSectors.length > 0)                                          n++;
+  if (f.industries.length > 0)                                          n++;
   if (f.marketCapTiers.length < ALL_CAP_TIERS.length)                   n++;
   if (f.price.min !== null || f.price.max !== null)                     n++;
   if (f.trailingPE.min !== null || f.trailingPE.max !== null)           n++;

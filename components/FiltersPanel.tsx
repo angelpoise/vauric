@@ -339,8 +339,17 @@ function ResetButton({ onClick }: { onClick: () => void }) {
 // ─── Static label maps ────────────────────────────────────────────────────────
 
 const SECTOR_LABELS: Record<string, string> = {
-  tech: "Information Technology", energy: "Energy", health: "Healthcare",
-  finance: "Financials", consumer: "Consumer",
+  XLK:  "Information Technology",
+  XLE:  "Energy",
+  XLV:  "Healthcare",
+  XLF:  "Financials",
+  XLI:  "Industrials",
+  XLP:  "Consumer Staples",
+  XLY:  "Consumer Discretionary",
+  XLC:  "Communication Services",
+  XLB:  "Materials",
+  XLRE: "Real Estate",
+  XLU:  "Utilities",
 };
 
 const CAP_LABELS: Record<string, string> = {
@@ -361,12 +370,29 @@ interface Props {
   onFiltersChange: (f: ActiveFilters) => void;
 }
 
+interface HierarchyNode { node_type: string; company_name: string; display_name: string | null; }
+
 export default function FiltersPanel({ open, onClose, filters, onFiltersChange }: Props) {
   const activeCount = countActiveFilters(filters);
   const set = (partial: Partial<ActiveFilters>) => onFiltersChange({ ...filters, ...partial });
 
   const { user, isLoaded } = useUser();
   const isPro = isLoaded ? user?.publicMetadata?.isPro === true : false;
+
+  // ── Hierarchy nodes (subsectors + industries) ────────────────────────────────
+  const [subSectorNodes, setSubSectorNodes] = useState<HierarchyNode[]>([]);
+  const [industryNodes,  setIndustryNodes]  = useState<HierarchyNode[]>([]);
+
+  useEffect(() => {
+    fetch("/api/graph")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (!data?.hierarchy) return;
+        setSubSectorNodes(data.hierarchy.filter((h: HierarchyNode) => h.node_type === "subsector"));
+        setIndustryNodes(data.hierarchy.filter((h: HierarchyNode) => h.node_type === "subsubsector"));
+      })
+      .catch(() => {});
+  }, []);
 
   // ── Preset state ────────────────────────────────────────────────────────────
   const [userPresets, setUserPresets]       = useState<Preset[]>([]);
@@ -495,7 +521,65 @@ export default function FiltersPanel({ open, onClose, filters, onFiltersChange }
             ))}
           </CollapsibleSection>
 
-          {/* 3 · Market Cap */}
+          {/* 3 · Sub-sector */}
+          {subSectorNodes.length > 0 && (
+            <CollapsibleSection title="Sub-sector" defaultOpen={false}>
+              {filters.subSectors.length > 0 && (
+                <button
+                  onClick={() => set({ subSectors: [] })}
+                  style={{ fontSize: 10, color: "#3b82f6", background: "none", border: "none", cursor: "pointer", padding: "0 0 8px", fontFamily: "inherit" }}
+                >
+                  Clear selection
+                </button>
+              )}
+              {subSectorNodes.map((n) => {
+                const id    = n.company_name;
+                const label = n.display_name ?? n.company_name;
+                const active = filters.subSectors.includes(id);
+                return (
+                  <CheckRow
+                    key={id} label={label}
+                    checked={active}
+                    onChange={(on) => set({ subSectors: on ? [...filters.subSectors, id] : filters.subSectors.filter((s) => s !== id) })}
+                  />
+                );
+              })}
+              {filters.subSectors.length === 0 && (
+                <div style={{ fontSize: 11, color: "#334155", marginTop: 4 }}>No filter — showing all stocks</div>
+              )}
+            </CollapsibleSection>
+          )}
+
+          {/* 4 · Industry */}
+          {industryNodes.length > 0 && (
+            <CollapsibleSection title="Industry" defaultOpen={false}>
+              {filters.industries.length > 0 && (
+                <button
+                  onClick={() => set({ industries: [] })}
+                  style={{ fontSize: 10, color: "#3b82f6", background: "none", border: "none", cursor: "pointer", padding: "0 0 8px", fontFamily: "inherit" }}
+                >
+                  Clear selection
+                </button>
+              )}
+              {industryNodes.map((n) => {
+                const id    = n.company_name;
+                const label = n.display_name ?? n.company_name;
+                const active = filters.industries.includes(id);
+                return (
+                  <CheckRow
+                    key={id} label={label}
+                    checked={active}
+                    onChange={(on) => set({ industries: on ? [...filters.industries, id] : filters.industries.filter((s) => s !== id) })}
+                  />
+                );
+              })}
+              {filters.industries.length === 0 && (
+                <div style={{ fontSize: 11, color: "#334155", marginTop: 4 }}>No filter — showing all stocks</div>
+              )}
+            </CollapsibleSection>
+          )}
+
+          {/* 5 · Market Cap */}
           <CollapsibleSection title="Market Cap">
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {ALL_CAP_TIERS.map((tier) => (
