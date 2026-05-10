@@ -18,6 +18,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminRequest } from "@/lib/adminSecret";
 import { generateAnalysis, saveAnalysis } from "@/lib/generateAnalysis";
+import { getUserTier } from "@/lib/getUserTier";
 
 // Resolve node type for a given identifier so the right prompt is used.
 async function resolveNodeType(id: string): Promise<{ nodeType: "stock" | "sector" | "subsector" | "subsubsector"; displayName: string }> {
@@ -42,6 +43,20 @@ export async function GET(req: NextRequest) {
   if (!ticker) return NextResponse.json({ error: "ticker required" }, { status: 400 });
 
   const readonly = req.nextUrl.searchParams.get("readonly") === "true";
+
+  // Access control:
+  //   - Pipeline secret or admin → full access (cache reads + generation)
+  //   - Pro user                 → readonly cache access only
+  //   - Free / unauthenticated   → 403
+  const isPipeline = req.headers.get("x-pipeline-secret") === process.env.PIPELINE_SECRET;
+  if (!isPipeline) {
+    const isAdmin = await isAdminRequest(req);
+    if (!isAdmin) {
+      const { isPro } = await getUserTier();
+      if (!isPro) return NextResponse.json({ error: "Pro subscription required" }, { status: 403 });
+      if (!readonly) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
 
   const { data: cached } = await supabaseAdmin
     .from("company_analysis")

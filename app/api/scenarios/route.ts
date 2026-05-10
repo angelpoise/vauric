@@ -11,6 +11,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { generateScenarios, saveScenarios } from "@/lib/generateScenarios";
+import { isAdminRequest } from "@/lib/adminSecret";
+import { getUserTier } from "@/lib/getUserTier";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -21,6 +23,20 @@ export async function GET(req: NextRequest) {
   // peek=1 (legacy) or readonly=true — return cached data only, never generate
   const readonly = req.nextUrl.searchParams.get("readonly") === "true" ||
                    req.nextUrl.searchParams.get("peek")     === "1";
+
+  // Access control:
+  //   - Pipeline secret or admin → full access (cache reads + generation)
+  //   - Pro user                 → readonly cache access only
+  //   - Free / unauthenticated   → 403
+  const isPipeline = req.headers.get("x-pipeline-secret") === process.env.PIPELINE_SECRET;
+  if (!isPipeline) {
+    const isAdmin = await isAdminRequest(req);
+    if (!isAdmin) {
+      const { isPro } = await getUserTier();
+      if (!isPro) return NextResponse.json({ error: "Pro subscription required" }, { status: 403 });
+      if (!readonly) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
 
   const { data: cached, error: selectError } = await supabaseAdmin
     .from("stock_scenarios")
