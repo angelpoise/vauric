@@ -7,8 +7,8 @@ import { useState, useEffect } from "react";
 // IPO is admin-only by convention — only add via this panel
 const NOTIF_TYPES = ["analyst", "acquisition", "delisting", "split", "earnings", "ipo", "news"];
 const NOTIF_COLORS: Record<string, string> = {
-  news: "#facc15", analyst: "#f97316", delisting: "#a855f7",
-  acquisition: "#ef4444", split: "#3b82f6", earnings: "#ffffff", ipo: "#22c55e",
+  news: "#facc15", analyst: "#f97316", delisting: "#ef4444",
+  acquisition: "#a855f7", split: "#3b82f6", earnings: "#ffffff", ipo: "#22c55e",
 };
 
 const CARD: React.CSSProperties = { background: "#0d1117", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "20px 24px" };

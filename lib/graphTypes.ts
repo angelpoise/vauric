@@ -59,8 +59,8 @@ export type GNode = StockNode | SectorNode | SubSectorNode | SubSubSectorNode;
 export const NOTIF: Record<NotifType, { color: string; label: string }> = {
   news:        { color: "#facc15", label: "News" },
   analyst:     { color: "#f97316", label: "Analyst action" },
-  delisting:   { color: "#a855f7", label: "Delisting" },
-  acquisition: { color: "#ef4444", label: "Acquisition" },
+  delisting:   { color: "#ef4444", label: "Delisting" },
+  acquisition: { color: "#a855f7", label: "Acquisition" },
   split:       { color: "#3b82f6", label: "Split / Offering" },
   earnings:    { color: "#ffffff", label: "Earnings" },
   ipo:         { color: "#22c55e", label: "IPO" },

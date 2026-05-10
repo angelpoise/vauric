@@ -158,9 +158,15 @@ export async function GET(req: NextRequest) {
     const DEFAULT_WINDOW_MS  = 24 * 60 * 60 * 1000;      // all other types last 24 h
     const EARNINGS_WINDOW_DAYS = 2;                        // ±2 days around earnings date
 
+    const PERSISTENT_TYPES = new Set(["acquisition", "delisting"]);
+
     const stockNotifs = [
       ...rows.filter((r) => {
         if (!r.generates_notification || r.is_sector_news) return false;
+        // Acquisition and delisting dots persist for the full cache window (30 days).
+        // They are cleared manually via the admin notifications panel when the
+        // deal closes or the delisting takes effect.
+        if (PERSISTENT_TYPES.has(r.notification_type)) return true;
         const age    = now - new Date(r.published_at).getTime();
         const window = r.notification_type === "analyst" ? ANALYST_WINDOW_MS : DEFAULT_WINDOW_MS;
         return age <= window;
