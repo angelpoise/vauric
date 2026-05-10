@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       ...(investor_relations_url ? { investor_relations_url } : {}),
     };
   } else {
-    const { company_name, display_name, etf_ticker, colour, parent_node_id, x_position, y_position, tags } = body;
+    const { company_name, display_name, etf_ticker, colour, parent_node_id, x_position, y_position } = body;
     if (!company_name) {
       return NextResponse.json({ error: "Missing field: company_name" }, { status: 400 });
     }
@@ -56,7 +56,6 @@ export async function POST(req: NextRequest) {
       parent_node_id: parent_node_id ?? null,
       x_position: x_position ?? 0.5,
       y_position: y_position ?? 0.5,
-      tags: tags ?? [],
     };
   }
 

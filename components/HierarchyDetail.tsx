@@ -121,7 +121,7 @@ const ANALYSIS_LABELS: Record<string, Record<string, string>> = {
   subsector:    { segments: "Unique drivers", margins: "Performance",    guidance: "Catalysts & risks",   relationships: "Constituent stocks" },
   subsubsector: { segments: "The thesis",     margins: "Performance",    guidance: "Key catalysts",       relationships: "Beneficiaries & risks" },
 };
-const NODE_TYPE_LABELS: Record<string, string> = { sector: "Sector", subsector: "Sub-sector", subsubsector: "Sub-sub-sector" };
+const NODE_TYPE_LABELS: Record<string, string> = { sector: "Sector", subsector: "Sub-sector", subsubsector: "Industry" };
 
 // ─── Component ────────────────────────────────────────────────────────────────
 

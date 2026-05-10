@@ -1,7 +1,7 @@
 "use client";
 
 import { adminFetch } from "@/lib/adminFetch";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 
 const CARD:  React.CSSProperties = { background: "#0d1117", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "20px 24px" };
 const BTN:   React.CSSProperties = { background: "#3b82f6", border: "none", borderRadius: 6, color: "#fff", fontSize: 12, fontWeight: 500, padding: "6px 14px", cursor: "pointer", fontFamily: "inherit" };
@@ -12,9 +12,11 @@ const TD:   React.CSSProperties = { padding: "10px 16px 10px 0", borderBottom: "
 
 // Mirrors GraphCanvas SECTOR_MAP — sector text field → ETF ticker node ID
 const SECTOR_ETF: Record<string, string> = {
+  "Information Technology": "XLK",
   Technology:              "XLK",
   Energy:                  "XLE",
   Healthcare:              "XLV",
+  Financials:              "XLF",
   Finance:                 "XLF",
   "Financial Services":    "XLF",
   "Consumer Staples":      "XLP",
@@ -27,14 +29,17 @@ const SECTOR_ETF: Record<string, string> = {
 };
 
 const ALL_SECTORS = [
-  "Technology", "Energy", "Healthcare", "Finance", "Financial Services",
+  "Information Technology", "Energy", "Healthcare", "Financials",
   "Consumer Staples", "Consumer Discretionary", "Industrials", "Communication Services",
   "Materials", "Real Estate", "Utilities",
 ];
 
 interface ExplicitConn { kind: "explicit"; id: string; ticker_a: string; ticker_b: string; tier: number; }
-interface AutoConn     { kind: "auto"; ticker: string; sector: string; sectorEtf: string; }
+interface AutoConn     { kind: "auto"; ticker: string; sector: string; sectorEtf: string | null; }
 type AnyConn = ExplicitConn | AutoConn;
+
+interface Suggestion { id: string; reason: string; nodeType: string; }
+interface SuggestResult { t1: Suggestion[]; t2: Suggestion[]; t3: Suggestion[]; }
 
 interface NodeRow {
   id: string; node_type: string;
@@ -67,17 +72,69 @@ function AutoBadge() {
   );
 }
 
+function SuggestionRow({ s, selected, onToggle, effectiveTier, onTierChange }: {
+  s: Suggestion;
+  selected: boolean;
+  onToggle: () => void;
+  effectiveTier: 1|2|3;
+  onTierChange: (t: 1|2|3) => void;
+}) {
+  const typeColor = TYPE_COLOR[s.nodeType] ?? "#64748b";
+  const typeLabel = TYPE_LABEL[s.nodeType] ?? s.nodeType;
+  return (
+    <div
+      onClick={onToggle}
+      style={{
+        display: "flex", alignItems: "center", gap: 10, padding: "7px 10px",
+        background: selected ? "rgba(59,130,246,0.06)" : "rgba(255,255,255,0.02)",
+        border: `1px solid ${selected ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.05)"}`,
+        borderRadius: 6, cursor: "pointer", marginBottom: 4,
+      }}
+    >
+      <div style={{
+        width: 14, height: 14, borderRadius: 3, flexShrink: 0,
+        background: selected ? "#3b82f6" : "transparent",
+        border: `1.5px solid ${selected ? "#3b82f6" : "rgba(255,255,255,0.2)"}`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        {selected && <span style={{ color: "#fff", fontSize: 10, lineHeight: 1 }}>✓</span>}
+      </div>
+      <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: typeColor, minWidth: 70, flexShrink: 0 }}>
+        {typeLabel}
+      </span>
+      <code style={{ fontSize: 12, fontWeight: 600, color: "#94a3b8", flexShrink: 0 }}>{s.id}</code>
+      <span style={{ fontSize: 12, color: "#475569", flex: 1 }}>{s.reason}</span>
+      {/* Inline tier override — click stops row toggle */}
+      <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", gap: 3, flexShrink: 0 }}>
+        {([1, 2, 3] as const).map((t) => {
+          const active = effectiveTier === t;
+          const col = TIER_COLORS[t];
+          return (
+            <button
+              key={t}
+              onClick={() => onTierChange(t)}
+              title={`Set to T${t}`}
+              style={{
+                fontSize: 9, fontWeight: 700, padding: "2px 5px", borderRadius: 3,
+                cursor: "pointer", fontFamily: "inherit",
+                background: active ? `${col}25` : "transparent",
+                border:     active ? `1px solid ${col}60` : "1px solid rgba(255,255,255,0.06)",
+                color:      active ? col : "#334155",
+              }}
+            >T{t}</button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function nodeId(n: NodeRow): string {
   if (n.node_type === "stock")  return n.ticker ?? "";
   if (n.node_type === "sector") return n.etf_ticker ?? n.company_name ?? "";
   return n.company_name ?? "";
 }
 
-function nodeLabel(n: NodeRow): string {
-  const id   = nodeId(n);
-  const name = n.company_name ?? n.etf_ticker ?? "";
-  return id === name ? id : `${id} — ${name}`;
-}
 
 function inferTier(idA: string, idB: string, nodes: NodeRow[]): number {
   const findType = (id: string) => nodes.find((n) => nodeId(n) === id)?.node_type ?? null;
@@ -88,6 +145,146 @@ function inferTier(idA: string, idB: string, nodes: NodeRow[]): number {
   return 2;
 }
 
+const TYPE_LABEL: Record<string, string> = {
+  stock: "Stocks", sector: "Sectors",
+  subsector: "Sub-sectors", subsubsector: "Industries",
+};
+const TYPE_COLOR: Record<string, string> = {
+  stock: "#94a3b8", sector: "#3b82f6", subsector: "#8b5cf6", subsubsector: "#6366f1",
+};
+
+function NodeCombobox({ value, onChange, nodes, grouped }: {
+  value: string;
+  onChange: (v: string) => void;
+  nodes: NodeRow[];
+  grouped: Record<string, NodeRow[]>;
+}) {
+  const [open, setOpen]   = useState(false);
+  const [query, setQuery] = useState("");
+  const rootRef           = useRef<HTMLDivElement>(null);
+  const inputRef          = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false); setQuery("");
+      }
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
+  useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
+
+  const selected = nodes.find((n) => nodeId(n) === value) ?? null;
+  const q        = query.toLowerCase();
+  const matches  = (n: NodeRow) =>
+    !q ||
+    nodeId(n).toLowerCase().includes(q) ||
+    (n.company_name?.toLowerCase() ?? "").includes(q) ||
+    (n.etf_ticker?.toLowerCase()   ?? "").includes(q);
+  const anyMatch = NODE_TYPE_ORDER.some((t) => (grouped[t] ?? []).some(matches));
+
+  return (
+    <div ref={rootRef} style={{ position: "relative" }}>
+      <div
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          ...INPUT, display: "flex", alignItems: "center", justifyContent: "space-between",
+          cursor: "pointer", userSelect: "none",
+          borderColor: open ? "rgba(59,130,246,0.5)" : "rgba(255,255,255,0.1)",
+        }}
+      >
+        {selected ? (
+          <span style={{ display: "flex", alignItems: "center", gap: 8, overflow: "hidden" }}>
+            <code style={{ color: TYPE_COLOR[selected.node_type] ?? "#94a3b8", fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
+              {nodeId(selected)}
+            </code>
+            {selected.company_name && nodeId(selected) !== selected.company_name && (
+              <span style={{ color: "#475569", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {selected.company_name}
+              </span>
+            )}
+          </span>
+        ) : (
+          <span style={{ color: "#334155", fontSize: 12 }}>— select node —</span>
+        )}
+        <span style={{ color: "#334155", fontSize: 9, flexShrink: 0, marginLeft: 6 }}>{open ? "▴" : "▾"}</span>
+      </div>
+
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 200,
+          background: "#0d1117", border: "1px solid rgba(255,255,255,0.12)",
+          borderRadius: 8, boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
+          display: "flex", flexDirection: "column", maxHeight: 340,
+        }}>
+          <div style={{ padding: "8px 8px 6px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Escape") { setOpen(false); setQuery(""); } }}
+              placeholder="Search by ticker or name…"
+              style={{ ...INPUT, fontSize: 12, padding: "5px 9px" }}
+            />
+          </div>
+          <div style={{ overflowY: "auto", padding: "4px 0" }}>
+            {value && (
+              <div
+                onClick={() => { onChange(""); setOpen(false); setQuery(""); }}
+                style={{ padding: "6px 12px", color: "#475569", fontSize: 11, cursor: "pointer", fontStyle: "italic" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = ""; }}
+              >Clear selection</div>
+            )}
+            {!anyMatch && (
+              <div style={{ padding: "14px 12px", color: "#334155", fontSize: 12, textAlign: "center" }}>
+                No nodes match &ldquo;{query}&rdquo;
+              </div>
+            )}
+            {NODE_TYPE_ORDER.map((type) => {
+              const rows = (grouped[type] ?? []).filter(matches);
+              if (!rows.length) return null;
+              return (
+                <div key={type}>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", color: "#334155", padding: "10px 12px 4px" }}>
+                    {TYPE_LABEL[type] ?? type}
+                  </div>
+                  {rows.map((n) => {
+                    const id     = nodeId(n);
+                    const name   = n.company_name ?? n.etf_ticker ?? "";
+                    const active = id === value;
+                    return (
+                      <div
+                        key={n.id}
+                        onClick={() => { onChange(id); setOpen(false); setQuery(""); }}
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 12px", cursor: "pointer", background: active ? "rgba(59,130,246,0.1)" : "transparent" }}
+                        onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)"; }}
+                        onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLElement).style.background = ""; }}
+                      >
+                        <code style={{ fontSize: 12, fontWeight: 600, flexShrink: 0, minWidth: 44, color: active ? "#3b82f6" : (TYPE_COLOR[type] ?? "#94a3b8") }}>
+                          {id}
+                        </code>
+                        {id !== name && name && (
+                          <span style={{ fontSize: 12, color: active ? "#94a3b8" : "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {name}
+                          </span>
+                        )}
+                        {active && <span style={{ marginLeft: "auto", color: "#3b82f6", fontSize: 11 }}>✓</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ConnectionsPage() {
   const [explicit, setExplicit]       = useState<{ id: string; ticker_a: string; ticker_b: string; tier: number }[]>([]);
   const [nodes, setNodes]             = useState<NodeRow[]>([]);
@@ -96,15 +293,24 @@ export default function ConnectionsPage() {
   const [tierFilter, setTierFilter]   = useState<string>("all"); // "all" | "auto" | "1" | "2" | "3"
   const [search, setSearch]           = useState("");
   const [err, setErr]                 = useState<string | null>(null);
-  const [changingSector, setChangingSector] = useState<Record<string, boolean>>({});
+  const [changingSector, setChangingSector]   = useState<Record<string, boolean>>({});
+  const [suggestTicker, setSuggestTicker]     = useState("");
+  const [suggesting, setSuggesting]           = useState(false);
+  const [suggestResult, setSuggestResult]     = useState<SuggestResult | null>(null);
+  const [suggestSelected, setSuggestSelected] = useState<Set<string>>(new Set());
+  const [tierOverrides, setTierOverrides]     = useState<Record<string, 1|2|3>>({});
+  const [applying, setApplying]               = useState(false);
+  const [suggestErr, setSuggestErr]           = useState<string | null>(null);
 
   const autoTier = useMemo(
     () => (nodeA && nodeB ? inferTier(nodeA, nodeB, nodes) : 2),
     [nodeA, nodeB, nodes],
   );
   const [tierOverride, setTierOverride] = useState<number | null>(null);
+  const [tierLocked, setTierLocked]     = useState(false);
   const selectedTier = tierOverride ?? autoTier;
-  useEffect(() => { setTierOverride(null); }, [autoTier]);
+  // Only auto-reset the tier when nodes change if no lock is active
+  useEffect(() => { if (!tierLocked) setTierOverride(null); }, [autoTier, tierLocked]);
 
   async function load() {
     const [cRes, nRes] = await Promise.all([
@@ -119,12 +325,12 @@ export default function ConnectionsPage() {
   // Derive automatic sector connections from stock nodes' sector field
   const autoConnections: AutoConn[] = useMemo(() =>
     nodes
-      .filter((n) => n.node_type === "stock" && n.ticker && n.sector && SECTOR_ETF[n.sector])
+      .filter((n) => n.node_type === "stock" && n.ticker && n.sector)
       .map((n) => ({
         kind:      "auto" as const,
         ticker:    n.ticker!,
         sector:    n.sector!,
-        sectorEtf: SECTOR_ETF[n.sector!],
+        sectorEtf: SECTOR_ETF[n.sector!] ?? null, // null = unrecognised sector
       }))
       .sort((a, b) => a.ticker.localeCompare(b.ticker)),
   [nodes]);
@@ -139,7 +345,7 @@ export default function ConnectionsPage() {
     return allConns.filter((c) => {
       if (c.kind === "auto") {
         if (tierFilter !== "all" && tierFilter !== "auto") return false;
-        if (q && !c.ticker.includes(q) && !c.sectorEtf.includes(q) && !c.sector.toUpperCase().includes(q)) return false;
+        if (q && !c.ticker.includes(q) && !(c.sectorEtf?.includes(q)) && !c.sector.toUpperCase().includes(q)) return false;
       } else {
         if (tierFilter === "auto") return false;
         if (tierFilter !== "all" && c.tier !== Number(tierFilter)) return false;
@@ -166,7 +372,9 @@ export default function ConnectionsPage() {
       body: JSON.stringify({ ticker_a: nodeA, ticker_b: nodeB, tier: selectedTier }),
     });
     if (!r.ok) { setErr((await r.json()).error); return; }
-    setNodeA(""); setNodeB(""); setTierOverride(null);
+    // Keep tier lock active so the next connection can be added at the same tier quickly
+    setNodeA(""); setNodeB("");
+    if (!tierLocked) setTierOverride(null);
     load();
   }
 
@@ -186,26 +394,61 @@ export default function ConnectionsPage() {
     load();
   }
 
+  function toggleSuggestion(id: string) {
+    setSuggestSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function getSuggestions() {
+    if (!suggestTicker) return;
+    setSuggesting(true);
+    setSuggestResult(null);
+    setSuggestErr(null);
+    try {
+      const r = await adminFetch("/api/admin/suggest-connections", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker: suggestTicker }),
+      });
+      const data = await r.json();
+      if (!r.ok) { setSuggestErr(data.error ?? "Failed to get suggestions"); return; }
+      setSuggestResult(data as SuggestResult);
+      setTierOverrides({});
+      const all = [...(data.t1 ?? []), ...(data.t2 ?? []), ...(data.t3 ?? [])];
+      setSuggestSelected(new Set(all.map((s: Suggestion) => s.id)));
+    } catch { setSuggestErr("Network error"); }
+    finally { setSuggesting(false); }
+  }
+
+  async function applySelected() {
+    if (!suggestResult || !suggestTicker) return;
+    setApplying(true);
+    const items = [
+      ...suggestResult.t1.filter((s) => suggestSelected.has(s.id)).map((s) => ({ id: s.id, tier: (tierOverrides[s.id] ?? 1) as 1|2|3 })),
+      ...suggestResult.t2.filter((s) => suggestSelected.has(s.id)).map((s) => ({ id: s.id, tier: (tierOverrides[s.id] ?? 2) as 1|2|3 })),
+      ...suggestResult.t3.filter((s) => suggestSelected.has(s.id)).map((s) => ({ id: s.id, tier: (tierOverrides[s.id] ?? 3) as 1|2|3 })),
+    ];
+    await Promise.all(items.map((item) =>
+      adminFetch("/api/admin/connections", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker_a: suggestTicker, ticker_b: item.id, tier: item.tier }),
+      })
+    ));
+    setSuggestResult(null);
+    setSuggestSelected(new Set());
+    setTierOverrides({});
+    setApplying(false);
+    load();
+  }
+
   const grouped = useMemo(() => {
     const g: Record<string, NodeRow[]> = { stock: [], sector: [], subsector: [], subsubsector: [] };
     for (const n of nodes) if (g[n.node_type]) g[n.node_type].push(n);
     return g;
   }, [nodes]);
 
-  const NodeSelect = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
-    <select value={value} onChange={(e) => onChange(e.target.value)} style={INPUT}>
-      <option value="">— select node —</option>
-      {NODE_TYPE_ORDER.map((type) =>
-        grouped[type]?.length ? (
-          <optgroup key={type} label={type.charAt(0).toUpperCase() + type.slice(1) + "s"}>
-            {grouped[type].map((n) => (
-              <option key={n.id} value={nodeId(n)}>{nodeLabel(n)}</option>
-            ))}
-          </optgroup>
-        ) : null,
-      )}
-    </select>
-  );
 
   const FILTER_TABS = [
     { key: "all",  label: "All" },
@@ -225,23 +468,167 @@ export default function ConnectionsPage() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 120px auto", gap: 10, alignItems: "end" }}>
           <div>
             <div style={{ fontSize: 11, color: "#475569", marginBottom: 5 }}>Node A</div>
-            <NodeSelect value={nodeA} onChange={setNodeA} />
+            <NodeCombobox value={nodeA} onChange={setNodeA} nodes={nodes} grouped={grouped} />
           </div>
           <div>
             <div style={{ fontSize: 11, color: "#475569", marginBottom: 5 }}>Node B</div>
-            <NodeSelect value={nodeB} onChange={setNodeB} />
+            <NodeCombobox value={nodeB} onChange={setNodeB} nodes={nodes} grouped={grouped} />
           </div>
           <div>
-            <div style={{ fontSize: 11, color: "#475569", marginBottom: 5 }}>
-              Tier{nodeA && nodeB && <span style={{ color: "#334155", marginLeft: 6 }}>(auto: T{autoTier})</span>}
+            <div style={{ fontSize: 11, color: "#475569", marginBottom: 5, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span>Tier{nodeA && nodeB && !tierLocked && <span style={{ color: "#334155", marginLeft: 5 }}>(auto: T{autoTier})</span>}</span>
+              <div style={{ display: "flex", gap: 3 }}>
+                {[1, 2, 3].map((t) => {
+                  const active = tierLocked && tierOverride === t;
+                  return (
+                    <button
+                      key={t}
+                      title={active ? `Unlock T${t}` : `Lock tier to T${t}`}
+                      onClick={() => {
+                        if (active) { setTierLocked(false); setTierOverride(null); }
+                        else        { setTierLocked(true);  setTierOverride(t); }
+                      }}
+                      style={{
+                        fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+                        cursor: "pointer", fontFamily: "inherit",
+                        background: active ? "rgba(245,158,11,0.15)" : "transparent",
+                        border:     active ? "1px solid rgba(245,158,11,0.4)" : "1px solid rgba(255,255,255,0.08)",
+                        color:      active ? "#f59e0b" : "#475569",
+                      }}
+                    >
+                      T{t}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <select value={selectedTier} onChange={(e) => setTierOverride(Number(e.target.value))} style={INPUT}>
+            <select
+              value={selectedTier}
+              onChange={(e) => { setTierLocked(false); setTierOverride(Number(e.target.value)); }}
+              style={{ ...INPUT, borderColor: tierLocked ? "rgba(245,158,11,0.45)" : "rgba(255,255,255,0.1)" }}
+            >
               {[1, 2, 3].map((t) => (<option key={t} value={t}>T{t} — {TIER_LABELS[t]}</option>))}
             </select>
           </div>
           <button style={{ ...BTN, alignSelf: "flex-end" }} onClick={add}>Add</button>
         </div>
         {err && <div style={{ fontSize: 12, color: "#ef4444", marginTop: 8 }}>{err}</div>}
+      </div>
+
+      {/* AI Connection Suggestions */}
+      <div style={{ ...CARD, marginBottom: 28 }}>
+        <div style={{ fontSize: 12, color: "#475569", fontWeight: 500, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+          AI Connection Suggestions
+          <span style={{ fontSize: 10, background: "rgba(168,85,247,0.15)", border: "1px solid rgba(168,85,247,0.3)", color: "#a855f7", padding: "2px 7px", borderRadius: 10, letterSpacing: 0, textTransform: "none" }}>
+            Claude
+          </span>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "end", marginBottom: suggestResult || suggestErr || suggesting ? 18 : 0 }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#475569", marginBottom: 5 }}>Stock to analyse</div>
+            <NodeCombobox
+              value={suggestTicker}
+              onChange={(v) => { setSuggestTicker(v); setSuggestResult(null); setSuggestErr(null); }}
+              nodes={grouped.stock ?? []}
+              grouped={{ stock: grouped.stock ?? [], sector: [], subsector: [], subsubsector: [] }}
+            />
+          </div>
+          <button
+            style={{ ...BTN, background: "rgba(168,85,247,0.75)", opacity: !suggestTicker || suggesting ? 0.55 : 1 }}
+            onClick={getSuggestions}
+            disabled={!suggestTicker || suggesting}
+          >
+            {suggesting ? "Analysing…" : "Get Suggestions"}
+          </button>
+        </div>
+
+        {suggestErr && (
+          <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 12 }}>{suggestErr}</div>
+        )}
+
+        {suggesting && (
+          <div style={{ fontSize: 12, color: "#475569" }}>Claude is analysing connections…</div>
+        )}
+
+        {suggestResult && (() => {
+          const total = suggestResult.t1.length + suggestResult.t2.length + suggestResult.t3.length;
+          if (total === 0) return (
+            <div style={{ fontSize: 12, color: "#334155" }}>No new connection suggestions — this stock may already be well connected.</div>
+          );
+          return (
+            <>
+              {suggestResult.t1.length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: TIER_COLORS[1], marginBottom: 7, display: "flex", alignItems: "center", gap: 6 }}>
+                    <TierBadge tier={1} />
+                    <span>Structural connections</span>
+                  </div>
+                  {suggestResult.t1.map((s) => (
+                    <SuggestionRow key={s.id} s={s} selected={suggestSelected.has(s.id)} onToggle={() => toggleSuggestion(s.id)}
+                      effectiveTier={(tierOverrides[s.id] ?? 1) as 1|2|3}
+                      onTierChange={(t) => setTierOverrides((prev) => ({ ...prev, [s.id]: t }))} />
+                  ))}
+                </div>
+              )}
+
+              {suggestResult.t2.length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: TIER_COLORS[2], marginBottom: 7, display: "flex", alignItems: "center", gap: 6 }}>
+                    <TierBadge tier={2} />
+                    <span>Strong peers &amp; themes</span>
+                  </div>
+                  {suggestResult.t2.map((s) => (
+                    <SuggestionRow key={s.id} s={s} selected={suggestSelected.has(s.id)} onToggle={() => toggleSuggestion(s.id)}
+                      effectiveTier={(tierOverrides[s.id] ?? 2) as 1|2|3}
+                      onTierChange={(t) => setTierOverrides((prev) => ({ ...prev, [s.id]: t }))} />
+                  ))}
+                </div>
+              )}
+
+              {suggestResult.t3.length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: TIER_COLORS[3], marginBottom: 7, display: "flex", alignItems: "center", gap: 6 }}>
+                    <TierBadge tier={3} />
+                    <span>Indirect relationships</span>
+                  </div>
+                  {suggestResult.t3.map((s) => (
+                    <SuggestionRow key={s.id} s={s} selected={suggestSelected.has(s.id)} onToggle={() => toggleSuggestion(s.id)}
+                      effectiveTier={(tierOverrides[s.id] ?? 3) as 1|2|3}
+                      onTierChange={(t) => setTierOverrides((prev) => ({ ...prev, [s.id]: t }))} />
+                  ))}
+                </div>
+              )}
+
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 4 }}>
+                <button
+                  style={{ ...BTN, opacity: suggestSelected.size === 0 || applying ? 0.55 : 1 }}
+                  onClick={applySelected}
+                  disabled={suggestSelected.size === 0 || applying}
+                >
+                  {applying ? "Applying…" : `Apply Selected (${suggestSelected.size})`}
+                </button>
+                <span style={{ fontSize: 11, color: "#334155" }}>{suggestSelected.size} of {total} selected</span>
+                <button
+                  onClick={() => {
+                    if (suggestSelected.size === total) setSuggestSelected(new Set());
+                    else setSuggestSelected(new Set([...suggestResult.t1, ...suggestResult.t2, ...suggestResult.t3].map((s) => s.id)));
+                  }}
+                  style={{ background: "none", border: "none", color: "#475569", fontSize: 11, cursor: "pointer", padding: 0 }}
+                >
+                  {suggestSelected.size === total ? "Deselect all" : "Select all"}
+                </button>
+              </div>
+            </>
+          );
+        })()}
+
+        {!suggestResult && !suggesting && !suggestErr && (
+          <div style={{ fontSize: 12, color: "#334155" }}>
+            Select a stock above then click &ldquo;Get Suggestions&rdquo; — Claude will suggest T1/T2/T3 connections based on nodes already in the graph.
+            The auto sector connection (stock → GICS sector ring) is always applied separately via the stock&apos;s sector field.
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -298,8 +685,12 @@ export default function ConnectionsPage() {
                         ))}
                       </select>
                     </td>
-                    <td style={{ ...TD, color: "#334155", fontSize: 11 }}>
-                      {changingSector[c.ticker] ? "Saving…" : "Change sector to move this stock"}
+                    <td style={{ ...TD, fontSize: 11, color: c.sectorEtf ? "#334155" : "#f59e0b" }}>
+                      {changingSector[c.ticker]
+                        ? "Saving…"
+                        : c.sectorEtf
+                          ? "Change sector to move this stock"
+                          : `⚠ "${c.sector}" is not a recognised sector — reassign`}
                     </td>
                   </tr>
                 );

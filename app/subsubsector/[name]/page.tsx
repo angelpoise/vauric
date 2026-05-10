@@ -52,7 +52,7 @@ export default async function SubSubSectorPage({ params }: Props) {
   if (connectedIds.size > 0) {
     const { data: stockRows } = await supabaseAdmin
       .from("admin_nodes").select("ticker, company_name")
-      .eq("node_type", "stock").in("ticker", [...connectedIds]);
+      .eq("node_type", "stock").in("ticker", Array.from(connectedIds));
     stocks = (stockRows ?? []) as ConstituentStock[];
   }
 

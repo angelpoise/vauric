@@ -5,8 +5,9 @@ import { useState, useEffect } from "react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const LEGACY_SECTORS = ["Technology", "Energy", "Healthcare", "Finance",
-  "Financial Services", "Consumer Staples", "Consumer Discretionary",
+// Fallback used only if DB sector fetch fails
+const FALLBACK_SECTORS = ["Information Technology", "Energy", "Healthcare", "Financials",
+  "Consumer Staples", "Consumer Discretionary",
   "Industrials", "Communication Services", "Materials", "Real Estate", "Utilities"];
 
 const SCHEDULES = [
@@ -16,7 +17,7 @@ const SCHEDULES = [
 ];
 
 const NODE_TYPE_LABELS: Record<string, string> = {
-  stock: "Stock", sector: "Sector", subsector: "Sub-sector", subsubsector: "Sub-sub-sector",
+  stock: "Stock", sector: "Sector", subsector: "Sub-sector", subsubsector: "Industry",
 };
 const NODE_TYPE_COLORS: Record<string, string> = {
   stock: "#3b82f6", sector: "#10b981", subsector: "#f59e0b", subsubsector: "#a855f7",
@@ -71,7 +72,7 @@ type FormState = {
 
 const BLANK_FORM: FormState = {
   node_type: "stock",
-  ticker: "", company_name: "", sector: "Technology", investor_relations_url: "",
+  ticker: "", company_name: "", sector: "Information Technology", investor_relations_url: "",
   display_name: "", etf_ticker: "", colour: "#3b82f6", parent_node_id: "",
   x_position: 0.5, y_position: 0.5,
 };
@@ -112,6 +113,7 @@ type EditFormData = {
 
 export default function NodesPage() {
   const [nodes, setNodes]           = useState<Node[]>([]);
+  const [sectorNames, setSectorNames] = useState<string[]>(FALLBACK_SECTORS);
   const [form, setForm]             = useState<FormState>(BLANK_FORM);
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [err, setErr]               = useState<string | null>(null);
@@ -128,7 +130,17 @@ export default function NodesPage() {
 
   async function load() {
     const r = await adminFetch("/api/admin/stocks");
-    if (r.ok) setNodes(await r.json());
+    if (r.ok) {
+      const all: Node[] = await r.json();
+      setNodes(all);
+      // Derive sector names from actual sector nodes in the DB
+      const names = all
+        .filter((n) => n.node_type === "sector")
+        .map((n) => n.display_name ?? n.company_name ?? "")
+        .filter(Boolean)
+        .sort();
+      if (names.length > 0) setSectorNames(names);
+    }
   }
   useEffect(() => { load(); }, []);
 
@@ -291,11 +303,16 @@ export default function NodesPage() {
       body.company_name           = editForm.company_name;
       body.sector                 = editForm.sector;
       body.investor_relations_url = editForm.investor_relations_url || null;
-    } else {
+    } else if (editingNode.node_type === "sector") {
       body.company_name   = editForm.company_name;
       body.display_name   = editForm.display_name || editForm.company_name;
       body.etf_ticker     = editForm.etf_ticker || null;
       body.colour         = editForm.colour || null;
+    } else {
+      // subsector / subsubsector — single "Name" field drives both identifiers
+      body.company_name   = editForm.company_name;
+      body.display_name   = editForm.company_name;
+      body.etf_ticker     = editForm.etf_ticker || null;
       if (editForm.parent_node_id) body.parent_node_id = editForm.parent_node_id;
     }
     await adminFetch(`/api/admin/stocks/${editingNode.id}`, {
@@ -364,7 +381,7 @@ export default function NodesPage() {
             <option value="stock">Stock</option>
             <option value="sector">Sector</option>
             <option value="subsector">Sub-sector</option>
-            <option value="subsubsector">Sub-sub-sector</option>
+            <option value="subsubsector">Industry</option>
           </select>
         </div>
 
@@ -374,7 +391,7 @@ export default function NodesPage() {
               <input style={INPUT} placeholder="Ticker" value={form.ticker} onChange={(e) => setForm({ ...form, ticker: e.target.value.toUpperCase() })} />
               <input style={INPUT} placeholder="Company name" value={form.company_name} onChange={(e) => setForm({ ...form, company_name: e.target.value })} />
               <select style={INPUT} value={form.sector} onChange={(e) => setForm({ ...form, sector: e.target.value })}>
-                {LEGACY_SECTORS.map((s) => <option key={s} value={s}>{s}</option>)}
+                {sectorNames.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
               <input style={INPUT} placeholder="X" type="number" step="0.01" value={form.x_position} onChange={(e) => setForm({ ...form, x_position: +e.target.value })} />
               <input style={INPUT} placeholder="Y" type="number" step="0.01" value={form.y_position} onChange={(e) => setForm({ ...form, y_position: +e.target.value })} />
@@ -558,7 +575,7 @@ export default function NodesPage() {
               <div><div style={{ fontSize: 11, color: "#475569", marginBottom: 5 }}>Name</div>
                 <input style={INPUT} value={editForm.company_name} onChange={(e) => setEditForm({ ...editForm, company_name: e.target.value })} /></div>
               <div><div style={{ fontSize: 11, color: "#475569", marginBottom: 5 }}>
-                Parent {editingNode.node_type === "subsector" ? "sector" : "sub-sector"}
+                Parent {editingNode.node_type === "subsector" ? "sector" : "sub-sector" /* parent of an industry is always a sub-sector */}
               </div>
                 <select style={INPUT} value={editForm.parent_node_id}
                   onChange={(e) => setEditForm({ ...editForm, parent_node_id: e.target.value })}>

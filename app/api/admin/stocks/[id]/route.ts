@@ -7,7 +7,7 @@ const ALLOWED_PUT_FIELDS = new Set([
   // stock fields
   "ticker", "company_name", "sector", "x_position", "y_position", "investor_relations_url",
   // hierarchy fields
-  "node_type", "display_name", "etf_ticker", "colour", "parent_node_id", "tags",
+  "node_type", "display_name", "etf_ticker", "colour", "parent_node_id",
 ]);
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
@@ -47,7 +47,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   // Resolve the target row in priority order:
   //   UUID        → match admin_nodes.id directly
   //   uppercase   → match admin_nodes.ticker (stocks)
-  //   uppercase   → match admin_nodes.etf_ticker (sectors)
+  //   uppercase   → match admin_nodes.etf_ticker (sectors) — uses limit(1) to
+  //                 tolerate duplicate rows without erroring
   //   as-is       → match admin_nodes.company_name (subsectors/subsubsectors)
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(params.id);
   let targetId: string | null = null;
@@ -63,16 +64,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (byTicker) {
       targetId = byTicker.id as string;
     } else {
-      // 2. Sector ETF ticker
-      const { data: byEtf } = await supabaseAdmin
-        .from("admin_nodes").select("id").eq("etf_ticker", upper).maybeSingle();
-      if (byEtf) {
-        targetId = byEtf.id as string;
+      // 2. Sector ETF ticker — limit(1) so duplicate rows don't cause maybeSingle() to error
+      const { data: byEtfRows } = await supabaseAdmin
+        .from("admin_nodes").select("id").eq("etf_ticker", upper).limit(1);
+      if (byEtfRows?.[0]) {
+        targetId = byEtfRows[0].id as string;
       } else {
         // 3. Sub-sector / sub-sub-sector company_name (case-sensitive, as stored)
-        const { data: byName } = await supabaseAdmin
-          .from("admin_nodes").select("id").eq("company_name", params.id).maybeSingle();
-        if (byName) targetId = byName.id as string;
+        //    limit(1) so duplicate rows don't cause maybeSingle() to error
+        const { data: byNameRows } = await supabaseAdmin
+          .from("admin_nodes").select("id").eq("company_name", params.id).limit(1);
+        if (byNameRows?.[0]) targetId = byNameRows[0].id as string;
       }
     }
   }

@@ -36,7 +36,7 @@ function nodeIdentifier(node: GNode): string {
 function nodeSubtitle(node: GNode): string | null {
   if (node.kind === "sector")        return "Sector ETF";
   if (node.kind === "subsector")     return `${(node as SubSectorNode).sectorEtf} · Sub-sector`;
-  if (node.kind === "subsubsector")  return `${(node as SubSubSectorNode).sectorEtf} · Sub-sub-sector`;
+  if (node.kind === "subsubsector")  return `${(node as SubSubSectorNode).sectorEtf} · Industry`;
   return null;
 }
 

@@ -34,6 +34,12 @@ import {
 // Visually distinct from both the green/red performance colours and neutral grey.
 const NO_ETF_COLOR = "rgb(168, 130, 52)";
 
+// ─── LOD (Level of Detail) zoom thresholds ───────────────────────────────────
+// cam.scale at which each tier fades in. Below = hidden, above+LOD_FADE = fully shown.
+const LOD_SUBSECTOR    = 0.28; // subsectors fade in around this scale
+const LOD_SUBSUBSECTOR = 0.48; // subsubsectors + stock nodes fade in at this scale
+const LOD_FADE         = 0.07; // width of the crossfade band
+
 // ─── Module-level position seed ──────────────────────────────────────────────
 // Read sessionStorage synchronously at module evaluation time so positions are
 // available before React mounts the component, eliminating the one-frame flash.
@@ -74,6 +80,7 @@ interface Props {
   activeFilters?: ActiveFilters;
   graphSettings?: GraphSettings;
   editMode?: boolean;
+  connectionView?: ConnectionView;
   sectorNodes?: SectorNode[];
   onNodeDragEnd?: (nodeId: string, worldX: number, worldY: number) => void;
   onContextMenu?: (info: ContextMenuInfo) => void;
@@ -84,15 +91,16 @@ interface Props {
 export interface GraphCanvasHandle {
   snapshotPositions: () => void;
   restorePositions: () => void;
+  zoomToNode: (nodeId: string) => void;
 }
 
 // ─── Static sector node defaults (ids = ETF tickers) ────────────────────────
 
 const DEFAULT_SECTOR_NODES: SectorNode[] = [
-  { id: "XLK",  kind: "sector", name: "Technology",         etf: "XLK",  price: 224.18, dailyMove:  1.2, x:  500, y: 420, notifications: [] },
+  { id: "XLK",  kind: "sector", name: "Information Technology", etf: "XLK",  price: 224.18, dailyMove:  1.2, x:  500, y: 420, notifications: [] },
   { id: "XLE",  kind: "sector", name: "Energy",             etf: "XLE",  price:  93.42, dailyMove: -0.8, x: 1100, y: 360, notifications: [] },
   { id: "XLV",  kind: "sector", name: "Healthcare",         etf: "XLV",  price: 143.76, dailyMove:  0.3, x:  440, y: 750, notifications: [] },
-  { id: "XLF",  kind: "sector", name: "Financial Services", etf: "XLF",  price:  45.21, dailyMove:  0.7, x: 1155, y: 710, notifications: [] },
+  { id: "XLF",  kind: "sector", name: "Financials",          etf: "XLF",  price:  45.21, dailyMove:  0.7, x: 1155, y: 710, notifications: [] },
   { id: "XLI",  kind: "sector", name: "Industrials",        etf: "XLI",  price:  62.00, dailyMove:  0.0, x:  800, y: 165, notifications: [] },
   { id: "XLP",  kind: "sector", name: "Consumer Staples",   etf: "XLP",  price:   0.00, dailyMove:  0.0, x:  640, y: 935, notifications: [] },
   { id: "XLY",  kind: "sector", name: "Consumer Discr.",    etf: "XLY",  price:  72.00, dailyMove:  0.0, x:  960, y: 935, notifications: [] },
@@ -104,9 +112,11 @@ const DEFAULT_SECTOR_NODES: SectorNode[] = [
 
 // Maps sector text field on stock rows → sector node id (= ETF ticker)
 const SECTOR_MAP: Record<string, string> = {
+  "Information Technology": "XLK",
   Technology:              "XLK",
   Energy:                  "XLE",
   Healthcare:              "XLV",
+  Financials:              "XLF",
   Finance:                 "XLF",
   "Financial Services":    "XLF",
   "Consumer Staples":      "XLP",
@@ -125,12 +135,6 @@ const ETF_TO_FILTER_ID: Record<string, string> = {
   XLP: "consumer", XLI: "consumer", XLC: "consumer", XLB: "consumer", XLRE: "consumer", XLU: "consumer",
 };
 
-// Maps sector ETF ticker → routing slug
-const ETF_TO_SLUG: Record<string, string> = {
-  XLK: "tech", XLF: "finance", XLV: "health", XLE: "energy", XLY: "consumer",
-  XLP: "consumer-staples", XLI: "industrials", XLC: "communication",
-  XLB: "materials", XLRE: "real-estate", XLU: "utilities",
-};
 
 // ─── Fallback stock data (used if /api/graph fetch fails) ─────────────────────
 
@@ -156,25 +160,36 @@ const FALLBACK_STOCK_NODES: StockNode[] = [
   { id: "HOOD", kind: "stock", ticker: "HOOD", name: "Robinhood",            price:   22.36, dailyMove:  5.4, sectorId: "sec-finance", x: 1228, y: 868, notifications: [] },
 ];
 
-const FALLBACK_EXTRA_EDGES: Array<{ source: string; target: string }> = [
-  { source: "SMCI", target: "NVDA" },
-  { source: "SMCI", target: "ARM"  },
-  { source: "NVDA", target: "AMD"  },
-  { source: "NVDA", target: "ARM"  },
-  { source: "AMD",  target: "ARM"  },
-  { source: "PLTR", target: "MSFT" },
-  { source: "PLTR", target: "SOFI" },
-  { source: "FANG", target: "XOM"  },
-  { source: "AFRM", target: "PYPL" },
-  { source: "COIN", target: "SOFI" },
-  { source: "HOOD", target: "COIN" },
-  { source: "SOFI", target: "AFRM" },
-  { source: "HIMS", target: "RXRX" },
+const FALLBACK_EXTRA_EDGES: Edge[] = [
+  { source: "SMCI", target: "NVDA", kind: "explicit" },
+  { source: "SMCI", target: "ARM",  kind: "explicit" },
+  { source: "NVDA", target: "AMD",  kind: "explicit" },
+  { source: "NVDA", target: "ARM",  kind: "explicit" },
+  { source: "AMD",  target: "ARM",  kind: "explicit" },
+  { source: "PLTR", target: "MSFT", kind: "explicit" },
+  { source: "PLTR", target: "SOFI", kind: "explicit" },
+  { source: "FANG", target: "XOM",  kind: "explicit" },
+  { source: "AFRM", target: "PYPL", kind: "explicit" },
+  { source: "COIN", target: "SOFI", kind: "explicit" },
+  { source: "HOOD", target: "COIN", kind: "explicit" },
+  { source: "SOFI", target: "AFRM", kind: "explicit" },
+  { source: "HIMS", target: "RXRX", kind: "explicit" },
+];
+
+// ─── Connection view presets ──────────────────────────────────────────────────
+
+export type ConnectionView = "primary" | "all" | "stock-stock" | "hierarchy";
+
+export const CONNECTION_VIEW_PRESETS: { key: ConnectionView; label: string; description: string }[] = [
+  { key: "primary",      label: "Primary",   description: "Hierarchy structure only (sector / subsector links)" },
+  { key: "all",          label: "All",        description: "Every connection in the graph" },
+  { key: "stock-stock",  label: "Peers",      description: "Stock-to-stock connections only" },
+  { key: "hierarchy",    label: "Structure",  description: "Sector / subsector links only" },
 ];
 
 // ─── Graph data assembly ──────────────────────────────────────────────────────
 
-interface Edge { source: string; target: string; }
+interface Edge { source: string; target: string; kind: "sector" | "primary" | "explicit"; }
 
 interface GraphData {
   nodes: GNode[];
@@ -189,8 +204,12 @@ function buildGraphData(
   extraEdges:  Edge[],
   subNodes:    Array<SubSectorNode | SubSubSectorNode> = [],
 ): GraphData {
-  const nodes: GNode[] = [...sectorNodes, ...subNodes, ...stockNodes];
-  const sectorEdges: Edge[] = stockNodes.map((n) => ({ source: n.id, target: n.sectorId }));
+  const raw: GNode[] = [...sectorNodes, ...subNodes, ...stockNodes];
+  // Deduplicate by id — first occurrence wins (DB-loaded sector beats fallback default)
+  const seen = new Set<string>();
+  const nodes = raw.filter((n) => { if (seen.has(n.id)) return false; seen.add(n.id); return true; });
+
+  const sectorEdges: Edge[] = stockNodes.map((n) => ({ source: n.id, target: n.sectorId, kind: "sector" as const }));
   const edges: Edge[] = [...sectorEdges, ...extraEdges];
 
   const nodeById = new Map<string, GNode>(nodes.map((n) => [n.id, n]));
@@ -246,9 +265,107 @@ interface DbHierarchyNode {
   y_position:     number;
 }
 
+// ─── Module-level draw utilities ─────────────────────────────────────────────
+
+function withOpacity(col: string, alpha: number): string {
+  if (col.startsWith("rgb(")) return col.replace("rgb(", "rgba(").replace(")", `, ${alpha})`);
+  if (col.startsWith("#") && col.length === 7) {
+    const r = parseInt(col.slice(1, 3), 16);
+    const g = parseInt(col.slice(3, 5), 16);
+    const b = parseInt(col.slice(5, 7), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+  return col;
+}
+
+type LabelSide = "top" | "bottom" | "left" | "right";
+
+// For each hierarchy node pick the quadrant (top/bottom/left/right) with least
+// neighbour pressure, so labels point away from the densest nearby cluster.
+function computeLabelSides(nodes: GNode[]): Map<string, LabelSide> {
+  const INFLUENCE_R   = 380;
+  const SIDES: LabelSide[] = ["top", "bottom", "left", "right"];
+  const SIDE_ANGLE: Record<LabelSide, number> = {
+    top: -Math.PI / 2, bottom: Math.PI / 2, left: Math.PI, right: 0,
+  };
+  const result = new Map<string, LabelSide>();
+  for (const node of nodes.filter((n) => n.kind !== "stock")) {
+    const nearby = nodes.filter(
+      (n) => n.id !== node.id && Math.hypot(n.x - node.x, n.y - node.y) < INFLUENCE_R
+    );
+    if (!nearby.length) { result.set(node.id, "bottom"); continue; }
+    const scores = { top: 0, bottom: 0, left: 0, right: 0 } as Record<LabelSide, number>;
+    for (const n of nearby) {
+      const dx = n.x - node.x, dy = n.y - node.y;
+      const dist2 = dx * dx + dy * dy;
+      if (dist2 < 1) continue;
+      const angle = Math.atan2(dy, dx);
+      for (const side of SIDES) {
+        const align = Math.cos(angle - SIDE_ANGLE[side]);
+        if (align > 0) scores[side] += align / dist2;
+      }
+    }
+    let best: LabelSide = "bottom", bestScore = Infinity;
+    for (const side of SIDES) {
+      if (scores[side] < bestScore) { bestScore = scores[side]; best = side; }
+    }
+    result.set(node.id, best);
+  }
+  return result;
+}
+
+// Render a stack of text lines to one side of a node ring.
+function drawLabel(
+  c: CanvasRenderingContext2D,
+  lines: Array<{ text: string; font: string; alpha: number; col: string }>,
+  side: LabelSide,
+  r: number,
+  gap: number,
+) {
+  if (!lines.length) return;
+  const SP = 2;
+  const heights = lines.map((l) => {
+    const m = l.font.match(/([\d.]+)px/);
+    return m ? parseFloat(m[1]) : 10;
+  });
+  const totalH = heights.reduce((s, h) => s + h, 0) + SP * (lines.length - 1);
+  c.textBaseline = "top";
+  let sx: number, sy: number;
+  switch (side) {
+    case "bottom": sx = 0;          sy = r + gap;             c.textAlign = "center"; break;
+    case "top":    sx = 0;          sy = -(r + gap + totalH); c.textAlign = "center"; break;
+    case "right":  sx = r + gap;    sy = -totalH / 2;         c.textAlign = "left";   break;
+    default:       sx = -(r + gap); sy = -totalH / 2;         c.textAlign = "right";  break;
+  }
+  let y = sy;
+  for (let i = 0; i < lines.length; i++) {
+    c.font      = lines[i].font;
+    c.fillStyle = withOpacity(lines[i].col, lines[i].alpha);
+    c.fillText(lines[i].text, sx, y);
+    y += heights[i] + SP;
+  }
+}
+
+// Controls whether the node itself (circle) is drawn. Only stocks vanish at low zoom.
+function nodeLodAlpha(node: GNode, camScale: number): number {
+  if (node.kind !== "stock") return 1;
+  if (camScale >= LOD_SUBSUBSECTOR + LOD_FADE) return 1;
+  if (camScale <  LOD_SUBSUBSECTOR)            return 0;
+  return (camScale - LOD_SUBSUBSECTOR) / LOD_FADE;
+}
+
+// Controls label opacity for hierarchy nodes. Circles are always visible; names fade in.
+function labelLodAlpha(node: GNode, camScale: number): number {
+  if (node.kind === "sector" || node.kind === "stock") return 1;
+  const threshold = node.kind === "subsector" ? LOD_SUBSECTOR : LOD_SUBSUBSECTOR;
+  if (camScale >= threshold + LOD_FADE) return 1;
+  if (camScale <  threshold)            return 0;
+  return (camScale - threshold) / LOD_FADE;
+}
+
 const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
   onHover, activeFilters, graphSettings,
-  editMode, sectorNodes, onNodeDragEnd, onContextMenu, onShiftEmptyClick, onGraphLoaded,
+  editMode, connectionView, sectorNodes, onNodeDragEnd, onContextMenu, onShiftEmptyClick, onGraphLoaded,
 }, ref) {
   const router         = useRouter();
   const { user }       = useUser();
@@ -284,9 +401,14 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
   const graphDataRef = useRef<GraphData>(
     buildGraphData(sectorNodesRef.current, seededStockNodes, extraEdgesRef.current)
   );
+  const labelSidesRef    = useRef<Map<string, LabelSide>>(new Map());
+  const contentBoundsRef = useRef<{ minX: number; maxX: number; minY: number; maxY: number } | null>(null);
 
   // Position snapshot for edit-mode discard
   const positionSnapshotRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+
+  // Target camera for smooth zoom-to-node animation
+  const targetCameraRef = useRef<Camera | null>(null);
 
   useImperativeHandle(ref, () => ({
     snapshotPositions() {
@@ -305,6 +427,23 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         }
       }
     },
+    zoomToNode(nodeId: string) {
+      const node = graphDataRef.current.nodes.find(
+        (n) => n.id === nodeId || (n.kind === "stock" && (n as StockNode).ticker === nodeId)
+      );
+      if (!node || !canvasRef.current) return;
+      const W = canvasRef.current.clientWidth;
+      const H = canvasRef.current.clientHeight;
+      const targetScale =
+        node.kind === "sector"       ? 0.45 :
+        node.kind === "subsector"    ? 0.70 :
+        node.kind === "subsubsector" ? 0.90 : 1.5;
+      targetCameraRef.current = {
+        x: W / 2 - node.x * targetScale,
+        y: H / 2 - node.y * targetScale,
+        scale: targetScale,
+      };
+    },
   }));
 
   interface LiveEntry { price: number; dailyMove: number; dailyMoveDollar: number; }
@@ -314,6 +453,9 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
   const activeFiltersRef   = useRef<ActiveFilters>(DEFAULT_FILTERS);
   const graphSettingsRef   = useRef<GraphSettings>(DEFAULT_GRAPH_SETTINGS);
   const notificationsRef   = useRef<Record<string, Array<{ type: NotifType }>>>({});
+
+  // Connection view ref
+  const connectionViewRef = useRef<ConnectionView>("primary");
 
   // Edit mode refs
   const editModeRef          = useRef(false);
@@ -326,9 +468,10 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
   const [hoverNode, setHoverNode] = useState<GNode | null>(null);
 
   // Keep refs in sync with props
-  useEffect(() => { activeFiltersRef.current  = activeFilters  ?? DEFAULT_FILTERS;       }, [activeFilters]);
-  useEffect(() => { graphSettingsRef.current  = graphSettings  ?? DEFAULT_GRAPH_SETTINGS; }, [graphSettings]);
-  useEffect(() => { editModeRef.current        = editMode       ?? false;                  }, [editMode]);
+  useEffect(() => { activeFiltersRef.current    = activeFilters  ?? DEFAULT_FILTERS;       }, [activeFilters]);
+  useEffect(() => { graphSettingsRef.current    = graphSettings  ?? DEFAULT_GRAPH_SETTINGS; }, [graphSettings]);
+  useEffect(() => { editModeRef.current          = editMode       ?? false;                  }, [editMode]);
+  useEffect(() => { connectionViewRef.current    = connectionView ?? "primary";             }, [connectionView]);
   useEffect(() => { onNodeDragEndRef.current   = onNodeDragEnd;                            }, [onNodeDragEnd]);
   useEffect(() => { onContextMenuRef.current   = onContextMenu;                            }, [onContextMenu]);
   useEffect(() => { onShiftEmptyClickRef.current = onShiftEmptyClick;                      }, [onShiftEmptyClick]);
@@ -351,7 +494,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
 
   // Fetch graph structure (stocks + hierarchy + connections) from database
   useEffect(() => {
-    fetch("/api/graph")
+    fetch("/api/graph", { cache: "no-store" })
       .then((r) => r.ok ? r.json() : null)
       .then((data: { stocks: DbStock[]; hierarchy: DbHierarchyNode[]; connections: DbConnection[] } | null) => {
         if (!data) return;
@@ -420,17 +563,19 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
           }
         }
 
-        // ── Prefer DB sectors; fall back to defaults for any missing ETFs
+        // ── Prefer DB sectors; fall back to defaults for any missing ETFs.
+        // DB sectors use their stored position directly.
+        // Fallback sectors (not yet in DB) use the position from sectorNodesRef,
+        // which was initialised from localStorage via loadSectors() so user-saved
+        // positions survive refresh even without a DB row.
         const dbEtfs = new Set(dbSectorNodes.map((s) => s.etf));
         const fallbackSectors = DEFAULT_SECTOR_NODES.filter((s) => !dbEtfs.has(s.etf));
-        const mergedSectors = [...dbSectorNodes, ...fallbackSectors];
-
-        // Preserve any dragged positions from the current ref
-        const currentById = new Map(graphDataRef.current.nodes.map((n) => [n.id, n]));
-        const finalSectors = mergedSectors.map((s) => {
-          const cur = currentById.get(s.id);
-          return cur ? { ...s, x: cur.x, y: cur.y } : s;
+        const savedById = new Map(sectorNodesRef.current.map((s) => [s.id, s]));
+        const fallbackWithPos = fallbackSectors.map((s) => {
+          const saved = savedById.get(s.id);
+          return saved ? { ...s, x: saved.x, y: saved.y } : s;
         });
+        const finalSectors = [...dbSectorNodes, ...fallbackWithPos];
 
         sectorNodesRef.current = finalSectors;
 
@@ -449,14 +594,52 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         }));
 
         // ── Extra edges (stock-stock + hierarchy connections)
+        // Infer kind from node types: if either endpoint is a hierarchy node
+        // (sector / subsector / subsubsector), this is a structural "primary" edge.
+        // This avoids relying on the is_primary DB column for the graph fetch.
+        const hierarchyIds = new Set<string>([
+          ...finalSectors.map((s) => s.id),
+          ...subNodes.map((s) => s.id),
+        ]);
         const extraEdges: Edge[] = (data.connections ?? []).map((c) => ({
           source: c.ticker_a,
           target: c.ticker_b,
-        }));
+          kind:   (hierarchyIds.has(c.ticker_a) || hierarchyIds.has(c.ticker_b))
+                    ? "primary" : "explicit",
+        } as Edge));
 
         stockNodesRef.current = stockNodes;
         extraEdgesRef.current = extraEdges;
-        graphDataRef.current = buildGraphData(finalSectors, stockNodes, extraEdges, subNodes);
+        graphDataRef.current  = buildGraphData(finalSectors, stockNodes, extraEdges, subNodes);
+        labelSidesRef.current = computeLabelSides(graphDataRef.current.nodes);
+
+        // Re-centre the camera on the actual node bounding box now that real
+        // positions are loaded. Only hierarchy nodes define the layout shape.
+        if (canvasRef.current) {
+          const W = canvasRef.current.clientWidth;
+          const H = canvasRef.current.clientHeight;
+          const hn = graphDataRef.current.nodes.filter(
+            (n) => n.kind === "sector" || n.kind === "subsector" || n.kind === "subsubsector"
+          );
+          if (hn.length > 0) {
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            for (const n of hn) {
+              const r = n.kind === "sector" ? 132 : n.kind === "subsector" ? 66 : 50;
+              minX = Math.min(minX, n.x - r);
+              maxX = Math.max(maxX, n.x + r);
+              minY = Math.min(minY, n.y - r);
+              maxY = Math.max(maxY, n.y + r);
+            }
+            const pad   = 80;
+            const scale = Math.min((W - pad * 2) / (maxX - minX), (H - pad * 2) / (maxY - minY), 0.95);
+            cameraRef.current = {
+              scale,
+              x: W / 2 - ((minX + maxX) / 2) * scale,
+              y: H / 2 - ((minY + maxY) / 2) * scale,
+            };
+            contentBoundsRef.current = { minX, maxX, minY, maxY };
+          }
+        }
 
         onGraphLoadedRef.current?.(stockNodes.map((n) => n.ticker));
 
@@ -488,11 +671,17 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
   // Sector dots: sector-level news articles shown as yellow "news" dots on sector rings.
   useEffect(() => {
     const SECTOR_NODE_MAP: Record<string, string> = {
-      tech:     "XLK",
-      energy:   "XLE",
-      health:   "XLV",
-      finance:  "XLF",
-      consumer: "XLY",
+      tech:             "XLK",
+      energy:           "XLE",
+      health:           "XLV",
+      finance:          "XLF",
+      consumer:         "XLY",
+      industrials:      "XLI",
+      "consumer-staples": "XLP",
+      communication:    "XLC",
+      materials:        "XLB",
+      "real-estate":    "XLRE",
+      utilities:        "XLU",
     };
 
     Promise.allSettled([
@@ -631,12 +820,26 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       };
     }
 
+    // Clamp camera so at least MARGIN screen-px of the actual content stays visible on each side.
+    // Uses the real node bounding box once loaded; falls back to world dimensions until then.
+    const PAN_MARGIN = 650;
+    function clampCamera(cam: Camera): Camera {
+      const W  = canvas.clientWidth;
+      const H  = canvas.clientHeight;
+      const cb = contentBoundsRef.current;
+      const x1 = cb ? cb.minX : 0,    x2 = cb ? cb.maxX : 1600;
+      const y1 = cb ? cb.minY : 0,    y2 = cb ? cb.maxY : 1100;
+      const x  = Math.max(PAN_MARGIN - x2 * cam.scale, Math.min(W - PAN_MARGIN - x1 * cam.scale, cam.x));
+      const y  = Math.max(PAN_MARGIN - y2 * cam.scale, Math.min(H - PAN_MARGIN - y1 * cam.scale, cam.y));
+      return (x === cam.x && y === cam.y) ? cam : { ...cam, x, y };
+    }
+
     // ── Node radius ──────────────────────────────────────────────────────────
 
     function nodeRadius(n: GNode): number {
-      if (n.kind === "sector")       return 44;
-      if (n.kind === "subsector")    return 31;
-      if (n.kind === "subsubsector") return 22;
+      if (n.kind === "sector")       return 132;
+      if (n.kind === "subsector")    return 66;
+      if (n.kind === "subsubsector") return 50;
       const conns = graphDataRef.current.adjacency.get(n.id)?.size ?? 0;
       return Math.min(28, 12 + conns * 2.2);
     }
@@ -647,6 +850,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       const w = toWorld(mx, my);
       const t = animTRef.current;
       for (const node of [...graphDataRef.current.nodes].reverse()) {
+        if (nodeLodAlpha(node, cameraRef.current.scale) < 0.5) continue;
         const pos = worldPos(node, t);
         const r   = effectiveRadius(node) + 6;
         const dx  = w.x - pos.x;
@@ -729,9 +933,9 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
     }
 
     function effectiveRadius(node: GNode): number {
-      if (node.kind === "sector")       return 44;
-      if (node.kind === "subsector")    return 31;
-      if (node.kind === "subsubsector") return 22;
+      if (node.kind === "sector")       return 132;
+      if (node.kind === "subsector")    return 66;
+      if (node.kind === "subsubsector") return 39;
       // Use graphSettingsRef (not activeFiltersRef) for nodeSize so that filter
       // presets — which spread DEFAULT_FILTERS — cannot accidentally resize nodes.
       // Opacity-only filtering must never affect the radius calculation.
@@ -758,6 +962,31 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       const cam = cameraRef.current;
       const d   = dpr();
 
+      function shouldDrawEdge(edge: Edge): boolean {
+        const cw = connectionViewRef.current;
+        if (cw === "all") return true;
+        const srcKind = gd.nodeById.get(edge.source)?.kind;
+        const tgtKind = gd.nodeById.get(edge.target)?.kind;
+        if (cw === "primary")     return edge.kind === "primary";
+        if (cw === "stock-stock") return srcKind === "stock" && tgtKind === "stock";
+        if (cw === "hierarchy")   return srcKind !== "stock" && tgtKind !== "stock";
+        return true;
+      }
+
+      // Smooth zoom-to-node animation
+      if (targetCameraRef.current) {
+        const tgt = targetCameraRef.current;
+        const k   = 0.12;
+        const nx  = cam.x + (tgt.x - cam.x) * k;
+        const ny  = cam.y + (tgt.y - cam.y) * k;
+        const ns  = cam.scale + (tgt.scale - cam.scale) * k;
+        cameraRef.current = { x: nx, y: ny, scale: ns };
+        if (Math.abs(nx - tgt.x) < 0.5 && Math.abs(ny - tgt.y) < 0.5 && Math.abs(ns - tgt.scale) < 0.002) {
+          cameraRef.current = tgt;
+          targetCameraRef.current = null;
+        }
+      }
+
       ctx.setTransform(d, 0, 0, d, 0, 0);
       ctx.fillStyle = "#07090f";
       ctx.fillRect(0, 0, W, H);
@@ -768,20 +997,27 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
 
       // Edges
       for (const edge of gd.edges) {
+        if (!shouldDrawEdge(edge)) continue;
         const src = gd.nodeById.get(edge.source);
         const tgt = gd.nodeById.get(edge.target);
         if (!src || !tgt) continue;
+
+        // Fade the edge out with the least-visible of its two endpoints
+        const edgeLodA = Math.min(nodeLodAlpha(src, cam.scale), nodeLodAlpha(tgt, cam.scale));
+        if (edgeLodA === 0) continue;
+
         const sp  = worldPos(src, t);
         const tp  = worldPos(tgt, t);
 
         const edgeFiltered = isNodeFiltered(src) || isNodeFiltered(tgt);
-        let alpha = edgeFiltered ? 0.018 : 0.11;
-        let lineW = edgeFiltered ? 0.4 : 0.8;
+        let alpha = edgeFiltered ? 0.04 : 0.28;
+        let lineW = edgeFiltered ? 0.8 : 2.0;
         if (!edgeFiltered && hid) {
           const lit = edge.source === hid || edge.target === hid;
-          alpha = lit ? 0.55 : 0.018;
-          lineW = lit ? 1.6 : 0.5;
+          alpha = lit ? 0.75 : 0.04;
+          lineW = lit ? 4.0 : 0.8;
         }
+        alpha *= edgeLodA;
 
         ctx.beginPath();
         ctx.moveTo(sp.x, sp.y);
@@ -793,6 +1029,9 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
 
       // Nodes
       for (const node of gd.nodes) {
+        const lodA = nodeLodAlpha(node, cam.scale);
+        if (lodA === 0) continue;
+
         const pos        = worldPos(node, t);
         const r          = effectiveRadius(node);
         // Subsectors/subsubsectors: use own ETF first for live colour; fall back to
@@ -833,18 +1072,20 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
           if (isHovered)        scale       = 1.18;
           else if (!isNeighbor) globalAlpha = 0.07;
         }
+        globalAlpha *= lodA;
 
         ctx.save();
         ctx.globalAlpha = globalAlpha;
         ctx.translate(pos.x, pos.y);
         ctx.scale(scale, scale);
 
+        const labelA = labelLodAlpha(node, cam.scale);
         if (node.kind === "sector") {
-          drawSectorNode(ctx, node, r, col, t, rawMove);
+          drawSectorNode(ctx, node, r, col, t, rawMove, cam.scale);
         } else if (node.kind === "subsector") {
-          drawSubSectorNode(ctx, node, r, col, t);
+          drawSubSectorNode(ctx, node, r, col, t, cam.scale, labelA);
         } else if (node.kind === "subsubsector") {
-          drawSubSubSectorNode(ctx, node, r, col, t);
+          drawSubSubSectorNode(ctx, node, r, col, t, cam.scale, labelA);
         } else {
           drawStockNode(ctx, node, r, col, fillCol);
           // Amber ring for stocks held in the user's portfolio
@@ -898,16 +1139,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
 
     // ── Node draw helpers ────────────────────────────────────────────────────
 
-    function withOpacity(col: string, alpha: number): string {
-      if (col.startsWith("rgb(")) return col.replace("rgb(", "rgba(").replace(")", `, ${alpha})`);
-      if (col.startsWith("#") && col.length === 7) {
-        const r = parseInt(col.slice(1, 3), 16);
-        const g = parseInt(col.slice(3, 5), 16);
-        const b = parseInt(col.slice(5, 7), 16);
-        return `rgba(${r},${g},${b},${alpha})`;
-      }
-      return col;
-    }
+    // withOpacity is defined at module level
 
     function drawSectorNode(
       c: CanvasRenderingContext2D,
@@ -915,32 +1147,35 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       r: number,
       col: string,
       t: number,
-      move: number
+      move: number,
+      camScale: number,
     ) {
       const pulse = 1 + Math.sin(t * 0.7 + node.x * 0.012) * 0.03;
 
       c.beginPath();
       c.arc(0, 0, r * pulse, 0, Math.PI * 2);
       c.strokeStyle = col;
-      c.lineWidth   = 2.5;
+      c.lineWidth   = 4;
       c.stroke();
 
       c.beginPath();
       c.arc(0, 0, r * 0.55 * pulse, 0, Math.PI * 2);
       c.strokeStyle = withOpacity(col, 0.25);
-      c.lineWidth   = 1;
+      c.lineWidth   = 1.5;
       c.stroke();
 
-      c.fillStyle    = col;
-      c.font         = `500 11px "DM Sans", sans-serif`;
-      c.textAlign    = "center";
-      c.textBaseline = "top";
-      c.fillText(node.name, 0, r + 10);
+      const grow = (base: number) => base * (1 + (1 / camScale - 1) / 5);
+      const nameScreen = camScale >= 1 ? 14 : Math.min(19, grow(14));
+      const infoScreen = camScale >= 1 ? 10 : Math.min(12, grow(10));
+      const nameF = nameScreen / camScale;
+      const infoF = infoScreen / camScale;
+      const gap   = 8 / camScale;
 
       const sign = move >= 0 ? "+" : "";
-      c.fillStyle = withOpacity(col, 0.73);
-      c.font      = `300 9px "DM Sans", sans-serif`;
-      c.fillText(`${node.etf}  ${sign}${move.toFixed(1)}%`, 0, r + 23);
+      drawLabel(c, [
+        { text: node.name,                              font: `600 ${nameF}px "DM Sans", sans-serif`, alpha: 1,    col },
+        { text: `${node.etf}  ${sign}${move.toFixed(1)}%`, font: `300 ${infoF}px "DM Sans", sans-serif`, alpha: 0.73, col },
+      ], "bottom", r, gap);
     }
 
     function drawSubSectorNode(
@@ -949,25 +1184,30 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       r: number,
       col: string,
       t: number,
+      camScale: number,
+      labelAlpha: number,
     ) {
       const pulse = 1 + Math.sin(t * 0.6 + node.x * 0.011) * 0.025;
       c.beginPath();
       c.arc(0, 0, r * pulse, 0, Math.PI * 2);
       c.strokeStyle = withOpacity(col, 0.75);
-      c.lineWidth   = 1.8;
+      c.lineWidth   = 3;
       c.stroke();
 
-      c.fillStyle    = withOpacity(col, 0.65);
-      c.font         = `400 9px "DM Sans", sans-serif`;
-      c.textAlign    = "center";
-      c.textBaseline = "top";
-      c.fillText(node.name, 0, r + 7);
+      if (labelAlpha === 0) return;
 
-      if (node.etf) {
-        c.fillStyle = withOpacity(col, 0.45);
-        c.font      = `300 8px "DM Sans", sans-serif`;
-        c.fillText(node.etf, 0, r + 17);
-      }
+      const grow = (base: number) => base * (1 + (1 / camScale - 1) / 5);
+      const nameScreen = camScale >= 1 ? 10 : Math.min(13, grow(10));
+      const etfScreen  = camScale >= 1 ?  8 : Math.min(10, grow(8));
+      const nameF = nameScreen / camScale;
+      const etfF  = etfScreen  / camScale;
+      const gap   = 7 / camScale;
+
+      const lines: Array<{ text: string; font: string; alpha: number; col: string }> = [
+        { text: node.name, font: `500 ${nameF}px "DM Sans", sans-serif`, alpha: 0.65 * labelAlpha, col },
+      ];
+      if (node.etf) lines.push({ text: node.etf, font: `300 ${etfF}px "DM Sans", sans-serif`, alpha: 0.45 * labelAlpha, col });
+      drawLabel(c, lines, "bottom", r, gap);
     }
 
     function drawSubSubSectorNode(
@@ -976,19 +1216,66 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       r: number,
       col: string,
       t: number,
+      _camScale: number,
+      labelAlpha: number,
     ) {
       const pulse = 1 + Math.sin(t * 0.5 + node.x * 0.013) * 0.02;
+
+      // Subtle dark fill so interior text stays readable over edges/other nodes
+      c.beginPath();
+      c.arc(0, 0, r * pulse, 0, Math.PI * 2);
+      c.fillStyle = "rgba(7,9,15,0.55)";
+      c.fill();
+
       c.beginPath();
       c.arc(0, 0, r * pulse, 0, Math.PI * 2);
       c.strokeStyle = withOpacity(col, 0.55);
-      c.lineWidth   = 1.2;
+      c.lineWidth   = 2;
       c.stroke();
 
-      c.fillStyle    = withOpacity(col, 0.45);
-      c.font         = `400 8px "DM Sans", sans-serif`;
+      if (labelAlpha === 0) return;
+
+      // Initial font size — steps down for longer names, capped at 22px
+      let fSize = Math.max(13, Math.min(22, Math.floor(r * 3.5 / Math.max(7, node.name.length))));
+      c.font    = `500 ${fSize}px "DM Sans", sans-serif`;
       c.textAlign    = "center";
-      c.textBaseline = "top";
-      c.fillText(node.name, 0, r + 6);
+      c.textBaseline = "middle";
+
+      // Wrap to two lines if the name overflows the circle width
+      const maxW = r * 1.75;
+      let lines: string[];
+      if (c.measureText(node.name).width <= maxW) {
+        lines = [node.name];
+      } else {
+        // Find the break point (space or hyphen) closest to the midpoint
+        const mid = Math.floor(node.name.length / 2);
+        let best = -1, bestDist = Infinity;
+        for (let i = 0; i < node.name.length; i++) {
+          if (node.name[i] === ' ' || node.name[i] === '-') {
+            const d = Math.abs(i - mid);
+            if (d < bestDist) { bestDist = d; best = i; }
+          }
+        }
+        if (best === -1) {
+          lines = [node.name];
+        } else {
+          lines = (node.name[best] === '-'
+            ? [node.name.slice(0, best + 1), node.name.slice(best + 1)]
+            : [node.name.slice(0, best),     node.name.slice(best + 1)]
+          ).filter(Boolean);
+          // Slightly smaller font when using two lines
+          fSize = Math.max(11, Math.floor(fSize * 0.85));
+          c.font = `500 ${fSize}px "DM Sans", sans-serif`;
+        }
+      }
+
+      c.fillStyle = withOpacity(col, 0.85 * labelAlpha);
+      const lineGap = 3;
+      const totalH  = lines.length * fSize + (lines.length - 1) * lineGap;
+      const startY  = -totalH / 2 + fSize / 2;
+      for (let i = 0; i < lines.length; i++) {
+        c.fillText(lines[i], 0, startY + i * (fSize + lineGap));
+      }
     }
 
     function drawStockNode(
@@ -1087,6 +1374,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       if (panningRef.current) {
         cameraRef.current.x += mx - lastMouseRef.current.x;
         cameraRef.current.y += my - lastMouseRef.current.y;
+        cameraRef.current    = clampCamera(cameraRef.current);
         lastMouseRef.current = { x: mx, y: my };
         return;
       }
@@ -1164,18 +1452,19 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
 
     function onWheel(e: WheelEvent) {
       e.preventDefault();
+      targetCameraRef.current = null; // cancel any zoom-to-node animation
       const rect      = canvas.getBoundingClientRect();
       const mx        = e.clientX - rect.left;
       const my        = e.clientY - rect.top;
       const factor    = e.deltaY < 0 ? 1.032 : 0.968;
       const cam       = cameraRef.current;
-      const newScale  = Math.max(0.15, Math.min(5, cam.scale * factor));
+      const newScale  = Math.max(0.18, Math.min(5, cam.scale * factor));
       const ratio     = newScale / cam.scale;
-      cameraRef.current = {
+      cameraRef.current = clampCamera({
         scale: newScale,
         x: mx - (mx - cam.x) * ratio,
         y: my - (my - cam.y) * ratio,
-      };
+      });
     }
 
     function onMouseLeave() {
