@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 }
 
 const VALID_NOTIF_TYPES = new Set([
-  "news", "analyst", "squeeze", "delisting", "split", "earnings", "ipo",
+  "news", "analyst", "delisting", "acquisition", "split", "earnings", "ipo",
 ]);
 
 export async function POST(req: NextRequest) {

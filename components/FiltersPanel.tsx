@@ -7,12 +7,10 @@ import {
   type FilterRange,
   DEFAULT_FILTERS,
   ALL_SECTORS,
-  ALL_NOTIF_TYPES,
   ALL_CAP_TIERS,
   ALL_52W_POS,
   countActiveFilters,
 } from "@/lib/filtersTypes";
-import { NOTIF, type NotifType } from "@/lib/graphTypes";
 import { MENU_COLLAPSED_W } from "@/components/SideMenu";
 import UpgradeButton from "@/components/UpgradeButton";
 
@@ -155,11 +153,6 @@ const BUILT_IN_PRESETS: Preset[] = [
     name: "Big movers",
     isBuiltIn: true,
     filters: { ...DEFAULT_FILTERS, dailyMove: { min: 5, max: null } },
-  },
-  {
-    name: "Notifications only",
-    isBuiltIn: true,
-    filters: { ...DEFAULT_FILTERS, onlyWithNotifs: true },
   },
   {
     name: "Large caps",
@@ -346,8 +339,8 @@ function ResetButton({ onClick }: { onClick: () => void }) {
 // ─── Static label maps ────────────────────────────────────────────────────────
 
 const SECTOR_LABELS: Record<string, string> = {
-  tech: "Technology", energy: "Energy", health: "Healthcare",
-  finance: "Finance", consumer: "Consumer",
+  tech: "Information Technology", energy: "Energy", health: "Healthcare",
+  finance: "Financials", consumer: "Consumer",
 };
 
 const CAP_LABELS: Record<string, string> = {
@@ -375,26 +368,11 @@ export default function FiltersPanel({ open, onClose, filters, onFiltersChange }
   const { user, isLoaded } = useUser();
   const isPro = isLoaded ? user?.publicMetadata?.isPro === true : false;
 
-  const [hiddenBySettings, setHiddenBySettings] = useState<NotifType[]>([]);
-
   // ── Preset state ────────────────────────────────────────────────────────────
   const [userPresets, setUserPresets]       = useState<Preset[]>([]);
   const [activePresetName, setActivePresetName] = useState<string | null>(null);
   const [showSaveInput, setShowSaveInput]   = useState(false);
   const [saveInputValue, setSaveInputValue] = useState("");
-
-  // Re-read graph settings from localStorage each time the panel opens so the
-  // disabled state is always fresh after the user changes graph settings.
-  useEffect(() => {
-    if (!open) return;
-    try {
-      const raw = localStorage.getItem("vauric_graph_settings");
-      const parsed = raw ? JSON.parse(raw) : {};
-      setHiddenBySettings(Array.isArray(parsed.hiddenNotifTypes) ? parsed.hiddenNotifTypes : []);
-    } catch {
-      setHiddenBySettings([]);
-    }
-  }, [open]);
 
   // Load user presets when the panel opens
   useEffect(() => {
@@ -517,29 +495,7 @@ export default function FiltersPanel({ open, onClose, filters, onFiltersChange }
             ))}
           </CollapsibleSection>
 
-          {/* 3 · Notification Type */}
-          <CollapsibleSection title="Notification Type">
-            <CheckRow
-              checked={filters.onlyWithNotifs}
-              onChange={(v) => set({ onlyWithNotifs: v })}
-              label="Only show stocks with notifications"
-            />
-            <div style={{ height: 8 }} />
-            {ALL_NOTIF_TYPES.map((t: NotifType) => {
-              const isHidden = hiddenBySettings.includes(t);
-              return (
-                <CheckRow
-                  key={t} label={NOTIF[t].label} dot={NOTIF[t].color}
-                  checked={filters.notifTypes.includes(t)}
-                  disabled={isHidden}
-                  disabledHint={isHidden ? "Hidden in graph settings" : undefined}
-                  onChange={(on) => set({ notifTypes: on ? [...filters.notifTypes, t] : filters.notifTypes.filter((x) => x !== t) })}
-                />
-              );
-            })}
-          </CollapsibleSection>
-
-          {/* 4 · Market Cap */}
+          {/* 3 · Market Cap */}
           <CollapsibleSection title="Market Cap">
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {ALL_CAP_TIERS.map((tier) => (

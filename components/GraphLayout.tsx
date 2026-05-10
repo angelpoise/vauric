@@ -389,8 +389,6 @@ export default function GraphLayout() {
         onClose={() => setIsSettingsOpen(false)}
         settings={graphSettings}
         onSettingsChange={handleSettingsChange}
-        activeFilters={activeFilters}
-        onFiltersChange={setActiveFilters}
       />
 
       {isAdmin && (

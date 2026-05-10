@@ -4,12 +4,12 @@ import { adminFetch } from "@/lib/adminFetch";
 
 import { useState, useEffect } from "react";
 
-const NOTIF_TYPES = ["news", "analyst", "squeeze", "delisting", "split", "earnings", "ipo"];
+// IPO is admin-only by convention — only add via this panel
+const NOTIF_TYPES = ["analyst", "acquisition", "delisting", "split", "earnings", "ipo", "news"];
 const NOTIF_COLORS: Record<string, string> = {
-  news: "#facc15", analyst: "#f97316", squeeze: "#ef4444",
-  delisting: "#a855f7", split: "#3b82f6", earnings: "#ffffff", ipo: "#22c55e",
+  news: "#facc15", analyst: "#f97316", delisting: "#a855f7",
+  acquisition: "#ef4444", split: "#3b82f6", earnings: "#ffffff", ipo: "#22c55e",
 };
-const GRAPH_TICKERS = ["NVDA","MSFT","PLTR","AMD","ARM","SMCI","XOM","CVX","FANG","SLB","LLY","HIMS","RXRX","MRNA","SOFI","AFRM","PYPL","COIN","HOOD"];
 
 const CARD: React.CSSProperties = { background: "#0d1117", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "20px 24px" };
 const BTN: React.CSSProperties = { background: "#3b82f6", border: "none", borderRadius: 6, color: "#fff", fontSize: 12, fontWeight: 500, padding: "6px 14px", cursor: "pointer", fontFamily: "inherit" };
@@ -21,15 +21,25 @@ const TD: React.CSSProperties = { padding: "10px 16px 10px 0", borderBottom: "1p
 interface ManualNotif { id: number; ticker: string; notification_type: string; note: string | null; created_at: string; }
 
 export default function NotificationsPage() {
-  const [notifs, setNotifs] = useState<ManualNotif[]>([]);
-  const [ticker, setTicker] = useState("NVDA");
-  const [type, setType] = useState("analyst");
-  const [note, setNote] = useState("");
-  const [err, setErr] = useState<string | null>(null);
+  const [notifs, setNotifs]   = useState<ManualNotif[]>([]);
+  const [tickers, setTickers] = useState<string[]>([]);
+  const [ticker, setTicker]   = useState("");
+  const [type, setType]       = useState("analyst");
+  const [note, setNote]       = useState("");
+  const [err, setErr]         = useState<string | null>(null);
 
   async function load() {
-    const r = await adminFetch("/api/admin/notifications");
-    if (r.ok) setNotifs(await r.json());
+    const [nRes, sRes] = await Promise.all([
+      adminFetch("/api/admin/notifications"),
+      adminFetch("/api/admin/stocks"),
+    ]);
+    if (nRes.ok) setNotifs(await nRes.json());
+    if (sRes.ok) {
+      const nodes: Array<{ ticker: string | null }> = await sRes.json();
+      const ts = nodes.filter((n) => n.ticker).map((n) => n.ticker as string).sort();
+      setTickers(ts);
+      if (ts.length > 0) setTicker(ts[0]);
+    }
   }
 
   useEffect(() => { load(); }, []);
@@ -69,7 +79,7 @@ export default function NotificationsPage() {
           <div>
             <div style={{ fontSize: 11, color: "#475569", marginBottom: 5 }}>Ticker</div>
             <select style={{ ...INPUT, width: "100%" }} value={ticker} onChange={e => setTicker(e.target.value)}>
-              {GRAPH_TICKERS.map(t => <option key={t} value={t}>{t}</option>)}
+              {tickers.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
           <div>

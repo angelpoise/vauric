@@ -3,23 +3,22 @@
 import React from "react";
 import { NOTIF, type NotifType } from "@/lib/graphTypes";
 import { type GraphSettings } from "@/lib/graphSettingsTypes";
-import { type ActiveFilters } from "@/lib/filtersTypes";
 import { MENU_COLLAPSED_W } from "@/components/SideMenu";
 
 const PANEL_W = 280;
 
 const NOTIF_ORDER: NotifType[] = [
-  "news", "analyst", "squeeze", "delisting", "split", "earnings", "ipo",
+  "news", "analyst", "delisting", "acquisition", "split", "earnings", "ipo",
 ];
 
 const NOTIF_LETTERS: Record<NotifType, string> = {
-  news:      "N",
-  analyst:   "A",
-  squeeze:   "S",
-  delisting: "P",
-  split:     "B",
-  earnings:  "E",
-  ipo:       "I",
+  news:        "N",
+  analyst:     "A",
+  delisting:   "D",
+  acquisition: "M",
+  split:       "B",
+  earnings:    "E",
+  ipo:         "I",
 };
 
 interface Props {
@@ -27,33 +26,19 @@ interface Props {
   onClose: () => void;
   settings: GraphSettings;
   onSettingsChange: (s: GraphSettings) => void;
-  activeFilters?: ActiveFilters;
-  onFiltersChange?: (f: ActiveFilters) => void;
 }
 
 export default function GraphSettingsPanel({
-  open, onClose, settings, onSettingsChange, activeFilters, onFiltersChange,
+  open, onClose, settings, onSettingsChange,
 }: Props) {
   const set = (partial: Partial<GraphSettings>) =>
     onSettingsChange({ ...settings, ...partial });
 
   function toggleNotifType(type: NotifType) {
-    const isCurrentlyHidden = settings.hiddenNotifTypes.includes(type);
-    const hidden = isCurrentlyHidden
+    const hidden = settings.hiddenNotifTypes.includes(type)
       ? settings.hiddenNotifTypes.filter((t) => t !== type)
       : [...settings.hiddenNotifTypes, type];
     set({ hiddenNotifTypes: hidden });
-
-    // When hiding a type, automatically deselect it from the active filters
-    // to prevent nodes appearing with no visible dots after filtering.
-    if (!isCurrentlyHidden && activeFilters && onFiltersChange) {
-      if (activeFilters.notifTypes.includes(type)) {
-        onFiltersChange({
-          ...activeFilters,
-          notifTypes: activeFilters.notifTypes.filter((t) => t !== type),
-        });
-      }
-    }
   }
 
   return (

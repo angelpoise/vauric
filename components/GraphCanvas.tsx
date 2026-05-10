@@ -21,7 +21,6 @@ import {
 import {
   type ActiveFilters,
   DEFAULT_FILTERS,
-  ALL_NOTIF_TYPES,
   ALL_CAP_TIERS,
   ALL_52W_POS,
 } from "@/lib/filtersTypes";
@@ -69,8 +68,8 @@ if (typeof window !== "undefined") {
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 const DOT_LETTERS: Record<string, string> = {
-  news: "N", analyst: "A", squeeze: "S",
-  delisting: "P", split: "B", earnings: "E", ipo: "I",
+  news: "N", analyst: "A", delisting: "D",
+  acquisition: "M", split: "B", earnings: "E", ipo: "I",
 };
 
 interface ContextMenuInfo { type: "node" | "edge" | "sector"; id: string; clientX: number; clientY: number; }
@@ -688,24 +687,23 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       fetch("/api/news?notifonly=1").then((r) => r.ok ? r.json() : null),
       fetch("/api/news?sectorNews=1").then((r) => r.ok ? r.json() : null),
     ]).then(([stockRes, sectorRes]) => {
-      const cutoff = Date.now() - 24 * 60 * 60 * 1000;
       const map: Record<string, Array<{ type: NotifType }>> = {};
 
-      // Stock notification dots
+      // Stock notification dots — windowing is handled server-side by the API
       const stockArticles: Array<{ ticker: string; notification_type: string; published_at: string }> =
         stockRes.status === "fulfilled" && stockRes.value ? stockRes.value : [];
       for (const a of stockArticles) {
-        if (new Date(a.published_at).getTime() < cutoff) continue;
         if (!map[a.ticker]) map[a.ticker] = [];
         const t = a.notification_type as NotifType;
         if (!map[a.ticker].some((n) => n.type === t)) map[a.ticker].push({ type: t });
       }
 
-      // Sector notification dots — always shown as "news" (yellow)
+      // Sector notification dots — 24 h window handled by the sectorNews API endpoint
+      const cutoff24h = Date.now() - 24 * 60 * 60 * 1000;
       const sectorItems: Array<{ sector_id: string; notification_type: string; published_at: string }> =
         sectorRes.status === "fulfilled" && sectorRes.value ? sectorRes.value : [];
       for (const item of sectorItems) {
-        if (new Date(item.published_at).getTime() < cutoff) continue;
+        if (new Date(item.published_at).getTime() < cutoff24h) continue;
         const nodeId = SECTOR_NODE_MAP[item.sector_id];
         if (!nodeId) continue;
         if (!map[nodeId]) map[nodeId] = [];
@@ -871,12 +869,6 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       const sid = ETF_TO_FILTER_ID[node.sectorId] ?? node.sectorId.replace("sec-", "");
       if (!f.sectors.includes(sid)) return true;
 
-      const notifs = notificationsRef.current[(node as StockNode).ticker] ?? node.notifications;
-      if (f.onlyWithNotifs && notifs.length === 0) return true;
-      if (f.notifTypes.length < ALL_NOTIF_TYPES.length && notifs.length > 0) {
-        const hasMatch = notifs.some((n) => (f.notifTypes as string[]).includes(n.type));
-        if (!hasMatch) return true;
-      }
 
       const move = live?.dailyMove ?? 0;
       if (f.dailyMove.min !== null && move < f.dailyMove.min) return true;

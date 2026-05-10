@@ -68,7 +68,7 @@ const STOCK_DB: Record<string, StockData> = {
       { headline: "NVIDIA Blackwell shipments accelerate ahead of schedule",                       source: "Reuters",       date: "Apr 28, 2026", type: "news"     },
       { headline: "Analyst raises NVDA price target to $1,100 on data-centre demand",             source: "Morgan Stanley", date: "Apr 25, 2026", type: "analyst"  },
       { headline: "NVIDIA reports record Q1 revenue; beats consensus on EPS",                     source: "Bloomberg",     date: "Apr 22, 2026", type: "earnings" },
-      { headline: "NVDA options activity spikes — elevated short-squeeze risk flagged",            source: "Market Watch",  date: "Apr 18, 2026", type: "squeeze"  },
+      { headline: "NVDA receives FDA clearance for AI-assisted radiology platform",                source: "Market Watch",  date: "Apr 18, 2026", type: "news"     },
       { headline: "US government clears H20 chip exports to select allied markets",               source: "WSJ",           date: "Apr 15, 2026", type: "news"     },
     ],
   },
@@ -272,7 +272,7 @@ const STOCK_DB: Record<string, StockData> = {
     name: "SLB (Schlumberger)",
     price: 44.18,
     dailyMove: -1.8,
-    notifications: [{ type: "squeeze" }],
+    notifications: [{ type: "news" }],
     description:
       "SLB is the world's leading oilfield services company, providing technology, information solutions, and integrated project management across the exploration and production lifecycle. The company benefits from sustained upstream investment in the Middle East and offshore markets while navigating softness in North American land activity. Its digital division — which provides AI-driven reservoir modelling — represents an emerging growth avenue.",
     metrics: [
@@ -291,7 +291,7 @@ const STOCK_DB: Record<string, StockData> = {
     ],
     sentiment: 31,
     news: [
-      { headline: "SLB short interest spikes to multi-year high on sector selling",      source: "S3 Partners", date: "Apr 28, 2026", type: "squeeze" },
+      { headline: "SLB awarded major offshore services contract in Middle East",          source: "S3 Partners", date: "Apr 28, 2026", type: "news"    },
       { headline: "North America land activity contracts 8% from prior quarter",         source: "Reuters",     date: "Apr 24, 2026", type: "news"    },
       { headline: "SLB international revenue holds up on Middle East capex growth",      source: "Bloomberg",   date: "Apr 20, 2026", type: "news"    },
     ],
@@ -587,10 +587,10 @@ const STOCK_SECTOR: Record<string, string> = {
 };
 
 const SECTOR_META: Record<string, { name: string; color: string }> = {
-  tech:     { name: "Technology",             color: "#3b82f6" },
+  tech:     { name: "Information Technology", color: "#3b82f6" },
   energy:   { name: "Energy",                 color: "#f59e0b" },
   health:   { name: "Healthcare",             color: "#22c55e" },
-  finance:  { name: "Finance",                color: "#a855f7" },
+  finance:  { name: "Financials",              color: "#a855f7" },
   consumer: { name: "Consumer Discretionary", color: "#14b8a6" },
 };
 

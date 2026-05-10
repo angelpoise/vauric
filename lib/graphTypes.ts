@@ -1,8 +1,8 @@
 export type NotifType =
   | "news"
   | "analyst"
-  | "squeeze"
   | "delisting"
+  | "acquisition"
   | "split"
   | "earnings"
   | "ipo";
@@ -57,13 +57,13 @@ export interface SubSubSectorNode extends BaseNode {
 export type GNode = StockNode | SectorNode | SubSectorNode | SubSubSectorNode;
 
 export const NOTIF: Record<NotifType, { color: string; label: string }> = {
-  news:      { color: "#facc15", label: "News" },
-  analyst:   { color: "#f97316", label: "Analyst action" },
-  squeeze:   { color: "#ef4444", label: "Short squeeze" },
-  delisting: { color: "#a855f7", label: "Delisting / Acquisition" },
-  split:     { color: "#3b82f6", label: "Split / Offering" },
-  earnings:  { color: "#ffffff", label: "Earnings" },
-  ipo:       { color: "#22c55e", label: "IPO" },
+  news:        { color: "#facc15", label: "News" },
+  analyst:     { color: "#f97316", label: "Analyst action" },
+  delisting:   { color: "#a855f7", label: "Delisting" },
+  acquisition: { color: "#ef4444", label: "Acquisition" },
+  split:       { color: "#3b82f6", label: "Split / Offering" },
+  earnings:    { color: "#ffffff", label: "Earnings" },
+  ipo:         { color: "#22c55e", label: "IPO" },
 };
 
 // Interpolates between grey and full green/red based on move magnitude.

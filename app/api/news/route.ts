@@ -151,19 +151,51 @@ export async function GET(req: NextRequest) {
   }
 
   // Lightweight mode for stock node notification dots.
-  // Only articles that are genuinely significant single-stock events get a dot.
-  // Manual notifications (always significant) are always included.
+  // Applies type-specific time windows; earnings come from the earnings calendar.
   if (notifonly) {
+    const now = Date.now();
+    const ANALYST_WINDOW_MS  = 3 * 24 * 60 * 60 * 1000; // analyst dots last 3 days
+    const DEFAULT_WINDOW_MS  = 24 * 60 * 60 * 1000;      // all other types last 24 h
+    const EARNINGS_WINDOW_DAYS = 2;                        // ±2 days around earnings date
+
     const stockNotifs = [
-      ...rows.filter((r) => r.generates_notification && !r.is_sector_news),
+      ...rows.filter((r) => {
+        if (!r.generates_notification || r.is_sector_news) return false;
+        const age    = now - new Date(r.published_at).getTime();
+        const window = r.notification_type === "analyst" ? ANALYST_WINDOW_MS : DEFAULT_WINDOW_MS;
+        return age <= window;
+      }),
       ...manualRows,
     ];
+
+    // Earnings notifications from the filing calendar (±2 days).
+    const from = new Date(now - EARNINGS_WINDOW_DAYS * 24 * 60 * 60 * 1000)
+      .toISOString().split("T")[0];
+    const to   = new Date(now + EARNINGS_WINDOW_DAYS * 24 * 60 * 60 * 1000)
+      .toISOString().split("T")[0];
+    const { data: earningsRows } = await supabaseAdmin
+      .from("earnings")
+      .select("ticker, filing_date")
+      .gte("filing_date", from)
+      .lte("filing_date", to);
+
+    const earningsNotifs = (earningsRows ?? []).map(
+      (e: { ticker: string; filing_date: string }) => ({
+        ticker:            e.ticker,
+        notification_type: "earnings",
+        published_at:      new Date(e.filing_date).toISOString(),
+      })
+    );
+
     return NextResponse.json(
-      stockNotifs.map((r) => ({
-        ticker:            r.ticker,
-        notification_type: r.notification_type,
-        published_at:      r.published_at,
-      })),
+      [
+        ...stockNotifs.map((r) => ({
+          ticker:            r.ticker,
+          notification_type: r.notification_type,
+          published_at:      r.published_at,
+        })),
+        ...earningsNotifs,
+      ],
       { headers: { "Cache-Control": "s-maxage=900, stale-while-revalidate=1800" } },
     );
   }

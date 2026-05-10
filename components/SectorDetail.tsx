@@ -37,7 +37,7 @@ interface SectorData {
 
 const SECTOR_DB: Record<string, SectorData> = {
   tech: {
-    name: "Technology",
+    name: "Information Technology",
     etf: "XLK",
     etfFullName: "Technology Select Sector SPDR Fund",
     placeholderPrice: 224.18,
@@ -79,7 +79,7 @@ const SECTOR_DB: Record<string, SectorData> = {
     constituents: [
       { ticker: "XOM",  name: "ExxonMobil",         marketCap: 482, placeholderMove: -1.2, notifications: [{ type: "analyst" }] },
       { ticker: "CVX",  name: "Chevron",             marketCap: 268, placeholderMove: -0.9, notifications: [] },
-      { ticker: "SLB",  name: "SLB",                 marketCap:  41, placeholderMove: -1.8, notifications: [{ type: "squeeze" }] },
+      { ticker: "SLB",  name: "SLB",                 marketCap:  41, placeholderMove: -1.8, notifications: [{ type: "news" }] },
       { ticker: "FANG", name: "Diamondback Energy",  marketCap:  34, placeholderMove:  2.1, notifications: [] },
     ],
     news: [
@@ -114,7 +114,7 @@ const SECTOR_DB: Record<string, SectorData> = {
     ],
   },
   finance: {
-    name: "Finance",
+    name: "Financials",
     etf: "XLF",
     etfFullName: "Financial Select Sector SPDR Fund",
     placeholderPrice: 45.21,
