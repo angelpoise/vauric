@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { type ConnectionView, CONNECTION_VIEW_PRESETS } from "@/components/GraphCanvas";
 
 export interface ContextMenuInfo {
   type: "node" | "edge" | "sector";
@@ -12,6 +13,9 @@ export interface ContextMenuInfo {
 
 interface Props {
   editMode: boolean;
+  connectionView: ConnectionView;
+  onConnectionViewChange: (v: ConnectionView) => void;
+  saveFailures: string[];
   pendingCount: number;
   knownTickers: string[];
   contextMenu: ContextMenuInfo | null;
@@ -40,7 +44,7 @@ interface Props {
 }
 
 export default function GraphEditOverlay({
-  editMode, pendingCount, knownTickers,
+  editMode, connectionView, onConnectionViewChange, saveFailures, pendingCount, knownTickers,
   contextMenu, showConnectionPrompt, connectionPromptPreset, saving,
   onToggleEdit, onExitConfirmed, onSave, onContextMenuClose,
   onDeleteNode, onDeleteEdge, onAddConnection,
@@ -88,6 +92,44 @@ export default function GraphEditOverlay({
         fontFamily: 'var(--font-dm-sans), "DM Sans", sans-serif',
         pointerEvents: "auto",
       }}>
+        {/* ConnectionView preset bar */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 1,
+          background: "rgba(7,9,15,0.7)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 7, padding: "2px",
+          backdropFilter: "blur(8px)",
+        }}>
+          <span style={{
+            fontSize: 9, color: "#334155", fontWeight: 600,
+            letterSpacing: "0.08em", textTransform: "uppercase",
+            padding: "0 7px 0 5px", userSelect: "none",
+          }}>
+            Connections
+          </span>
+          {CONNECTION_VIEW_PRESETS.map(({ key, label, description }) => {
+            const active = connectionView === key;
+            return (
+              <button
+                key={key}
+                title={description}
+                onClick={() => onConnectionViewChange(key)}
+                style={{
+                  background:   active ? "rgba(59,130,246,0.18)" : "transparent",
+                  border:       active ? "1px solid rgba(59,130,246,0.38)" : "1px solid transparent",
+                  borderRadius: 5, color: active ? "#3b82f6" : "#475569",
+                  fontSize: 10, fontWeight: active ? 600 : 400,
+                  padding: "3px 9px", cursor: "pointer",
+                  fontFamily: "inherit", letterSpacing: "0.02em",
+                  transition: "all 0.12s",
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
         {editMode && (
           <button
             onClick={onAddSectorOpen}
@@ -103,6 +145,17 @@ export default function GraphEditOverlay({
             + Add sector
           </button>
         )}
+        {saveFailures.length > 0 && (
+          <div style={{
+            background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.35)",
+            borderRadius: 6, color: "#ef4444", fontSize: 11, padding: "4px 10px",
+            maxWidth: 240, lineHeight: 1.4,
+          }}>
+            ⚠ {saveFailures.length} node{saveFailures.length !== 1 ? "s" : ""} failed to save:
+            {" "}{saveFailures.join(", ")}
+          </div>
+        )}
+
         {editMode && pendingCount > 0 && (
           <button
             onClick={onSave}

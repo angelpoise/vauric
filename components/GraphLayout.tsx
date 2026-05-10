@@ -21,14 +21,22 @@ import {
 } from "@/lib/graphSettingsTypes";
 import type { GNode, SectorNode } from "@/lib/graphTypes";
 import { adminFetch } from "@/lib/adminFetch";
+import { type ConnectionView } from "@/components/GraphCanvas";
 
 // ─── Sector localStorage helpers ──────────────────────────────────────────────
 
 const BUILT_IN_SECTORS: Array<Omit<SectorNode, "colour">> = [
-  { id: "XLK",  kind: "sector", name: "Technology",         etf: "XLK",  price: 224.18, dailyMove:  1.2, x:  500, y: 420, notifications: [] },
+  { id: "XLK",  kind: "sector", name: "Information Technology", etf: "XLK",  price: 224.18, dailyMove:  1.2, x:  500, y: 420, notifications: [] },
   { id: "XLE",  kind: "sector", name: "Energy",             etf: "XLE",  price:  93.42, dailyMove: -0.8, x: 1100, y: 360, notifications: [] },
   { id: "XLV",  kind: "sector", name: "Healthcare",         etf: "XLV",  price: 143.76, dailyMove:  0.3, x:  440, y: 750, notifications: [] },
-  { id: "XLF",  kind: "sector", name: "Financial Services", etf: "XLF",  price:  45.21, dailyMove:  0.7, x: 1155, y: 710, notifications: [] },
+  { id: "XLF",  kind: "sector", name: "Financials",          etf: "XLF",  price:  45.21, dailyMove:  0.7, x: 1155, y: 710, notifications: [] },
+  { id: "XLI",  kind: "sector", name: "Industrials",        etf: "XLI",  price:  62.00, dailyMove:  0.0, x:  800, y: 165, notifications: [] },
+  { id: "XLP",  kind: "sector", name: "Consumer Staples",   etf: "XLP",  price:   0.00, dailyMove:  0.0, x:  640, y: 935, notifications: [] },
+  { id: "XLY",  kind: "sector", name: "Consumer Discr.",    etf: "XLY",  price:  72.00, dailyMove:  0.0, x:  960, y: 935, notifications: [] },
+  { id: "XLC",  kind: "sector", name: "Communication",      etf: "XLC",  price:  80.00, dailyMove:  0.0, x: 1360, y: 550, notifications: [] },
+  { id: "XLB",  kind: "sector", name: "Materials",          etf: "XLB",  price:  85.00, dailyMove:  0.0, x:  240, y: 550, notifications: [] },
+  { id: "XLRE", kind: "sector", name: "Real Estate",        etf: "XLRE", price:  42.00, dailyMove:  0.0, x:  320, y: 935, notifications: [] },
+  { id: "XLU",  kind: "sector", name: "Utilities",          etf: "XLU",  price:  68.00, dailyMove:  0.0, x: 1280, y: 165, notifications: [] },
 ];
 
 type SectorPositions = Record<string, { x: number; y: number }>;
@@ -58,8 +66,9 @@ function loadSectors(): SectorNode[] {
     };
   });
 
+  const builtInIds = new Set(BUILT_IN_SECTORS.map((s) => s.id));
   const custom: SectorNode[] = Object.entries(meta)
-    .filter(([, v]) => v.isCustom)
+    .filter(([id, v]) => v.isCustom && !builtInIds.has(id))
     .map(([id, v]) => ({
       id,
       kind:  "sector" as const,
@@ -115,10 +124,14 @@ export default function GraphLayout() {
   const [disclaimerVisible, setDisclaimerVisible] = useState(false);
   const [alertsOpen, setAlertsOpen]         = useState(false);
 
+  // Connection view
+  const [connectionView, setConnectionView] = useState<ConnectionView>("primary");
+
   // Edit mode state
   const [editMode, setEditMode]                   = useState(false);
   const [pendingPositions, setPendingPositions]   = useState<Record<string, { x: number; y: number }>>({});
   const [saving, setSaving]                       = useState(false);
+  const [saveFailures, setSaveFailures]           = useState<string[]>([]);
   const [contextMenu, setContextMenu]             = useState<ContextMenuInfo | null>(null);
   const [showConnectionPrompt, setShowConnectionPrompt] = useState(false);
   const [connectionPromptPreset, setConnectionPromptPreset] = useState<string | undefined>();
@@ -241,9 +254,20 @@ export default function GraphLayout() {
         )
       );
 
-      const failed = results.filter((r) => r.status === "rejected").length;
-      if (failed > 0) console.error(`[graph/save] ${failed} position(s) failed to save`);
+      // Count both network rejections and HTTP error responses as failures
+      const failures: string[] = [];
+      results.forEach((r, i) => {
+        const id = Object.keys(pendingPositions)[i];
+        if (r.status === "rejected") failures.push(id);
+        else if (!r.value.ok)        failures.push(id);
+      });
+      if (failures.length > 0) {
+        console.error(`[graph/save] failed to save positions for:`, failures);
+        setSaveFailures(failures);
+        setTimeout(() => setSaveFailures([]), 6000);
+      }
 
+      writeHierarchyPositions(pendingPositions);
       setPendingPositions({});
       canvasRef.current?.snapshotPositions();
       adminFetch("/api/admin/revalidate", { method: "POST" }).catch(() => {});
@@ -342,6 +366,7 @@ export default function GraphLayout() {
           activeFilters={activeFilters}
           graphSettings={graphSettings}
           editMode={editMode}
+          connectionView={connectionView}
           sectorNodes={sectors}
           onNodeDragEnd={handleNodeDragEnd}
           onContextMenu={handleContextMenu}
@@ -371,6 +396,9 @@ export default function GraphLayout() {
       {isAdmin && (
         <GraphEditOverlay
           editMode={editMode}
+          connectionView={connectionView}
+          onConnectionViewChange={setConnectionView}
+          saveFailures={saveFailures}
           pendingCount={Object.keys(pendingPositions).length}
           knownTickers={knownTickers}
           contextMenu={contextMenu}
@@ -407,7 +435,15 @@ export default function GraphLayout() {
       <AlertsPanel onOpenChange={setAlertsOpen} />
       <WatchlistPanel isAlertsOpen={alertsOpen} />
 
-      {isSearchOpen && <SearchPanel onClose={() => setIsSearchOpen(false)} />}
+      {isSearchOpen && (
+        <SearchPanel
+          onClose={() => setIsSearchOpen(false)}
+          onZoomToNode={(nodeId) => {
+            canvasRef.current?.zoomToNode(nodeId);
+            setIsSearchOpen(false);
+          }}
+        />
+      )}
 
       <DisclaimerBanner onVisibilityChange={setDisclaimerVisible} leftOffset={menuW} />
     </div>
