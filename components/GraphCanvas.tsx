@@ -1417,7 +1417,15 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
           if (e.shiftKey && !hitTest(mx, my)) onShiftEmptyClickRef.current?.();
           return;
         }
+
         const hit = hitTest(mx, my);
+
+        // Shift+click: zoom to node or zoom in 2× at cursor — never navigate
+        if (e.shiftKey) {
+          zoomTo(mx, my, hit);
+          return;
+        }
+
         if (hit?.kind === "stock")        routerRef.current.push(`/stock/${hit.ticker}`);
         if (hit?.kind === "sector")       routerRef.current.push(`/sector/${hit.id}`);
         if (hit?.kind === "subsector")    routerRef.current.push(`/subsector/${encodeURIComponent(hit.name)}`);
@@ -1479,11 +1487,50 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       }
     }
 
+    // ── Zoom helpers ─────────────────────────────────────────────────────────
+
+    function zoomTo(mx: number, my: number, hit: GNode | null) {
+      const W = canvas.clientWidth;
+      const H = canvas.clientHeight;
+      if (hit) {
+        // Smooth zoom to the node, centred on screen
+        const targetScale =
+          hit.kind === "sector"       ? 0.55 :
+          hit.kind === "subsector"    ? 0.80 :
+          hit.kind === "subsubsector" ? 1.00 : 1.8;
+        targetCameraRef.current = {
+          scale: targetScale,
+          x: W / 2 - hit.x * targetScale,
+          y: H / 2 - hit.y * targetScale,
+        };
+      } else {
+        // Zoom in 2× centred on the cursor position
+        const cam      = cameraRef.current;
+        const newScale = Math.min(5, cam.scale * 2);
+        const ratio    = newScale / cam.scale;
+        targetCameraRef.current = clampCamera({
+          scale: newScale,
+          x: mx - (mx - cam.x) * ratio,
+          y: my - (my - cam.y) * ratio,
+        });
+      }
+    }
+
+    function onDblClick(e: MouseEvent) {
+      // Double-click on empty space zooms in 2× at cursor.
+      // (Double-clicking a node is already covered by shift+click.)
+      const rect = canvas.getBoundingClientRect();
+      const mx   = e.clientX - rect.left;
+      const my   = e.clientY - rect.top;
+      if (!hitTest(mx, my)) zoomTo(mx, my, null);
+    }
+
     // ── Setup ────────────────────────────────────────────────────────────────
 
     canvas.addEventListener("mousemove",    onMouseMove);
     canvas.addEventListener("mousedown",    onMouseDown);
     canvas.addEventListener("mouseup",      onMouseUp);
+    canvas.addEventListener("dblclick",     onDblClick);
     canvas.addEventListener("wheel",        onWheel, { passive: false });
     canvas.addEventListener("mouseleave",   onMouseLeave);
     canvas.addEventListener("contextmenu",  onContextMenuEvent);
@@ -1499,6 +1546,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       canvas.removeEventListener("mousemove",    onMouseMove);
       canvas.removeEventListener("mousedown",    onMouseDown);
       canvas.removeEventListener("mouseup",      onMouseUp);
+      canvas.removeEventListener("dblclick",     onDblClick);
       canvas.removeEventListener("wheel",        onWheel);
       canvas.removeEventListener("mouseleave",   onMouseLeave);
       canvas.removeEventListener("contextmenu",  onContextMenuEvent);
