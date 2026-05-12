@@ -1,24 +1,54 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/adminSecret";
-import { getYahooSession } from "@/lib/fundamentalsUtils";
 
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+// Polygon SIC code prefix → GICS sector display name
+// SIC major groups: https://www.osha.gov/data/sic-manual
+const SIC_TO_GICS: Array<[number, number, string]> = [
+  [100,   999,  "Materials"],           // Mining
+  [1000,  1499, "Materials"],           // Metal mining / coal
+  [1500,  1799, "Industrials"],         // Construction
+  [2000,  2099, "Consumer Staples"],    // Food
+  [2100,  2199, "Consumer Staples"],    // Tobacco
+  [2200,  2399, "Consumer Discretionary"], // Textile / apparel
+  [2400,  2799, "Materials"],           // Lumber, paper, printing
+  [2800,  2899, "Materials"],           // Chemicals
+  [2900,  2999, "Energy"],              // Petroleum refining
+  [3000,  3299, "Materials"],           // Rubber, stone, glass
+  [3300,  3499, "Materials"],           // Primary metals
+  [3500,  3599, "Industrials"],         // Industrial machinery
+  [3600,  3679, "Information Technology"], // Electronic components
+  [3680,  3699, "Information Technology"], // Semiconductors / electronics
+  [3700,  3799, "Consumer Discretionary"], // Transportation equipment / autos
+  [3800,  3899, "Healthcare"],          // Instruments / medical
+  [3900,  3999, "Consumer Discretionary"], // Misc manufacturing
+  [4000,  4599, "Industrials"],         // Transportation
+  [4600,  4799, "Energy"],              // Pipelines / communications infra
+  [4800,  4899, "Communication Services"], // Communications
+  [4900,  4999, "Utilities"],           // Electric/gas/water utilities
+  [5000,  5199, "Industrials"],         // Wholesale durable/non-durable
+  [5200,  5999, "Consumer Discretionary"], // Retail
+  [6000,  6199, "Financials"],          // Depository / credit
+  [6200,  6299, "Financials"],          // Security brokers
+  [6300,  6399, "Financials"],          // Insurance
+  [6400,  6499, "Financials"],          // Insurance agents
+  [6500,  6599, "Real Estate"],         // Real estate
+  [6700,  6799, "Financials"],          // Holding companies
+  [7000,  7299, "Consumer Discretionary"], // Hotels / services
+  [7300,  7399, "Information Technology"], // Business services / IT
+  [7500,  7599, "Consumer Discretionary"], // Auto repair / parking
+  [7600,  7699, "Consumer Discretionary"], // Misc repair
+  [7800,  7999, "Communication Services"], // Motion pictures / entertainment
+  [8000,  8099, "Healthcare"],          // Health services
+  [8100,  8299, "Industrials"],         // Legal / engineering services
+  [8700,  8999, "Industrials"],         // Management / consulting
+];
 
-// Yahoo Finance sector names → GICS display names used in the DB
-const YAHOO_TO_GICS: Record<string, string> = {
-  "Technology":             "Information Technology",
-  "Healthcare":             "Healthcare",
-  "Financial Services":     "Financials",
-  "Consumer Cyclical":      "Consumer Discretionary",
-  "Consumer Defensive":     "Consumer Staples",
-  "Communication Services": "Communication Services",
-  "Energy":                 "Energy",
-  "Industrials":            "Industrials",
-  "Basic Materials":        "Materials",
-  "Real Estate":            "Real Estate",
-  "Utilities":              "Utilities",
-};
+function sicToGics(sic: number): string | null {
+  for (const [lo, hi, sector] of SIC_TO_GICS) {
+    if (sic >= lo && sic <= hi) return sector;
+  }
+  return null;
+}
 
 export async function GET(req: NextRequest) {
   if (!await isAdminRequest(req)) {
@@ -28,30 +58,22 @@ export async function GET(req: NextRequest) {
   const ticker = req.nextUrl.searchParams.get("ticker")?.toUpperCase();
   if (!ticker) return NextResponse.json({ error: "Missing ticker" }, { status: 400 });
 
+  const polygonKey = process.env.POLYGON_API_KEY;
+  if (!polygonKey) return NextResponse.json({ name: null, sector: null });
+
   try {
-    const session = await getYahooSession();
-    if (!session) return NextResponse.json({ name: null, sector: null });
-
-    const url =
-      `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}` +
-      `?modules=quoteType,assetProfile&crumb=${encodeURIComponent(session.crumb)}`;
-
-    const res = await fetch(url, {
-      headers: { "User-Agent": UA, Cookie: session.cookie },
-    });
+    const res = await fetch(
+      `https://api.polygon.io/v3/reference/tickers/${ticker}?apiKey=${polygonKey}`,
+    );
     if (!res.ok) return NextResponse.json({ name: null, sector: null });
 
     const json = await res.json();
-    const result = json?.quoteSummary?.result?.[0] as Record<string, unknown> | null | undefined;
+    const result = json?.results as Record<string, unknown> | null | undefined;
 
-    const qt = result?.quoteType as Record<string, unknown> | null | undefined;
-    const ap = result?.assetProfile as Record<string, unknown> | null | undefined;
-
-    const name = (typeof qt?.longName === "string" ? qt.longName : null)
-      ?? (typeof qt?.shortName === "string" ? qt.shortName : null);
-
-    const rawSector = typeof ap?.sector === "string" ? ap.sector : null;
-    const sector = rawSector ? (YAHOO_TO_GICS[rawSector] ?? rawSector) : null;
+    const name   = typeof result?.name        === "string" ? result.name        : null;
+    const sicRaw = typeof result?.sic_code    === "string" ? result.sic_code    : null;
+    const sic    = sicRaw ? parseInt(sicRaw, 10) : null;
+    const sector = sic !== null && !isNaN(sic) ? sicToGics(sic) : null;
 
     return NextResponse.json({ name, sector });
   } catch {

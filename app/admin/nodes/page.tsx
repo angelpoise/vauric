@@ -146,41 +146,40 @@ export default function NodesPage() {
   }
   useEffect(() => { load(); }, []);
 
+  async function discoverIrForForm(ticker: string, companyName: string) {
+    setIrFormLookingUp(true);
+    try {
+      const irR = await adminFetch("/api/admin/stocks/discover-ir", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker, companyName }),
+      });
+      if (irR.ok) {
+        const { url } = await irR.json();
+        if (url) setForm((prev) => ({ ...prev, investor_relations_url: url }));
+      }
+    } catch { /* ignore */ } finally {
+      setIrFormLookingUp(false);
+    }
+  }
+
   async function lookupTicker(ticker: string) {
     if (!ticker || form.node_type !== "stock") return;
     setLookingUp(true);
-    let resolvedName: string | null = null;
     try {
       const r = await adminFetch(`/api/admin/ticker-lookup?ticker=${encodeURIComponent(ticker)}`);
       if (r.ok) {
         const { name, sector } = await r.json();
-        resolvedName = name ?? null;
         setForm((prev) => ({
           ...prev,
           ...(name   ? { company_name: name }   : {}),
           ...(sector ? { sector }               : {}),
         }));
+        // Fire IR discovery detached — runs independently of this function
+        if (name) discoverIrForForm(ticker, name);
       }
     } finally {
       setLookingUp(false);
-    }
-
-    // Kick off IR discovery in the background once we have a name
-    if (resolvedName) {
-      setIrFormLookingUp(true);
-      try {
-        const irR = await adminFetch("/api/admin/stocks/discover-ir", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ticker, companyName: resolvedName }),
-        });
-        if (irR.ok) {
-          const { url } = await irR.json();
-          if (url) setForm((prev) => ({ ...prev, investor_relations_url: url }));
-        }
-      } finally {
-        setIrFormLookingUp(false);
-      }
     }
   }
 
