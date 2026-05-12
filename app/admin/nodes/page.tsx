@@ -127,6 +127,7 @@ export default function NodesPage() {
   const [editForm, setEditForm]         = useState<EditFormData | null>(null);
   const [editSaving, setEditSaving]     = useState(false);
   const [regenOverviewMsg, setRegenOverviewMsg] = useState<Record<string, string>>({});
+  const [lookingUp, setLookingUp]       = useState(false);
 
   async function load() {
     const r = await adminFetch("/api/admin/stocks");
@@ -143,6 +144,24 @@ export default function NodesPage() {
     }
   }
   useEffect(() => { load(); }, []);
+
+  async function lookupTicker(ticker: string) {
+    if (!ticker || form.node_type !== "stock") return;
+    setLookingUp(true);
+    try {
+      const r = await adminFetch(`/api/admin/ticker-lookup?ticker=${encodeURIComponent(ticker)}`);
+      if (r.ok) {
+        const { name, sector } = await r.json();
+        setForm((prev) => ({
+          ...prev,
+          ...(name   ? { company_name: name }   : {}),
+          ...(sector ? { sector }               : {}),
+        }));
+      }
+    } finally {
+      setLookingUp(false);
+    }
+  }
 
   const displayed = typeFilter === "all" ? nodes : nodes.filter((n) => n.node_type === typeFilter);
 
@@ -388,7 +407,20 @@ export default function NodesPage() {
         {form.node_type === "stock" && (
           <>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 1fr 80px 80px", gap: 10, marginBottom: 10 }}>
-              <input style={INPUT} placeholder="Ticker" value={form.ticker} onChange={(e) => setForm({ ...form, ticker: e.target.value.toUpperCase() })} />
+              <div style={{ position: "relative" }}>
+                <input
+                  style={INPUT}
+                  placeholder="Ticker"
+                  value={form.ticker}
+                  onChange={(e) => setForm({ ...form, ticker: e.target.value.toUpperCase() })}
+                  onBlur={(e) => lookupTicker(e.target.value)}
+                />
+                {lookingUp && (
+                  <span style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", fontSize: 10, color: "#475569" }}>
+                    …
+                  </span>
+                )}
+              </div>
               <input style={INPUT} placeholder="Company name" value={form.company_name} onChange={(e) => setForm({ ...form, company_name: e.target.value })} />
               <select style={INPUT} value={form.sector} onChange={(e) => setForm({ ...form, sector: e.target.value })}>
                 {sectorNames.map((s) => <option key={s} value={s}>{s}</option>)}
