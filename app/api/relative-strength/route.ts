@@ -25,10 +25,13 @@ const CACHE_TTL = 60 * 60 * 1000;
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SECTOR_ETF: Record<string, string> = {
-  Technology: "XLK",
+  "Information Technology": "XLK",
+  Technology:               "XLK",
   Energy:     "XLE",
   Healthcare: "XLV",
-  Finance:    "XLF",
+  Financials:          "XLF",
+  Finance:             "XLF",
+  "Financial Services":"XLF",
   Consumer:   "XLY",
 };
 

@@ -33,37 +33,29 @@ import { resend } from "@/lib/resend";
 //     last_run_at          TIMESTAMPTZ
 //   );
 
-// Terms that must appear in the headline or first 100 chars of the summary
-// for an article to be considered relevant to a given ticker.
-// Finnhub free tier returns loosely related articles — this filter removes noise.
-const TICKER_TERMS: Record<string, string[]> = {
-  NVDA: ["nvda", "nvidia"],
-  MSFT: ["msft", "microsoft"],
-  PLTR: ["pltr", "palantir"],
-  AMD:  ["amd", "advanced micro devices"],
-  ARM:  ["arm holdings", " arm "],
+// Manual overrides for tickers where company_name alone is ambiguous or insufficient.
+// All other stocks get terms auto-generated from ticker + company_name at runtime.
+const TICKER_TERM_OVERRIDES: Record<string, string[]> = {
+  ARM:  ["arm holdings", " arm "],          // " arm " spaced to avoid false positives
   SMCI: ["smci", "super micro", "supermicro"],
-  XOM:  ["xom", "exxonmobil", "exxon mobil", "exxon"],
-  CVX:  ["cvx", "chevron"],
-  FANG: ["fang", "diamondback"],
-  SLB:  ["slb", "schlumberger"],
+  SLB:  ["slb", "schlumberger"],            // keeps legacy name
+  FANG: ["fang", "diamondback"],            // ticker collides with FAANG acronym
   LLY:  ["lly", "eli lilly", " lilly"],
   HIMS: ["hims", "hers health"],
   RXRX: ["rxrx", "recursion pharma", "recursion pharmaceuticals"],
-  MRNA: ["mrna", "moderna"],
-  PYPL: ["pypl", "paypal"],
-  COIN: ["coin", "coinbase"],
-  HOOD: ["hood", "robinhood"],
-  AFRM: ["afrm", "affirm"],
-  SOFI: ["sofi", "sofi technologies"],
 };
 
-function isRelevant(ticker: string, headline: string, summary: string): boolean {
-  const terms = TICKER_TERMS[ticker];
-  if (!terms) return true; // unknown ticker — don't filter
-  const hl = headline.toLowerCase();
-  const sm = summary.slice(0, 100).toLowerCase();
-  return terms.some((t) => hl.includes(t) || sm.includes(t));
+// Built dynamically in the GET handler from admin_nodes (ticker + company_name).
+type TermsMap = Record<string, string[]>;
+
+function buildIsRelevant(terms: TermsMap) {
+  return function isRelevant(ticker: string, headline: string, summary: string): boolean {
+    const t = terms[ticker];
+    if (!t?.length) return true; // no terms → don't filter
+    const hl = headline.toLowerCase();
+    const sm = summary.slice(0, 100).toLowerCase();
+    return t.some((kw) => hl.includes(kw) || sm.includes(kw));
+  };
 }
 
 interface FinnhubArticle {
@@ -161,14 +153,31 @@ export async function GET(req: NextRequest) {
   const today      = fmt(now);
   const twoDaysAgo = fmt(new Date(cutoffMs));
 
-  // Fetch tickers dynamically from admin_nodes so newly added stocks are
-  // included automatically without a code change.
+  // Fetch tickers + company names from admin_nodes.
+  // company_name drives auto-generated relevance terms so newly added stocks
+  // get noise-filtered news without any code change.
   const { data: stockRows } = await supabase
     .from("admin_nodes")
-    .select("ticker")
+    .select("ticker, company_name")
     .eq("node_type", "stock")
     .order("ticker");
+
   const graphTickers: string[] = stockRows?.map((r: { ticker: string }) => r.ticker) ?? [];
+
+  // Build relevance term map: manual overrides win; everything else gets
+  // [ticker.toLowerCase(), company_name.toLowerCase()] auto-derived.
+  const termsMap: TermsMap = {};
+  for (const row of stockRows ?? []) {
+    const t = row.ticker as string;
+    if (TICKER_TERM_OVERRIDES[t]) {
+      termsMap[t] = TICKER_TERM_OVERRIDES[t];
+    } else {
+      const derived: string[] = [t.toLowerCase()];
+      if (row.company_name) derived.push((row.company_name as string).toLowerCase());
+      termsMap[t] = derived;
+    }
+  }
+  const isRelevant = buildIsRelevant(termsMap);
 
   if (graphTickers.length === 0) {
     await supabase.from("pipeline_config").upsert({ id: 1, last_run_at: now.toISOString() });

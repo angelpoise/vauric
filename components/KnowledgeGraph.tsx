@@ -21,10 +21,10 @@ interface Stock {
 }
 
 const SECTORS: Sector[] = [
-  { label: "Technology", x: 0.32, y: 0.3,  r: 22, col: "#3b82f6" },
+  { label: "Info. Tech", x: 0.32, y: 0.3,  r: 22, col: "#3b82f6" },
   { label: "Energy",     x: 0.7,  y: 0.28, r: 20, col: "#f59e0b" },
   { label: "Healthcare", x: 0.2,  y: 0.68, r: 19, col: "#10b981" },
-  { label: "Finance",    x: 0.78, y: 0.68, r: 21, col: "#8b5cf6" },
+  { label: "Financials", x: 0.78, y: 0.68, r: 21, col: "#8b5cf6" },
   { label: "Consumer",   x: 0.5,  y: 0.52, r: 17, col: "#ec4899" },
 ];
 

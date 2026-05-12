@@ -5,7 +5,7 @@ import HierarchyDetail, { type HierarchyNode, type ConstituentStock } from "@/co
 
 const SLUG_TO_ETF: Record<string, string> = {
   tech: "XLK", energy: "XLE", health: "XLV", healthcare: "XLV",
-  finance: "XLF", consumer: "XLY", industrials: "XLI",
+  finance: "XLF", consumer: "XLY", "consumer-staples": "XLP", industrials: "XLI",
   communication: "XLC", materials: "XLB", "real-estate": "XLRE", utilities: "XLU",
 };
 

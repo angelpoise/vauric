@@ -9,10 +9,10 @@ const DM = 'var(--font-dm-sans), "DM Sans", sans-serif';
 // ─── Sector definitions ───────────────────────────────────────────────────────
 
 const SECTORS = [
-  { id: "sec-tech",     name: "Technology", etf: "XLK", color: "#3b82f6" },
+  { id: "sec-tech",     name: "Information Technology", etf: "XLK", color: "#3b82f6" },
   { id: "sec-energy",   name: "Energy",     etf: "XLE", color: "#f59e0b" },
   { id: "sec-health",   name: "Healthcare", etf: "XLV", color: "#22c55e" },
-  { id: "sec-finance",  name: "Finance",    etf: "XLF", color: "#a855f7" },
+  { id: "sec-finance",  name: "Financials", etf: "XLF", color: "#a855f7" },
   { id: "sec-consumer", name: "Consumer",   etf: "XLY", color: "#14b8a6" },
 ];
 
@@ -22,10 +22,13 @@ const SECTOR_ETF_TICKER: Record<string, string> = Object.fromEntries(
 );
 
 const SECTOR_ID: Record<string, string> = {
-  Technology: "sec-tech",
+  "Information Technology": "sec-tech",
+  Technology:               "sec-tech",
   Energy:     "sec-energy",
   Healthcare: "sec-health",
-  Finance:    "sec-finance",
+  Financials:          "sec-finance",
+  Finance:             "sec-finance",
+  "Financial Services":"sec-finance",
   Consumer:   "sec-consumer",
 };
 

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase";
 
 // Strategy: two grouped-bar calls (current day + previous day) for price/daily-move,
 // plus per-ticker bar history for streak calculation.
 
-const GRAPH_TICKERS = [
+// Fallback used only if the DB query fails
+const FALLBACK_TICKERS = [
   "NVDA", "MSFT", "PLTR", "AMD", "ARM", "SMCI",
   "XOM",  "CVX",  "FANG", "SLB",
   "LLY",  "HIMS", "RXRX", "MRNA",
@@ -169,10 +171,13 @@ export async function GET(req: NextRequest) {
   // omitting them cuts cold-cache latency from ~5 s to ~1 s.
   const streakMap: Record<string, { streak: number; streakDirection: "up" | "down" | "flat" }> = {};
   if (includeStreak) {
+    const { data: stockRows } = await supabase
+      .from("admin_nodes").select("ticker").eq("node_type", "stock");
+    const streakTickers = stockRows?.map((r: { ticker: string }) => r.ticker) ?? FALLBACK_TICKERS;
     const historyFrom = fmt(new Date(now.getTime() - 45 * 24 * 60 * 60 * 1000));
     const historyTo   = fmt(currentDate);
     const streakResults = await Promise.allSettled(
-      GRAPH_TICKERS.map(async (ticker) => ({
+      streakTickers.map(async (ticker) => ({
         ticker,
         bars: await fetchTickerHistory(ticker, historyFrom, historyTo, apiKey),
       }))

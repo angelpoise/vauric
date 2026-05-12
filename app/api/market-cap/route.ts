@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase";
 
-const GRAPH_TICKERS = [
+const FALLBACK_TICKERS = [
   "NVDA", "MSFT", "PLTR", "AMD", "ARM", "SMCI",
   "XOM",  "CVX",  "FANG", "SLB",
   "LLY",  "HIMS", "RXRX", "MRNA",
@@ -86,8 +87,12 @@ export async function GET() {
     );
   }
 
+  const { data: stockRows } = await supabase
+    .from("admin_nodes").select("ticker").eq("node_type", "stock");
+  const tickers = stockRows?.map((r: { ticker: string }) => r.ticker) ?? FALLBACK_TICKERS;
+
   const settled = await Promise.allSettled(
-    GRAPH_TICKERS.map(async (ticker) => ({
+    tickers.map(async (ticker) => ({
       ticker,
       marketCap: await fetchMarketCap(ticker, session),
     })),

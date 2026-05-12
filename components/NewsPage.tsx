@@ -33,8 +33,8 @@ const TICKER_SECTOR: Record<string, string> = {
 };
 
 const SECTOR_LABELS: Record<string, string> = {
-  tech: "Technology", energy: "Energy", health: "Healthcare",
-  finance: "Finance", consumer: "Consumer",
+  tech: "Information Technology", energy: "Energy", health: "Healthcare",
+  finance: "Financials", consumer: "Consumer",
 };
 
 function formatDate(iso: string): string {
