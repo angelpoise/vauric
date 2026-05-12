@@ -119,8 +119,6 @@ export default function GraphLayout() {
   const isAdmin = adminEmail !== "" &&
     user?.primaryEmailAddress?.emailAddress === adminEmail;
 
-  if (!isLoaded || !isSignedIn) return <div style={{ minHeight: "100vh", background: "#07090f" }} />;
-
   const canvasRef = useRef<GraphCanvasHandle>(null);
 
   const [menuExpanded, setMenuExpanded]     = useState(false);
@@ -352,6 +350,8 @@ export default function GraphLayout() {
     }
     handleSectorFormClose();
   }
+
+  if (!isLoaded || !isSignedIn) return <div style={{ minHeight: "100vh", background: "#07090f" }} />;
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#07090f", overflow: "hidden" }}>
