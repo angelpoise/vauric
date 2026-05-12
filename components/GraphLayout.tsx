@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useUser, useAuth } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import GraphCanvas, { type GraphCanvasHandle } from "@/components/GraphCanvas";
 import SideMenu, { MENU_COLLAPSED_W, MENU_EXPANDED_W } from "@/components/SideMenu";
 import HoverBar from "@/components/HoverBar";
@@ -106,11 +107,19 @@ function writeSectorMeta(id: string, name: string, etf: string, colour: string, 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function GraphLayout() {
+  const { isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) router.replace("/sign-in");
+  }, [isLoaded, isSignedIn, router]);
 
   const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? "";
   const isAdmin = adminEmail !== "" &&
     user?.primaryEmailAddress?.emailAddress === adminEmail;
+
+  if (!isLoaded || !isSignedIn) return <div style={{ minHeight: "100vh", background: "#07090f" }} />;
 
   const canvasRef = useRef<GraphCanvasHandle>(null);
 
