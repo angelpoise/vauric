@@ -39,7 +39,8 @@ interface AutoConn     { kind: "auto"; ticker: string; sector: string; sectorEtf
 type AnyConn = ExplicitConn | AutoConn;
 
 interface Suggestion { id: string; reason: string; nodeType: string; }
-interface SuggestResult { t1: Suggestion[]; t2: Suggestion[]; t3: Suggestion[]; }
+interface MissingSuggestion { ticker: string; name: string; reason: string; tier: 1|2|3; }
+interface SuggestResult { t1: Suggestion[]; t2: Suggestion[]; t3: Suggestion[]; missing: MissingSuggestion[]; }
 
 interface NodeRow {
   id: string; node_type: string;
@@ -619,6 +620,38 @@ export default function ConnectionsPage() {
                   {suggestSelected.size === total ? "Deselect all" : "Select all"}
                 </button>
               </div>
+
+              {suggestResult.missing.length > 0 && (
+                <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "#f59e0b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                    <span>⚠</span>
+                    <span>Consider adding to graph</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "#475569", marginBottom: 10 }}>
+                    These companies aren&apos;t on the graph yet but would be important connections for {suggestTicker}.
+                  </div>
+                  {suggestResult.missing.map((m) => (
+                    <div key={m.ticker} style={{
+                      display: "flex", alignItems: "center", gap: 10, padding: "7px 10px",
+                      background: "rgba(245,158,11,0.04)", border: "1px solid rgba(245,158,11,0.12)",
+                      borderRadius: 6, marginBottom: 4,
+                    }}>
+                      <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: TIER_COLORS[m.tier] ?? "#64748b", minWidth: 20 }}>
+                        T{m.tier}
+                      </span>
+                      <code style={{ fontSize: 12, fontWeight: 600, color: "#f59e0b", flexShrink: 0 }}>{m.ticker}</code>
+                      <span style={{ fontSize: 12, color: "#94a3b8", flexShrink: 0 }}>{m.name}</span>
+                      <span style={{ fontSize: 12, color: "#475569", flex: 1 }}>{m.reason}</span>
+                      <a
+                        href={`/admin/nodes?add=${m.ticker}`}
+                        style={{ fontSize: 11, color: "#f59e0b", textDecoration: "none", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 4, padding: "2px 8px", flexShrink: 0 }}
+                      >
+                        + Add
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           );
         })()}

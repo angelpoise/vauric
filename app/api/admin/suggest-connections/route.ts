@@ -63,6 +63,8 @@ export async function POST(req: NextRequest) {
     ? `Already connected to: ${Array.from(existingIds).join(", ")}`
     : "No existing explicit connections.";
 
+  const graphTickerSet = new Set(otherStocks.map((n) => n.ticker ?? "").filter(Boolean));
+
   const prompt = `You are curating a financial knowledge graph. Suggest connections for this stock.
 
 Stock: ${ticker} (${stock.company_name ?? "Unknown"})
@@ -91,11 +93,14 @@ Rules:
 - Each reason ≤ 10 words
 - When in doubt between T1 and T2, ask: does the company MAKE/BUILD things in that category (→ T1) or just USE/COMPETE-ADJACENT to them (→ T2)?
 
+Additionally, identify up to 5 important companies NOT currently in the graph that would be highly relevant connections for ${ticker} if they were added. Only include companies with a genuine, significant relationship (direct competitor, major supplier, key customer, or strong thematic peer). Do not include companies already in the "Other stocks in graph" list above.
+
 Return ONLY valid JSON, no other text:
 {
   "t1": [{"id": "exact name or ticker", "reason": "brief reason"}],
   "t2": [{"id": "exact name or ticker", "reason": "brief reason"}],
-  "t3": [{"id": "exact name or ticker", "reason": "brief reason"}]
+  "t3": [{"id": "exact name or ticker", "reason": "brief reason"}],
+  "missing": [{"ticker": "TICKER", "name": "Full Company Name", "reason": "brief reason", "tier": 1}]
 }`;
 
   try {
@@ -114,6 +119,7 @@ Return ONLY valid JSON, no other text:
       t1?: { id: string; reason: string }[];
       t2?: { id: string; reason: string }[];
       t3?: { id: string; reason: string }[];
+      missing?: { ticker: string; name: string; reason: string; tier: number }[];
     };
 
     // Map node ID → node_type for enriching the response
@@ -133,10 +139,15 @@ Return ONLY valid JSON, no other text:
         .filter((s) => validIds.has(s.id) && !existingIds.has(s.id))
         .map((s) => ({ id: s.id, reason: s.reason, nodeType: nodeTypeMap.get(s.id) ?? "stock" }));
 
+    const missing = (parsed.missing ?? [])
+      .filter((m) => m.ticker && !graphTickerSet.has(m.ticker.toUpperCase()) && m.ticker.toUpperCase() !== ticker)
+      .map((m) => ({ ticker: m.ticker.toUpperCase(), name: m.name, reason: m.reason, tier: m.tier as 1|2|3 }));
+
     return NextResponse.json({
       t1: validate(parsed.t1),
       t2: validate(parsed.t2),
       t3: validate(parsed.t3),
+      missing,
     });
   } catch (err) {
     console.error("suggest-connections error:", err);
