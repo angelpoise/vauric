@@ -13,6 +13,8 @@ export interface ContextMenuInfo {
 
 interface Props {
   editMode: boolean;
+  adminView: boolean;
+  onAdminViewChange: (v: boolean) => void;
   connectionView: ConnectionView;
   onConnectionViewChange: (v: ConnectionView) => void;
   saveFailures: string[];
@@ -44,7 +46,8 @@ interface Props {
 }
 
 export default function GraphEditOverlay({
-  editMode, connectionView, onConnectionViewChange, saveFailures, pendingCount, knownTickers,
+  editMode, adminView, onAdminViewChange,
+  connectionView, onConnectionViewChange, saveFailures, pendingCount, knownTickers,
   contextMenu, showConnectionPrompt, connectionPromptPreset, saving,
   onToggleEdit, onExitConfirmed, onSave, onContextMenuClose,
   onDeleteNode, onDeleteEdge, onAddConnection,
@@ -88,10 +91,11 @@ export default function GraphEditOverlay({
       {/* Edit mode toggle + save + add sector — top-right of screen */}
       <div style={{
         position: "fixed", top: 12, right: 16, zIndex: 25,
-        display: "flex", gap: 8, alignItems: "center",
+        display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8,
         fontFamily: 'var(--font-dm-sans), "DM Sans", sans-serif',
         pointerEvents: "auto",
       }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         {/* ConnectionView preset bar */}
         <div style={{
           display: "flex", alignItems: "center", gap: 1,
@@ -184,6 +188,24 @@ export default function GraphEditOverlay({
         >
           {editMode ? "✏ Edit mode" : "Edit mode"}
         </button>
+      </div>
+
+      {/* Admin view toggle — below edit mode */}
+      <button
+        onClick={() => onAdminViewChange(!adminView)}
+        style={{
+          background: adminView ? "rgba(168,85,247,0.15)" : "rgba(255,255,255,0.04)",
+          border: adminView ? "1px solid rgba(168,85,247,0.4)" : "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 6,
+          color: adminView ? "#a855f7" : "#475569",
+          fontSize: 10, fontWeight: 500,
+          padding: "4px 10px", cursor: "pointer",
+          fontFamily: "inherit", letterSpacing: "0.04em",
+        }}
+      >
+        {adminView ? "◉ Admin view" : "Admin view"}
+      </button>
+
       </div>
 
       {/* Context menu */}

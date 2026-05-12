@@ -127,6 +127,9 @@ export default function GraphLayout() {
   // Connection view
   const [connectionView, setConnectionView] = useState<ConnectionView>("primary");
 
+  // Admin view — bypasses stock LOD so all nodes visible at any zoom
+  const [adminView, setAdminView] = useState(false);
+
   // Edit mode state
   const [editMode, setEditMode]                   = useState(false);
   const [pendingPositions, setPendingPositions]   = useState<Record<string, { x: number; y: number }>>({});
@@ -366,6 +369,7 @@ export default function GraphLayout() {
           activeFilters={activeFilters}
           graphSettings={graphSettings}
           editMode={editMode}
+          adminView={adminView}
           connectionView={connectionView}
           sectorNodes={sectors}
           onNodeDragEnd={handleNodeDragEnd}
@@ -394,6 +398,8 @@ export default function GraphLayout() {
       {isAdmin && (
         <GraphEditOverlay
           editMode={editMode}
+          adminView={adminView}
+          onAdminViewChange={setAdminView}
           connectionView={connectionView}
           onConnectionViewChange={setConnectionView}
           saveFailures={saveFailures}

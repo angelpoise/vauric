@@ -79,6 +79,7 @@ interface Props {
   activeFilters?: ActiveFilters;
   graphSettings?: GraphSettings;
   editMode?: boolean;
+  adminView?: boolean;
   connectionView?: ConnectionView;
   sectorNodes?: SectorNode[];
   onNodeDragEnd?: (nodeId: string, worldX: number, worldY: number) => void;
@@ -366,7 +367,7 @@ function labelLodAlpha(node: GNode, camScale: number): number {
 
 const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
   onHover, activeFilters, graphSettings,
-  editMode, connectionView, sectorNodes, onNodeDragEnd, onContextMenu, onShiftEmptyClick, onGraphLoaded,
+  editMode, adminView, connectionView, sectorNodes, onNodeDragEnd, onContextMenu, onShiftEmptyClick, onGraphLoaded,
 }, ref) {
   const router         = useRouter();
   const { user }       = useUser();
@@ -458,6 +459,9 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
   // Connection view ref
   const connectionViewRef = useRef<ConnectionView>("primary");
 
+  // Admin view ref — bypasses stock LOD so all nodes are visible at any zoom
+  const adminViewRef = useRef(false);
+
   // Edit mode refs
   const editModeRef          = useRef(false);
   const draggingNodeRef      = useRef<GNode | null>(null);
@@ -472,6 +476,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
   useEffect(() => { activeFiltersRef.current    = activeFilters  ?? DEFAULT_FILTERS;       }, [activeFilters]);
   useEffect(() => { graphSettingsRef.current    = graphSettings  ?? DEFAULT_GRAPH_SETTINGS; }, [graphSettings]);
   useEffect(() => { editModeRef.current          = editMode       ?? false;                  }, [editMode]);
+  useEffect(() => { adminViewRef.current         = adminView      ?? false;                  }, [adminView]);
   useEffect(() => { connectionViewRef.current    = connectionView ?? "primary";             }, [connectionView]);
   useEffect(() => { onNodeDragEndRef.current   = onNodeDragEnd;                            }, [onNodeDragEnd]);
   useEffect(() => { onContextMenuRef.current   = onContextMenu;                            }, [onContextMenu]);
@@ -850,7 +855,8 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       const w = toWorld(mx, my);
       const t = animTRef.current;
       for (const node of [...graphDataRef.current.nodes].reverse()) {
-        if (nodeLodAlpha(node, cameraRef.current.scale) < 0.5) continue;
+        const hitScale = adminViewRef.current ? LOD_SUBSUBSECTOR + LOD_FADE + 1 : cameraRef.current.scale;
+        if (nodeLodAlpha(node, hitScale) < 0.5) continue;
         const pos = worldPos(node, t);
         const r   = effectiveRadius(node) + 6;
         const dx  = w.x - pos.x;
@@ -1000,6 +1006,8 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       ctx.translate(cam.x, cam.y);
       ctx.scale(cam.scale, cam.scale);
 
+      const lodScale = adminViewRef.current ? LOD_SUBSUBSECTOR + LOD_FADE + 1 : cam.scale;
+
       // Edges
       for (const edge of gd.edges) {
         if (!shouldDrawEdge(edge)) continue;
@@ -1008,7 +1016,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         if (!src || !tgt) continue;
 
         // Fade the edge out with the least-visible of its two endpoints
-        const edgeLodA = Math.min(nodeLodAlpha(src, cam.scale), nodeLodAlpha(tgt, cam.scale));
+        const edgeLodA = Math.min(nodeLodAlpha(src, lodScale), nodeLodAlpha(tgt, lodScale));
         if (edgeLodA === 0) continue;
 
         const sp  = worldPos(src, t);
@@ -1034,7 +1042,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
 
       // Nodes
       for (const node of gd.nodes) {
-        const lodA = nodeLodAlpha(node, cam.scale);
+        const lodA = nodeLodAlpha(node, lodScale);
         if (lodA === 0) continue;
 
         const pos        = worldPos(node, t);
@@ -1084,7 +1092,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         ctx.translate(pos.x, pos.y);
         ctx.scale(scale, scale);
 
-        const labelA = labelLodAlpha(node, cam.scale);
+        const labelA = labelLodAlpha(node, lodScale);
         if (node.kind === "sector") {
           drawSectorNode(ctx, node, r, col, t, rawMove, cam.scale);
         } else if (node.kind === "subsector") {
