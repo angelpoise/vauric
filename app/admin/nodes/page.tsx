@@ -128,6 +128,7 @@ export default function NodesPage() {
   const [editSaving, setEditSaving]     = useState(false);
   const [regenOverviewMsg, setRegenOverviewMsg] = useState<Record<string, string>>({});
   const [lookingUp, setLookingUp]       = useState(false);
+  const [irFormLookingUp, setIrFormLookingUp] = useState(false);
 
   async function load() {
     const r = await adminFetch("/api/admin/stocks");
@@ -148,10 +149,12 @@ export default function NodesPage() {
   async function lookupTicker(ticker: string) {
     if (!ticker || form.node_type !== "stock") return;
     setLookingUp(true);
+    let resolvedName: string | null = null;
     try {
       const r = await adminFetch(`/api/admin/ticker-lookup?ticker=${encodeURIComponent(ticker)}`);
       if (r.ok) {
         const { name, sector } = await r.json();
+        resolvedName = name ?? null;
         setForm((prev) => ({
           ...prev,
           ...(name   ? { company_name: name }   : {}),
@@ -160,6 +163,24 @@ export default function NodesPage() {
       }
     } finally {
       setLookingUp(false);
+    }
+
+    // Kick off IR discovery in the background once we have a name
+    if (resolvedName) {
+      setIrFormLookingUp(true);
+      try {
+        const irR = await adminFetch("/api/admin/stocks/discover-ir", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ticker, companyName: resolvedName }),
+        });
+        if (irR.ok) {
+          const { url } = await irR.json();
+          if (url) setForm((prev) => ({ ...prev, investor_relations_url: url }));
+        }
+      } finally {
+        setIrFormLookingUp(false);
+      }
     }
   }
 
@@ -428,8 +449,19 @@ export default function NodesPage() {
               <input style={INPUT} placeholder="X" type="number" step="0.01" value={form.x_position} onChange={(e) => setForm({ ...form, x_position: +e.target.value })} />
               <input style={INPUT} placeholder="Y" type="number" step="0.01" value={form.y_position} onChange={(e) => setForm({ ...form, y_position: +e.target.value })} />
             </div>
-            <div style={{ marginBottom: 10 }}>
-              <input style={INPUT} placeholder="IR URL (optional)" value={form.investor_relations_url} onChange={(e) => setForm({ ...form, investor_relations_url: e.target.value })} />
+            <div style={{ marginBottom: 10, position: "relative" }}>
+              <input
+                style={INPUT}
+                placeholder={irFormLookingUp ? "Finding IR URL…" : "IR URL (optional)"}
+                value={form.investor_relations_url}
+                onChange={(e) => setForm({ ...form, investor_relations_url: e.target.value })}
+                disabled={irFormLookingUp}
+              />
+              {irFormLookingUp && (
+                <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 10, color: "#475569" }}>
+                  …
+                </span>
+              )}
             </div>
           </>
         )}
