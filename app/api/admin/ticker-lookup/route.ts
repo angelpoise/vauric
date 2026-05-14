@@ -55,6 +55,20 @@ const SIC_TO_GICS: Array<[number, number, string]> = [
   [8700,  8999, "Industrials"],         // Management / consulting
 ];
 
+// Ticker-level overrides for companies whose SIC code doesn't reflect their GICS sector.
+// Common case: financial data / analytics companies that use software SIC codes.
+const TICKER_SECTOR_OVERRIDE: Record<string, string> = {
+  SPGI:  "Financials",  // S&P Global — financial data, SIC 7372
+  MCO:   "Financials",  // Moody's — credit ratings, SIC 7372
+  MSCI:  "Financials",  // MSCI — financial indices, SIC 7372
+  ICE:   "Financials",  // Intercontinental Exchange
+  CBOE:  "Financials",  // Cboe Global Markets
+  CME:   "Financials",  // CME Group
+  NDAQ:  "Financials",  // Nasdaq Inc.
+  FDS:   "Financials",  // FactSet Research
+  VRSK:  "Financials",  // Verisk Analytics
+};
+
 function sicToGics(sic: number): string | null {
   for (const [lo, hi, sector] of SIC_TO_GICS) {
     if (sic >= lo && sic <= hi) return sector;
@@ -82,10 +96,11 @@ export async function GET(req: NextRequest) {
     const json = await res.json();
     const result = json?.results as Record<string, unknown> | null | undefined;
 
-    const name   = typeof result?.name        === "string" ? result.name        : null;
-    const sicRaw = typeof result?.sic_code    === "string" ? result.sic_code    : null;
+    const name   = typeof result?.name     === "string" ? result.name     : null;
+    const sicRaw = typeof result?.sic_code === "string" ? result.sic_code : null;
     const sic    = sicRaw ? parseInt(sicRaw, 10) : null;
-    const sector = sic !== null && !isNaN(sic) ? sicToGics(sic) : null;
+    const sector = TICKER_SECTOR_OVERRIDE[ticker]
+      ?? (sic !== null && !isNaN(sic) ? sicToGics(sic) : null);
 
     return NextResponse.json({ name, sector });
   } catch {
