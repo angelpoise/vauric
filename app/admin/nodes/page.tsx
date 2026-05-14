@@ -135,6 +135,12 @@ export default function NodesPage() {
   const [bulkImporting, setBulkImporting] = useState(false);
   const [bulkResult, setBulkResult]     = useState<{ added: string[]; skipped: string[]; failed: string[] } | null>(null);
 
+  // Missing IR state
+  const [irCheckOpen, setIrCheckOpen]   = useState(false);
+  const [irDiscoverAll, setIrDiscoverAll] = useState(false);
+  const [irProgress, setIrProgress]     = useState<{ current: number; total: number; ticker: string } | null>(null);
+  const [irResults, setIrResults]       = useState<Record<string, "found" | "not-found">>({});
+
   // Quality check state
   type QualityIssue = { ticker: string; currentName: string; currentSector: string; suggestedName: string | null; suggestedSector: string | null; };
   const [qcRunning, setQcRunning]       = useState(false);
@@ -216,6 +222,29 @@ export default function NodesPage() {
     } finally {
       setBulkImporting(false);
     }
+  }
+
+  async function discoverAllMissingIr(missing: Node[]) {
+    setIrDiscoverAll(true);
+    setIrResults({});
+    for (let i = 0; i < missing.length; i++) {
+      const n = missing[i];
+      if (!n.ticker || !n.company_name) continue;
+      setIrProgress({ current: i + 1, total: missing.length, ticker: n.ticker });
+      try {
+        const r = await adminFetch("/api/admin/stocks/discover-ir", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ticker: n.ticker, companyName: n.company_name }),
+        });
+        setIrResults((prev) => ({ ...prev, [n.ticker!]: r.ok ? "found" : "not-found" }));
+      } catch {
+        setIrResults((prev) => ({ ...prev, [n.ticker!]: "not-found" }));
+      }
+    }
+    setIrProgress(null);
+    setIrDiscoverAll(false);
+    load();
   }
 
   async function runQualityCheck() {
@@ -592,6 +621,60 @@ export default function NodesPage() {
           )}
         </div>
       </div>
+
+      {/* Missing IR links */}
+      {(() => {
+        const missing = nodes.filter((n) => n.node_type === "stock" && !n.investor_relations_url);
+        return (
+          <div style={{ ...CARD, marginBottom: 28 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, color: "#475569", fontWeight: 500, letterSpacing: "0.07em", textTransform: "uppercase" }}>
+                  Missing IR links
+                </div>
+                <div style={{ fontSize: 11, color: "#334155", marginTop: 4 }}>
+                  {missing.length === 0 ? "All stocks have IR links." : `${missing.length} stock${missing.length !== 1 ? "s" : ""} missing an IR link.`}
+                </div>
+              </div>
+              {missing.length > 0 && (
+                <>
+                  <button style={{ ...BTN, background: "rgba(255,255,255,0.05)", color: "#94a3b8", border: "1px solid rgba(255,255,255,0.1)" }}
+                    onClick={() => setIrCheckOpen((o) => !o)}>
+                    {irCheckOpen ? "Hide" : "Show"}
+                  </button>
+                  <button style={{ ...BTN, opacity: irDiscoverAll ? 0.6 : 1 }}
+                    onClick={() => discoverAllMissingIr(missing)} disabled={irDiscoverAll}>
+                    {irDiscoverAll ? `Discovering… (${irProgress?.current}/${irProgress?.total} — ${irProgress?.ticker})` : "Discover all"}
+                  </button>
+                </>
+              )}
+            </div>
+
+            {irCheckOpen && missing.length > 0 && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {missing.map((n) => {
+                    const res = irResults[n.ticker ?? ""];
+                    return (
+                      <div key={n.ticker} style={{
+                        fontSize: 11, padding: "3px 10px", borderRadius: 20,
+                        background: res === "found" ? "rgba(34,197,94,0.1)" : res === "not-found" ? "rgba(239,68,68,0.08)" : "rgba(255,255,255,0.04)",
+                        border: `1px solid ${res === "found" ? "rgba(34,197,94,0.3)" : res === "not-found" ? "rgba(239,68,68,0.2)" : "rgba(255,255,255,0.08)"}`,
+                        color: res === "found" ? "#22c55e" : res === "not-found" ? "#ef4444" : "#64748b",
+                        fontFamily: "monospace",
+                      }}>
+                        {n.ticker}
+                        {res === "found" && " ✓"}
+                        {res === "not-found" && " ✗"}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Quality check */}
       <div style={{ ...CARD, marginBottom: 28 }}>
