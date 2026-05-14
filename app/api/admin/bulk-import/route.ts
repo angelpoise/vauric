@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
           node_type:         "stock",
           ticker,
           company_name:      name   ?? ticker,
-          sector:            sector ?? "Information Technology",
+          sector:            sector ?? "",
           x_position:        0.5,
           y_position:        0.5,
           analysis_schedule: "weekly",
