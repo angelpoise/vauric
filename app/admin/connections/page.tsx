@@ -303,6 +303,12 @@ export default function ConnectionsPage() {
   const [applying, setApplying]               = useState(false);
   const [suggestErr, setSuggestErr]           = useState<string | null>(null);
 
+  // Bulk AI connections state
+  const [bulkConnText, setBulkConnText]       = useState("");
+  const [bulkConnRunning, setBulkConnRunning] = useState(false);
+  const [bulkConnProgress, setBulkConnProgress] = useState<{ current: number; total: number; ticker: string; added: number } | null>(null);
+  const [bulkConnDone, setBulkConnDone]       = useState<{ ticker: string; added: number }[]>([]);
+
   const autoTier = useMemo(
     () => (nodeA && nodeB ? inferTier(nodeA, nodeB, nodes) : 2),
     [nodeA, nodeB, nodes],
@@ -444,6 +450,48 @@ export default function ConnectionsPage() {
     load();
   }
 
+  async function runBulkConnections() {
+    const tickers = bulkConnText
+      .split(/[\n,\s]+/)
+      .map((t) => t.trim().toUpperCase())
+      .filter(Boolean);
+    if (!tickers.length) return;
+    setBulkConnRunning(true);
+    setBulkConnDone([]);
+    setBulkConnProgress(null);
+
+    for (let i = 0; i < tickers.length; i++) {
+      const ticker = tickers[i];
+      setBulkConnProgress({ current: i + 1, total: tickers.length, ticker, added: 0 });
+      try {
+        const r = await adminFetch("/api/admin/suggest-connections", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ticker }),
+        });
+        if (!r.ok) { setBulkConnDone((p) => [...p, { ticker, added: 0 }]); continue; }
+        const data = await r.json() as SuggestResult;
+        const items = [
+          ...(data.t1 ?? []).map((s) => ({ id: s.id, tier: 1 })),
+          ...(data.t2 ?? []).map((s) => ({ id: s.id, tier: 2 })),
+          ...(data.t3 ?? []).map((s) => ({ id: s.id, tier: 3 })),
+        ];
+        await Promise.all(items.map((item) =>
+          adminFetch("/api/admin/connections", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ticker_a: ticker, ticker_b: item.id, tier: item.tier }),
+          })
+        ));
+        setBulkConnDone((p) => [...p, { ticker, added: items.length }]);
+      } catch {
+        setBulkConnDone((p) => [...p, { ticker, added: 0 }]);
+      }
+    }
+    setBulkConnProgress(null);
+    setBulkConnRunning(false);
+    setBulkConnText("");
+    load();
+  }
+
   const grouped = useMemo(() => {
     const g: Record<string, NodeRow[]> = { stock: [], sector: [], subsector: [], subsubsector: [] };
     for (const n of nodes) if (g[n.node_type]) g[n.node_type].push(n);
@@ -514,6 +562,58 @@ export default function ConnectionsPage() {
           <button style={{ ...BTN, alignSelf: "flex-end" }} onClick={add}>Add</button>
         </div>
         {err && <div style={{ fontSize: 12, color: "#ef4444", marginTop: 8 }}>{err}</div>}
+      </div>
+
+      {/* Bulk AI connections */}
+      <div style={{ ...CARD, marginBottom: 28 }}>
+        <div style={{ fontSize: 12, color: "#475569", fontWeight: 500, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
+          Bulk AI connections
+          <span style={{ fontSize: 10, background: "rgba(168,85,247,0.15)", border: "1px solid rgba(168,85,247,0.3)", color: "#a855f7", padding: "2px 7px", borderRadius: 10, letterSpacing: 0, textTransform: "none" }}>Claude</span>
+        </div>
+        <div style={{ fontSize: 11, color: "#334155", marginBottom: 10 }}>
+          Paste tickers — Claude processes each one and auto-applies all T1/T2/T3 suggestions.
+        </div>
+        <textarea
+          style={{ ...INPUT, height: 80, resize: "vertical", fontFamily: "monospace", fontSize: 12, marginBottom: 10 }}
+          placeholder={"AAPL, MSFT, NVDA\nGOOGL, META"}
+          value={bulkConnText}
+          onChange={(e) => { setBulkConnText(e.target.value); setBulkConnDone([]); }}
+          disabled={bulkConnRunning}
+        />
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <button
+            style={{ ...BTN, opacity: !bulkConnText.trim() || bulkConnRunning ? 0.55 : 1 }}
+            onClick={runBulkConnections}
+            disabled={!bulkConnText.trim() || bulkConnRunning}
+          >
+            {bulkConnRunning ? "Processing…" : "Run"}
+          </button>
+          {bulkConnProgress && (
+            <span style={{ fontSize: 12, color: "#64748b" }}>
+              <span style={{ color: "#a855f7", fontWeight: 600 }}>{bulkConnProgress.ticker}</span>
+              {" "}({bulkConnProgress.current}/{bulkConnProgress.total})
+            </span>
+          )}
+          {!bulkConnRunning && bulkConnDone.length > 0 && (
+            <span style={{ fontSize: 12, color: "#64748b" }}>
+              Done — {bulkConnDone.reduce((s, r) => s + r.added, 0)} connections added across {bulkConnDone.length} stocks
+            </span>
+          )}
+        </div>
+        {bulkConnDone.length > 0 && (
+          <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {bulkConnDone.map((r) => (
+              <div key={r.ticker} style={{
+                fontSize: 11, padding: "2px 9px", borderRadius: 20, fontFamily: "monospace",
+                background: r.added > 0 ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)",
+                border: `1px solid ${r.added > 0 ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.2)"}`,
+                color: r.added > 0 ? "#22c55e" : "#ef4444",
+              }}>
+                {r.ticker} {r.added > 0 ? `+${r.added}` : "✗"}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* AI Connection Suggestions */}
