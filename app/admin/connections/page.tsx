@@ -309,6 +309,10 @@ export default function ConnectionsPage() {
   const [bulkConnProgress, setBulkConnProgress] = useState<{ current: number; total: number; ticker: string; added: number } | null>(null);
   const [bulkConnDone, setBulkConnDone]       = useState<{ ticker: string; added: number }[]>([]);
 
+  // Review queue state (feeds tickers into the suggestion panel one by one)
+  const [reviewQueue, setReviewQueue]         = useState<string[]>([]);
+  const [reviewQueueIdx, setReviewQueueIdx]   = useState(0);
+
   const autoTier = useMemo(
     () => (nodeA && nodeB ? inferTier(nodeA, nodeB, nodes) : 2),
     [nodeA, nodeB, nodes],
@@ -448,6 +452,52 @@ export default function ConnectionsPage() {
     setTierOverrides({});
     setApplying(false);
     load();
+
+    // Advance review queue if active
+    if (reviewQueue.length > 0) {
+      const nextIdx = reviewQueueIdx + 1;
+      if (nextIdx < reviewQueue.length) {
+        setReviewQueueIdx(nextIdx);
+        loadSuggestionsForTicker(reviewQueue[nextIdx]);
+      } else {
+        setReviewQueue([]);
+        setReviewQueueIdx(0);
+      }
+    }
+  }
+
+  async function loadSuggestionsForTicker(ticker: string) {
+    setSuggestTicker(ticker);
+    setSuggesting(true);
+    setSuggestResult(null);
+    setSuggestErr(null);
+    try {
+      const r = await adminFetch("/api/admin/suggest-connections", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker }),
+      });
+      const data = await r.json();
+      if (!r.ok) { setSuggestErr(data.error ?? "Failed"); return; }
+      setSuggestResult(data as SuggestResult);
+      setTierOverrides({});
+      const all = [...(data.t1 ?? []), ...(data.t2 ?? []), ...(data.t3 ?? [])];
+      setSuggestSelected(new Set(all.map((s: Suggestion) => s.id)));
+    } catch { setSuggestErr("Network error"); }
+    finally { setSuggesting(false); }
+  }
+
+  function startReviewQueue() {
+    const tickers = bulkConnText
+      .split(/[\n,\s]+/)
+      .map((t) => t.trim().toUpperCase())
+      .filter(Boolean);
+    if (!tickers.length) return;
+    setReviewQueue(tickers);
+    setReviewQueueIdx(0);
+    setBulkConnText("");
+    loadSuggestionsForTicker(tickers[0]);
+    // Scroll suggestion panel into view
+    document.getElementById("suggestion-panel")?.scrollIntoView({ behavior: "smooth" });
   }
 
   async function runBulkConnections() {
@@ -586,7 +636,14 @@ export default function ConnectionsPage() {
             onClick={runBulkConnections}
             disabled={!bulkConnText.trim() || bulkConnRunning}
           >
-            {bulkConnRunning ? "Processing…" : "Run"}
+            {bulkConnRunning ? "Processing…" : "Auto-apply all"}
+          </button>
+          <button
+            style={{ ...BTN, background: "rgba(168,85,247,0.15)", border: "1px solid rgba(168,85,247,0.35)", color: "#a855f7", opacity: !bulkConnText.trim() || bulkConnRunning ? 0.55 : 1 }}
+            onClick={startReviewQueue}
+            disabled={!bulkConnText.trim() || bulkConnRunning}
+          >
+            Review one by one
           </button>
           {bulkConnProgress && (
             <span style={{ fontSize: 12, color: "#64748b" }}>
@@ -617,12 +674,25 @@ export default function ConnectionsPage() {
       </div>
 
       {/* AI Connection Suggestions */}
-      <div style={{ ...CARD, marginBottom: 28 }}>
+      <div id="suggestion-panel" style={{ ...CARD, marginBottom: 28 }}>
         <div style={{ fontSize: 12, color: "#475569", fontWeight: 500, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
           AI Connection Suggestions
           <span style={{ fontSize: 10, background: "rgba(168,85,247,0.15)", border: "1px solid rgba(168,85,247,0.3)", color: "#a855f7", padding: "2px 7px", borderRadius: 10, letterSpacing: 0, textTransform: "none" }}>
             Claude
           </span>
+          {reviewQueue.length > 0 && (
+            <span style={{ fontSize: 10, background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.3)", color: "#22c55e", padding: "2px 8px", borderRadius: 10, letterSpacing: 0, textTransform: "none" }}>
+              Queue: {reviewQueueIdx + 1} / {reviewQueue.length}
+            </span>
+          )}
+          {reviewQueue.length > 0 && (
+            <button
+              onClick={() => { setReviewQueue([]); setReviewQueueIdx(0); setSuggestResult(null); }}
+              style={{ fontSize: 10, background: "none", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, color: "#475569", padding: "2px 8px", cursor: "pointer", fontFamily: "inherit", marginLeft: "auto", textTransform: "none", letterSpacing: 0 }}
+            >
+              Exit queue
+            </button>
+          )}
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "end", marginBottom: suggestResult || suggestErr || suggesting ? 18 : 0 }}>
