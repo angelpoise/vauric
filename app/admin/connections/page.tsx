@@ -847,12 +847,17 @@ export default function ConnectionsPage() {
                       <code style={{ fontSize: 12, fontWeight: 600, color: "#f59e0b", flexShrink: 0 }}>{m.ticker}</code>
                       <span style={{ fontSize: 12, color: "#94a3b8", flexShrink: 0 }}>{m.name}</span>
                       <span style={{ fontSize: 12, color: "#475569", flex: 1 }}>{m.reason}</span>
-                      <a
-                        href={`/admin/nodes?add=${m.ticker}`}
-                        style={{ fontSize: 11, color: "#f59e0b", textDecoration: "none", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 4, padding: "2px 8px", flexShrink: 0 }}
+                      <button
+                        onClick={async () => {
+                          if (!suggestResult) return;
+                          await addMissingAndConnect(suggestTicker, [m]);
+                          load();
+                          setSuggestResult({ ...suggestResult, missing: suggestResult.missing.filter((x) => x.ticker !== m.ticker) });
+                        }}
+                        style={{ fontSize: 11, color: "#f59e0b", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 4, padding: "2px 8px", cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}
                       >
                         + Add
-                      </a>
+                      </button>
                     </div>
                   ))}
                 </div>
