@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/adminSecret";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { cleanCompanyName, sectorFromPolygon } from "@/lib/tickerLookupUtils";
+import { cleanCompanyName, sectorFromPolygon, YAHOO_TO_GICS } from "@/lib/tickerLookupUtils";
+import { getYahooSession, fetchFundamentalsForTicker } from "@/lib/fundamentalsUtils";
 
 export interface QualityIssue {
   ticker: string;
@@ -9,26 +10,6 @@ export interface QualityIssue {
   currentSector: string;
   suggestedName: string | null;
   suggestedSector: string | null;
-}
-
-async function polygonLookup(
-  ticker: string,
-  apiKey: string,
-): Promise<{ rawName: string | null; sicCode: string | null }> {
-  try {
-    const res = await fetch(
-      `https://api.polygon.io/v3/reference/tickers/${ticker}?apiKey=${apiKey}`,
-    );
-    if (!res.ok) return { rawName: null, sicCode: null };
-    const json = await res.json();
-    const r = json?.results as Record<string, unknown> | undefined;
-    return {
-      rawName: typeof r?.name     === "string" ? r.name     : null,
-      sicCode: typeof r?.sic_code === "string" ? r.sic_code : null,
-    };
-  } catch {
-    return { rawName: null, sicCode: null };
-  }
 }
 
 // GET — scan all stocks and return quality issues
@@ -48,17 +29,56 @@ export async function GET(req: NextRequest) {
 
   if (error || !stocks) return NextResponse.json({ error: "DB error" }, { status: 500 });
 
+  // Get Yahoo session once for sector lookups
+  const yahooSession = await getYahooSession();
+
   const issues: QualityIssue[] = [];
-  const CONCURRENCY = 8;
+  const CONCURRENCY = 6;
 
   for (let i = 0; i < stocks.length; i += CONCURRENCY) {
     const batch = stocks.slice(i, i + CONCURRENCY);
     const results = await Promise.all(
       batch.map(async (stock) => {
-        const { rawName, sicCode } = await polygonLookup(stock.ticker, polygonKey);
+        // ── Name from Polygon ───────────────────────────────────────────────
+        let suggestedName: string | null = null;
+        try {
+          const res = await fetch(
+            `https://api.polygon.io/v3/reference/tickers/${stock.ticker}?apiKey=${polygonKey}`,
+          );
+          if (res.ok) {
+            const json = await res.json();
+            const r = json?.results as Record<string, unknown> | undefined;
+            const rawName = typeof r?.name === "string" ? r.name : null;
+            const sicCode = typeof r?.sic_code === "string" ? r.sic_code : null;
+            if (rawName) suggestedName = cleanCompanyName(rawName);
 
-        const suggestedName   = rawName ? cleanCompanyName(rawName) : null;
-        const suggestedSector = sectorFromPolygon(stock.ticker, sicCode);
+            // Fall back to Polygon SIC sector if Yahoo fails later
+            if (!yahooSession) {
+              const sicSector = sectorFromPolygon(stock.ticker, sicCode);
+              const sectorDiffers = sicSector !== null && sicSector !== stock.sector;
+              const nameDiffers   = suggestedName !== null && suggestedName !== stock.company_name;
+              if (!nameDiffers && !sectorDiffers) return null;
+              return {
+                ticker:          stock.ticker,
+                currentName:     stock.company_name ?? "",
+                currentSector:   stock.sector       ?? "",
+                suggestedName:   nameDiffers   ? suggestedName   : null,
+                suggestedSector: sectorDiffers ? sicSector       : null,
+              } satisfies QualityIssue;
+            }
+          }
+        } catch { /* ignore — name stays null */ }
+
+        // ── Sector from Yahoo Finance (more accurate GICS mapping) ──────────
+        let suggestedSector: string | null = null;
+        if (yahooSession) {
+          try {
+            const entry = await fetchFundamentalsForTicker(stock.ticker, yahooSession);
+            if (entry?.sector) {
+              suggestedSector = YAHOO_TO_GICS[entry.sector] ?? entry.sector;
+            }
+          } catch { /* ignore */ }
+        }
 
         const nameDiffers   = suggestedName   !== null && suggestedName   !== stock.company_name;
         const sectorDiffers = suggestedSector !== null && suggestedSector !== stock.sector;

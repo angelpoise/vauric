@@ -84,6 +84,21 @@ export function sectorFromPolygon(ticker: string, sicCode: string | null): strin
 }
 
 // Strip share-class suffixes that Polygon sometimes appends to company names.
+// Yahoo Finance assetProfile sector → GICS display name
+export const YAHOO_TO_GICS: Record<string, string> = {
+  "Technology":             "Information Technology",
+  "Healthcare":             "Healthcare",
+  "Financial Services":     "Financials",
+  "Consumer Cyclical":      "Consumer Discretionary",
+  "Consumer Defensive":     "Consumer Staples",
+  "Communication Services": "Communication Services",
+  "Energy":                 "Energy",
+  "Industrials":            "Industrials",
+  "Basic Materials":        "Materials",
+  "Real Estate":            "Real Estate",
+  "Utilities":              "Utilities",
+};
+
 export function cleanCompanyName(raw: string): string {
   return raw
     .replace(/,?\s*(Class\s+[A-Z]\s+)?Common\s+(Stock|Shares)\s*$/i, "")
