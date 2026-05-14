@@ -824,20 +824,19 @@ export default function NodesPage() {
                             {irDiscovering[n.ticker] ? "…" : irMsg[n.ticker] ?? "Find IR"}
                           </button>
                         )}
-                        {/* Edit + Regen Overview — hierarchy nodes */}
+                        {/* Edit button — all node types */}
+                        <button
+                          style={{ ...BTN, background: "rgba(255,255,255,0.05)", color: "#94a3b8", border: "1px solid rgba(255,255,255,0.1)" }}
+                          onClick={() => openEdit(n)}>
+                          Edit
+                        </button>
+                        {/* Regen Overview — hierarchy nodes only */}
                         {!isStock && (
-                          <>
-                            <button
-                              style={{ ...BTN, background: "rgba(245,158,11,0.08)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.2)" }}
-                              onClick={() => regenOverview(n.id)} title="Clear and regenerate overview">
-                              {regenOverviewMsg[n.id] ?? "Regen Overview"}
-                            </button>
-                            <button
-                              style={{ ...BTN, background: "rgba(255,255,255,0.05)", color: "#94a3b8", border: "1px solid rgba(255,255,255,0.1)" }}
-                              onClick={() => openEdit(n)}>
-                              Edit
-                            </button>
-                          </>
+                          <button
+                            style={{ ...BTN, background: "rgba(245,158,11,0.08)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.2)" }}
+                            onClick={() => regenOverview(n.id)} title="Clear and regenerate overview">
+                            {regenOverviewMsg[n.id] ?? "Regen Overview"}
+                          </button>
                         )}
                         <button style={BTN_D} onClick={() => del(n.id)}>Remove</button>
                       </div>
@@ -865,6 +864,17 @@ export default function NodesPage() {
             Edit {NODE_TYPE_LABELS[editingNode.node_type]} — {editingNode.display_name ?? editingNode.company_name ?? editingNode.etf_ticker}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+            {editingNode.node_type === "stock" && (<>
+              <div><div style={{ fontSize: 11, color: "#475569", marginBottom: 5 }}>Company name</div>
+                <input style={INPUT} value={editForm.company_name} onChange={(e) => setEditForm({ ...editForm, company_name: e.target.value })} /></div>
+              <div><div style={{ fontSize: 11, color: "#475569", marginBottom: 5 }}>Sector</div>
+                <select style={INPUT} value={editForm.sector} onChange={(e) => setEditForm({ ...editForm, sector: e.target.value })}>
+                  {sectorNames.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div><div style={{ fontSize: 11, color: "#475569", marginBottom: 5 }}>IR URL</div>
+                <input style={INPUT} placeholder="https://…" value={editForm.investor_relations_url} onChange={(e) => setEditForm({ ...editForm, investor_relations_url: e.target.value })} /></div>
+            </>)}
             {editingNode.node_type === "sector" && (<>
               <div><div style={{ fontSize: 11, color: "#475569", marginBottom: 5 }}>Display name</div>
                 <input style={INPUT} value={editForm.company_name} onChange={(e) => setEditForm({ ...editForm, company_name: e.target.value })} /></div>
