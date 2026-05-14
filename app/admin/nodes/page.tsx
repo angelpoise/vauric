@@ -130,6 +130,11 @@ export default function NodesPage() {
   const [lookingUp, setLookingUp]       = useState(false);
   const [irFormLookingUp, setIrFormLookingUp] = useState(false);
 
+  // Bulk import state
+  const [bulkText, setBulkText]         = useState("");
+  const [bulkImporting, setBulkImporting] = useState(false);
+  const [bulkResult, setBulkResult]     = useState<{ added: string[]; skipped: string[]; failed: string[] } | null>(null);
+
   // Quality check state
   type QualityIssue = { ticker: string; currentName: string; currentSector: string; suggestedName: string | null; suggestedSector: string | null; };
   const [qcRunning, setQcRunning]       = useState(false);
@@ -186,6 +191,30 @@ export default function NodesPage() {
       }
     } finally {
       setLookingUp(false);
+    }
+  }
+
+  async function runBulkImport() {
+    const tickers = bulkText
+      .split(/[\n,\s]+/)
+      .map((t) => t.trim().toUpperCase())
+      .filter(Boolean);
+    if (tickers.length === 0) return;
+    setBulkImporting(true);
+    setBulkResult(null);
+    try {
+      const r = await adminFetch("/api/admin/bulk-import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tickers }),
+      });
+      if (r.ok) {
+        setBulkResult(await r.json());
+        setBulkText("");
+        load();
+      }
+    } finally {
+      setBulkImporting(false);
     }
   }
 
@@ -536,6 +565,32 @@ export default function NodesPage() {
 
         <button style={BTN} onClick={add}>Add node</button>
         {err && <div style={{ fontSize: 12, color: "#ef4444", marginTop: 8 }}>{err}</div>}
+      </div>
+
+      {/* Bulk import */}
+      <div style={{ ...CARD, marginBottom: 28 }}>
+        <div style={{ fontSize: 12, color: "#475569", fontWeight: 500, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 10 }}>Bulk import stocks</div>
+        <div style={{ fontSize: 11, color: "#334155", marginBottom: 10 }}>
+          Paste tickers separated by commas, spaces, or new lines. Name and sector are auto-filled from Polygon.
+        </div>
+        <textarea
+          style={{ ...INPUT, height: 90, resize: "vertical", fontFamily: "monospace", fontSize: 12 }}
+          placeholder={"AAPL, MSFT, NVDA\nGOOGL, META, AMZN"}
+          value={bulkText}
+          onChange={(e) => { setBulkText(e.target.value); setBulkResult(null); }}
+        />
+        <div style={{ display: "flex", gap: 10, marginTop: 10, alignItems: "center" }}>
+          <button style={{ ...BTN, opacity: !bulkText.trim() || bulkImporting ? 0.55 : 1 }} onClick={runBulkImport} disabled={!bulkText.trim() || bulkImporting}>
+            {bulkImporting ? "Importing…" : "Import"}
+          </button>
+          {bulkResult && (
+            <span style={{ fontSize: 12, color: "#64748b" }}>
+              {bulkResult.added.length > 0 && <span style={{ color: "#22c55e" }}>✓ {bulkResult.added.length} added</span>}
+              {bulkResult.skipped.length > 0 && <span style={{ color: "#475569" }}> · {bulkResult.skipped.length} skipped (already exist)</span>}
+              {bulkResult.failed.length > 0 && <span style={{ color: "#ef4444" }}> · {bulkResult.failed.length} failed</span>}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Quality check */}
