@@ -147,7 +147,6 @@ export default function NodesPage() {
   useEffect(() => { load(); }, []);
 
   async function discoverIrForForm(ticker: string, companyName: string) {
-    console.log("[IR] starting discover for", ticker, companyName);
     setIrFormLookingUp(true);
     try {
       const irR = await adminFetch("/api/admin/stocks/discover-ir", {
@@ -155,15 +154,11 @@ export default function NodesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ticker, companyName }),
       });
-      console.log("[IR] response status", irR.status);
       if (irR.ok) {
         const { url } = await irR.json();
-        console.log("[IR] url found", url);
         if (url) setForm((prev) => ({ ...prev, investor_relations_url: url }));
       }
-    } catch (e) {
-      console.error("[IR] error", e);
-    } finally {
+    } catch { /* ignore */ } finally {
       setIrFormLookingUp(false);
     }
   }
@@ -175,15 +170,12 @@ export default function NodesPage() {
       const r = await adminFetch(`/api/admin/ticker-lookup?ticker=${encodeURIComponent(ticker)}`);
       if (r.ok) {
         const { name, sector } = await r.json();
-        console.log("[lookup] name:", name, "sector:", sector);
         setForm((prev) => ({
           ...prev,
           ...(name   ? { company_name: name }   : {}),
           ...(sector ? { sector }               : {}),
         }));
-        console.log("[lookup] firing IR for name:", name);
         if (name) discoverIrForForm(ticker, name);
-        else console.warn("[lookup] name is falsy, skipping IR");
       }
     } finally {
       setLookingUp(false);
