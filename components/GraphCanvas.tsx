@@ -827,7 +827,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
 
     // Clamp camera so at least MARGIN screen-px of the actual content stays visible on each side.
     // Uses the real node bounding box once loaded; falls back to world dimensions until then.
-    const PAN_MARGIN = 650;
+    const PAN_MARGIN = 200;
     function clampCamera(cam: Camera): Camera {
       const W  = canvas.clientWidth;
       const H  = canvas.clientHeight;
