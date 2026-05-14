@@ -17,7 +17,9 @@ const SIC_TO_GICS: Array<[number, number, string]> = [
   [2900,  2999, "Energy"],              // Petroleum refining
   [3000,  3299, "Materials"],           // Rubber, stone, glass
   [3300,  3499, "Materials"],           // Primary metals
-  [3500,  3599, "Industrials"],         // Industrial machinery
+  [3500,  3569, "Industrials"],         // Industrial / special machinery
+  [3570,  3579, "Information Technology"], // Computer & office equipment
+  [3580,  3599, "Industrials"],         // Misc industrial machinery
   [3600,  3679, "Information Technology"], // Electronic components
   [3680,  3699, "Information Technology"], // Semiconductors / electronics
   [3700,  3799, "Consumer Discretionary"], // Transportation equipment / autos
