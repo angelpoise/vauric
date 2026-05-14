@@ -227,20 +227,27 @@ export default function NodesPage() {
   async function discoverAllMissingIr(missing: Node[]) {
     setIrDiscoverAll(true);
     setIrResults({});
-    for (let i = 0; i < missing.length; i++) {
-      const n = missing[i];
-      if (!n.ticker || !n.company_name) continue;
-      setIrProgress({ current: i + 1, total: missing.length, ticker: n.ticker });
-      try {
-        const r = await adminFetch("/api/admin/stocks/discover-ir", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ticker: n.ticker, companyName: n.company_name }),
-        });
-        setIrResults((prev) => ({ ...prev, [n.ticker!]: r.ok ? "found" : "not-found" }));
-      } catch {
-        setIrResults((prev) => ({ ...prev, [n.ticker!]: "not-found" }));
-      }
+    const valid = missing.filter((n) => n.ticker && n.company_name);
+    const CONCURRENCY = 3;
+    let completed = 0;
+
+    for (let i = 0; i < valid.length; i += CONCURRENCY) {
+      const batch = valid.slice(i, i + CONCURRENCY);
+      setIrProgress({ current: i + 1, total: valid.length, ticker: batch.map((n) => n.ticker).join(", ") });
+      await Promise.all(batch.map(async (n) => {
+        try {
+          const r = await adminFetch("/api/admin/stocks/discover-ir", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ticker: n.ticker, companyName: n.company_name }),
+          });
+          setIrResults((prev) => ({ ...prev, [n.ticker!]: r.ok ? "found" : "not-found" }));
+        } catch {
+          setIrResults((prev) => ({ ...prev, [n.ticker!]: "not-found" }));
+        }
+        completed++;
+        setIrProgress({ current: completed, total: valid.length, ticker: batch.map((b) => b.ticker).join(", ") });
+      }));
     }
     setIrProgress(null);
     setIrDiscoverAll(false);
