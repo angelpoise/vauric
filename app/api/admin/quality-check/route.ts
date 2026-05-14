@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
   const yahooSession = await getYahooSession();
 
   const issues: QualityIssue[] = [];
-  const CONCURRENCY = 6;
+  const CONCURRENCY = 4;
 
   for (let i = 0; i < stocks.length; i += CONCURRENCY) {
     const batch = stocks.slice(i, i + CONCURRENCY);
@@ -80,7 +80,9 @@ export async function GET(req: NextRequest) {
           } catch { /* ignore */ }
         }
 
-        const nameDiffers   = suggestedName   !== null && suggestedName   !== stock.company_name;
+        // Also flag stocks where company_name = ticker (failed lookup fallback)
+        const nameIsTickerFallback = stock.company_name === stock.ticker;
+        const nameDiffers   = (suggestedName !== null && suggestedName !== stock.company_name) || nameIsTickerFallback;
         const sectorDiffers = suggestedSector !== null && suggestedSector !== stock.sector;
 
         if (!nameDiffers && !sectorDiffers) return null;

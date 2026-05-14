@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
   const skipped: string[] = tickers.filter((t) => existingSet.has(t.toUpperCase().trim()));
   const failed: string[]  = [];
 
-  const CONCURRENCY = 8;
+  const CONCURRENCY = 4;
 
   for (let i = 0; i < toAdd.length; i += CONCURRENCY) {
     const batch = toAdd.slice(i, i + CONCURRENCY);
