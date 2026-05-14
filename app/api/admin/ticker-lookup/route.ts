@@ -42,7 +42,9 @@ const SIC_TO_GICS: Array<[number, number, string]> = [
   [6300,  6399, "Financials"],          // Insurance
   [6400,  6499, "Financials"],          // Insurance agents
   [6500,  6599, "Real Estate"],         // Real estate
-  [6700,  6799, "Financials"],          // Holding companies
+  [6700,  6797, "Financials"],          // Holding companies
+  [6798,  6798, "Real Estate"],         // Real Estate Investment Trusts (REITs)
+  [6799,  6799, "Financials"],          // Investors NEC
   [7000,  7299, "Consumer Discretionary"], // Hotels / services
   [7300,  7399, "Information Technology"], // Business services / IT
   [7500,  7599, "Consumer Discretionary"], // Auto repair / parking
