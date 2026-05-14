@@ -500,6 +500,29 @@ export default function ConnectionsPage() {
     document.getElementById("suggestion-panel")?.scrollIntoView({ behavior: "smooth" });
   }
 
+  // Add missing nodes via Polygon lookup then connect them at their suggested tier
+  async function addMissingAndConnect(
+    sourceTicker: string,
+    missing: MissingSuggestion[],
+  ): Promise<number> {
+    if (!missing.length) return 0;
+    const importR = await adminFetch("/api/admin/bulk-import", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tickers: missing.map((m) => m.ticker) }),
+    });
+    if (!importR.ok) return 0;
+    // Connect each newly added stock at its suggested tier
+    const connResults = await Promise.all(
+      missing.map((m) =>
+        adminFetch("/api/admin/connections", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ticker_a: sourceTicker, ticker_b: m.ticker, tier: m.tier }),
+        })
+      )
+    );
+    return connResults.filter((r) => r.ok).length;
+  }
+
   async function runBulkConnections() {
     const tickers = bulkConnText
       .split(/[\n,\s]+/)
@@ -531,7 +554,8 @@ export default function ConnectionsPage() {
             body: JSON.stringify({ ticker_a: ticker, ticker_b: item.id, tier: item.tier }),
           })
         ));
-        setBulkConnDone((p) => [...p, { ticker, added: items.length }]);
+        const missingAdded = await addMissingAndConnect(ticker, data.missing ?? []);
+        setBulkConnDone((p) => [...p, { ticker, added: items.length + missingAdded }]);
       } catch {
         setBulkConnDone((p) => [...p, { ticker, added: 0 }]);
       }
@@ -793,9 +817,20 @@ export default function ConnectionsPage() {
 
               {suggestResult.missing.length > 0 && (
                 <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: "#f59e0b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "#f59e0b", marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
                     <span>⚠</span>
-                    <span>Consider adding to graph</span>
+                    <span style={{ flex: 1 }}>Consider adding to graph</span>
+                    <button
+                      onClick={async () => {
+                        if (!suggestResult) return;
+                        await addMissingAndConnect(suggestTicker, suggestResult.missing);
+                        load();
+                        setSuggestResult({ ...suggestResult, missing: [] });
+                      }}
+                      style={{ fontSize: 10, background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 5, color: "#f59e0b", padding: "3px 10px", cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}
+                    >
+                      Auto-add all + connect
+                    </button>
                   </div>
                   <div style={{ fontSize: 11, color: "#475569", marginBottom: 10 }}>
                     These companies aren&apos;t on the graph yet but would be important connections for {suggestTicker}.
