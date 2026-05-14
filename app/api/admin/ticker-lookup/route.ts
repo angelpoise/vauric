@@ -32,7 +32,10 @@ const SIC_TO_GICS: Array<[number, number, string]> = [
   [3852,  3899, "Industrials"],         // Misc instruments
   [3900,  3999, "Consumer Discretionary"], // Misc manufacturing
   [4000,  4599, "Industrials"],         // Transportation
-  [4600,  4799, "Energy"],              // Pipelines / communications infra
+  [4600,  4699, "Energy"],              // Petroleum & gas pipelines
+  [4700,  4723, "Industrials"],         // Air transportation (airlines)
+  [4724,  4729, "Consumer Discretionary"], // Travel agencies & tour operators
+  [4730,  4799, "Industrials"],         // Freight & transportation services
   [4800,  4899, "Communication Services"], // Communications
   [4900,  4999, "Utilities"],           // Electric/gas/water utilities
   [5000,  5199, "Industrials"],         // Wholesale durable/non-durable
