@@ -29,8 +29,8 @@ const SIC_TO_GICS: Array<[number, number, string]> = [
   [3770,  3799, "Consumer Discretionary"], // Misc transportation equipment
   [3800,  3811, "Industrials"],         // Engineering / industrial instruments
   [3812,  3812, "Industrials"],         // Defense / navigation electronics
-  [3813,  3826, "Industrials"],         // Misc measuring instruments
-  [3827,  3851, "Healthcare"],          // Medical / optical / orthopedic instruments
+  [3813,  3825, "Industrials"],         // Misc measuring instruments
+  [3826,  3851, "Healthcare"],          // Lab analytical / medical / optical instruments
   [3852,  3899, "Industrials"],         // Misc instruments
   [3900,  3999, "Consumer Discretionary"], // Misc manufacturing
   [4000,  4599, "Industrials"],         // Transportation
