@@ -11,7 +11,9 @@ const SIC_TO_GICS: Array<[number, number, string]> = [
   [2100,  2199, "Consumer Staples"],    // Tobacco
   [2200,  2399, "Consumer Discretionary"], // Textile / apparel
   [2400,  2799, "Materials"],           // Lumber, paper, printing
-  [2800,  2899, "Materials"],           // Chemicals
+  [2800,  2829, "Materials"],           // Chemicals (industrial)
+  [2830,  2836, "Healthcare"],          // Pharmaceutical preparations
+  [2837,  2899, "Materials"],           // Misc chemicals
   [2900,  2999, "Energy"],              // Petroleum refining
   [3000,  3299, "Materials"],           // Rubber, stone, glass
   [3300,  3499, "Materials"],           // Primary metals
@@ -19,7 +21,9 @@ const SIC_TO_GICS: Array<[number, number, string]> = [
   [3600,  3679, "Information Technology"], // Electronic components
   [3680,  3699, "Information Technology"], // Semiconductors / electronics
   [3700,  3799, "Consumer Discretionary"], // Transportation equipment / autos
-  [3800,  3899, "Healthcare"],          // Instruments / medical
+  [3800,  3841, "Healthcare"],          // Medical instruments / surgical
+  [3842,  3851, "Healthcare"],          // Orthopedic / ophthalmic
+  [3852,  3899, "Industrials"],         // Misc measuring instruments
   [3900,  3999, "Consumer Discretionary"], // Misc manufacturing
   [4000,  4599, "Industrials"],         // Transportation
   [4600,  4799, "Energy"],              // Pipelines / communications infra
