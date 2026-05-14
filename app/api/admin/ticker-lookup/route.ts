@@ -1,85 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/adminSecret";
-
-// Polygon SIC code prefix → GICS sector display name
-// SIC major groups: https://www.osha.gov/data/sic-manual
-const SIC_TO_GICS: Array<[number, number, string]> = [
-  [100,   999,  "Materials"],           // Mining
-  [1000,  1499, "Materials"],           // Metal mining / coal
-  [1500,  1799, "Industrials"],         // Construction
-  [2000,  2099, "Consumer Staples"],    // Food
-  [2100,  2199, "Consumer Staples"],    // Tobacco
-  [2200,  2399, "Consumer Discretionary"], // Textile / apparel
-  [2400,  2799, "Materials"],           // Lumber, paper, printing
-  [2800,  2829, "Materials"],           // Chemicals (industrial)
-  [2830,  2836, "Healthcare"],          // Pharmaceutical preparations
-  [2837,  2899, "Materials"],           // Misc chemicals
-  [2900,  2999, "Energy"],              // Petroleum refining
-  [3000,  3299, "Materials"],           // Rubber, stone, glass
-  [3300,  3499, "Materials"],           // Primary metals
-  [3500,  3569, "Industrials"],         // Industrial / special machinery
-  [3570,  3579, "Information Technology"], // Computer & office equipment
-  [3580,  3599, "Industrials"],         // Misc industrial machinery
-  [3600,  3679, "Information Technology"], // Electronic components
-  [3680,  3699, "Information Technology"], // Semiconductors / electronics
-  [3700,  3716, "Consumer Discretionary"], // Motor vehicles & parts
-  [3717,  3743, "Industrials"],            // Aircraft, ships, railroad equipment
-  [3744,  3759, "Consumer Discretionary"], // Motorcycles & misc transport
-  [3760,  3769, "Industrials"],            // Guided missiles & space vehicles
-  [3770,  3799, "Consumer Discretionary"], // Misc transportation equipment
-  [3800,  3811, "Industrials"],         // Engineering / industrial instruments
-  [3812,  3812, "Industrials"],         // Defense / navigation electronics
-  [3813,  3825, "Industrials"],         // Misc measuring instruments
-  [3826,  3851, "Healthcare"],          // Lab analytical / medical / optical instruments
-  [3852,  3899, "Industrials"],         // Misc instruments
-  [3900,  3999, "Consumer Discretionary"], // Misc manufacturing
-  [4000,  4599, "Industrials"],         // Transportation
-  [4600,  4699, "Energy"],              // Petroleum & gas pipelines
-  [4700,  4723, "Industrials"],         // Air transportation (airlines)
-  [4724,  4729, "Consumer Discretionary"], // Travel agencies & tour operators
-  [4730,  4799, "Industrials"],         // Freight & transportation services
-  [4800,  4899, "Communication Services"], // Communications
-  [4900,  4999, "Utilities"],           // Electric/gas/water utilities
-  [5000,  5199, "Industrials"],         // Wholesale durable/non-durable
-  [5200,  5999, "Consumer Discretionary"], // Retail
-  [6000,  6199, "Financials"],          // Depository / credit
-  [6200,  6299, "Financials"],          // Security brokers
-  [6300,  6399, "Financials"],          // Insurance
-  [6400,  6499, "Financials"],          // Insurance agents
-  [6500,  6599, "Real Estate"],         // Real estate
-  [6700,  6797, "Financials"],          // Holding companies
-  [6798,  6798, "Real Estate"],         // Real Estate Investment Trusts (REITs)
-  [6799,  6799, "Financials"],          // Investors NEC
-  [7000,  7299, "Consumer Discretionary"], // Hotels / services
-  [7300,  7399, "Information Technology"], // Business services / IT
-  [7500,  7599, "Consumer Discretionary"], // Auto repair / parking
-  [7600,  7699, "Consumer Discretionary"], // Misc repair
-  [7800,  7999, "Communication Services"], // Motion pictures / entertainment
-  [8000,  8099, "Healthcare"],          // Health services
-  [8100,  8299, "Industrials"],         // Legal / engineering services
-  [8700,  8999, "Industrials"],         // Management / consulting
-];
-
-// Ticker-level overrides for companies whose SIC code doesn't reflect their GICS sector.
-// Common case: financial data / analytics companies that use software SIC codes.
-const TICKER_SECTOR_OVERRIDE: Record<string, string> = {
-  SPGI:  "Financials",  // S&P Global — financial data, SIC 7372
-  MCO:   "Financials",  // Moody's — credit ratings, SIC 7372
-  MSCI:  "Financials",  // MSCI — financial indices, SIC 7372
-  ICE:   "Financials",  // Intercontinental Exchange
-  CBOE:  "Financials",  // Cboe Global Markets
-  CME:   "Financials",  // CME Group
-  NDAQ:  "Financials",  // Nasdaq Inc.
-  FDS:   "Financials",  // FactSet Research
-  VRSK:  "Financials",  // Verisk Analytics
-};
-
-function sicToGics(sic: number): string | null {
-  for (const [lo, hi, sector] of SIC_TO_GICS) {
-    if (sic >= lo && sic <= hi) return sector;
-  }
-  return null;
-}
+import { cleanCompanyName, sectorFromPolygon } from "@/lib/tickerLookupUtils";
 
 export async function GET(req: NextRequest) {
   if (!await isAdminRequest(req)) {
@@ -101,11 +22,11 @@ export async function GET(req: NextRequest) {
     const json = await res.json();
     const result = json?.results as Record<string, unknown> | null | undefined;
 
-    const name   = typeof result?.name     === "string" ? result.name     : null;
-    const sicRaw = typeof result?.sic_code === "string" ? result.sic_code : null;
-    const sic    = sicRaw ? parseInt(sicRaw, 10) : null;
-    const sector = TICKER_SECTOR_OVERRIDE[ticker]
-      ?? (sic !== null && !isNaN(sic) ? sicToGics(sic) : null);
+    const rawName = typeof result?.name     === "string" ? result.name     : null;
+    const sicCode = typeof result?.sic_code === "string" ? result.sic_code : null;
+
+    const name   = rawName ? cleanCompanyName(rawName) : null;
+    const sector = sectorFromPolygon(ticker, sicCode);
 
     return NextResponse.json({ name, sector });
   } catch {

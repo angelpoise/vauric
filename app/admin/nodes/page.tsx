@@ -130,6 +130,13 @@ export default function NodesPage() {
   const [lookingUp, setLookingUp]       = useState(false);
   const [irFormLookingUp, setIrFormLookingUp] = useState(false);
 
+  // Quality check state
+  type QualityIssue = { ticker: string; currentName: string; currentSector: string; suggestedName: string | null; suggestedSector: string | null; };
+  const [qcRunning, setQcRunning]       = useState(false);
+  const [qcIssues, setQcIssues]         = useState<QualityIssue[] | null>(null);
+  const [qcSelected, setQcSelected]     = useState<Set<string>>(new Set());
+  const [qcApplying, setQcApplying]     = useState(false);
+
   async function load() {
     const r = await adminFetch("/api/admin/stocks");
     if (r.ok) {
@@ -180,6 +187,42 @@ export default function NodesPage() {
     } finally {
       setLookingUp(false);
     }
+  }
+
+  async function runQualityCheck() {
+    setQcRunning(true);
+    setQcIssues(null);
+    setQcSelected(new Set());
+    try {
+      const r = await adminFetch("/api/admin/quality-check");
+      if (r.ok) {
+        const issues: QualityIssue[] = await r.json();
+        setQcIssues(issues);
+        setQcSelected(new Set(issues.map((i) => i.ticker)));
+      }
+    } finally {
+      setQcRunning(false);
+    }
+  }
+
+  async function applyQcFixes() {
+    if (!qcIssues) return;
+    setQcApplying(true);
+    const fixes = qcIssues
+      .filter((i) => qcSelected.has(i.ticker))
+      .map((i) => ({
+        ticker: i.ticker,
+        ...(i.suggestedName   ? { company_name: i.suggestedName }   : {}),
+        ...(i.suggestedSector ? { sector: i.suggestedSector } : {}),
+      }));
+    await adminFetch("/api/admin/quality-check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fixes),
+    });
+    setQcApplying(false);
+    setQcIssues(null);
+    load();
   }
 
   const displayed = typeFilter === "all" ? nodes : nodes.filter((n) => n.node_type === typeFilter);
@@ -493,6 +536,70 @@ export default function NodesPage() {
 
         <button style={BTN} onClick={add}>Add node</button>
         {err && <div style={{ fontSize: 12, color: "#ef4444", marginTop: 8 }}>{err}</div>}
+      </div>
+
+      {/* Quality check */}
+      <div style={{ ...CARD, marginBottom: 28 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: qcIssues ? 16 : 0 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, color: "#475569", fontWeight: 500, letterSpacing: "0.07em", textTransform: "uppercase" }}>Quality check</div>
+            {!qcIssues && !qcRunning && <div style={{ fontSize: 11, color: "#334155", marginTop: 4 }}>Scan all stocks against Polygon — flags wrong sectors and messy names.</div>}
+          </div>
+          <button style={BTN} onClick={runQualityCheck} disabled={qcRunning}>
+            {qcRunning ? "Scanning…" : "Run check"}
+          </button>
+        </div>
+
+        {qcIssues && qcIssues.length === 0 && (
+          <div style={{ fontSize: 12, color: "#22c55e" }}>All stocks look good — no issues found.</div>
+        )}
+
+        {qcIssues && qcIssues.length > 0 && (
+          <>
+            <div style={{ fontSize: 11, color: "#475569", marginBottom: 10 }}>
+              {qcIssues.length} issue{qcIssues.length !== 1 ? "s" : ""} found · {qcSelected.size} selected
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr>
+                    {["", "Ticker", "Current name", "Suggested name", "Current sector", "Suggested sector"].map((h) => (
+                      <th key={h} style={{ ...TH, paddingBottom: 8 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {qcIssues.map((issue) => {
+                    const sel = qcSelected.has(issue.ticker);
+                    return (
+                      <tr key={issue.ticker} onClick={() => setQcSelected((prev) => { const n = new Set(prev); if (sel) { n.delete(issue.ticker); } else { n.add(issue.ticker); } return n; })} style={{ cursor: "pointer", background: sel ? "rgba(59,130,246,0.04)" : "transparent" }}>
+                        <td style={{ ...TD, width: 24 }}>
+                          <div style={{ width: 14, height: 14, borderRadius: 3, border: `1.5px solid ${sel ? "#3b82f6" : "rgba(255,255,255,0.2)"}`, background: sel ? "#3b82f6" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            {sel && <span style={{ color: "#fff", fontSize: 9 }}>✓</span>}
+                          </div>
+                        </td>
+                        <td style={{ ...TD, fontWeight: 700, letterSpacing: "0.04em" }}>{issue.ticker}</td>
+                        <td style={{ ...TD, color: issue.suggestedName ? "#ef4444" : "#64748b" }}>{issue.currentName || "—"}</td>
+                        <td style={{ ...TD, color: "#22c55e" }}>{issue.suggestedName ? issue.suggestedName : <span style={{ color: "#334155" }}>✓</span>}</td>
+                        <td style={{ ...TD, color: issue.suggestedSector ? "#ef4444" : "#64748b" }}>{issue.currentSector || "—"}</td>
+                        <td style={{ ...TD, color: "#22c55e" }}>{issue.suggestedSector ? issue.suggestedSector : <span style={{ color: "#334155" }}>✓</span>}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 12, alignItems: "center" }}>
+              <button style={{ ...BTN, opacity: qcSelected.size === 0 || qcApplying ? 0.55 : 1 }} onClick={applyQcFixes} disabled={qcSelected.size === 0 || qcApplying}>
+                {qcApplying ? "Applying…" : `Apply ${qcSelected.size} fix${qcSelected.size !== 1 ? "es" : ""}`}
+              </button>
+              <button onClick={() => setQcSelected(qcSelected.size === qcIssues.length ? new Set() : new Set(qcIssues.map((i) => i.ticker)))}
+                style={{ background: "none", border: "none", color: "#475569", fontSize: 11, cursor: "pointer", padding: 0 }}>
+                {qcSelected.size === qcIssues.length ? "Deselect all" : "Select all"}
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Table */}
