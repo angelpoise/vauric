@@ -106,6 +106,8 @@ export async function POST(req: NextRequest) {
     await Promise.all(
       batch.map(async (ticker) => {
         const { name, sector } = await polygonLookup(ticker, polygonKey);
+        // Skip if Polygon doesn't recognise the ticker — prevents junk nodes from Claude suggestions
+        if (!name) { failed.push(ticker); return; }
         const pos = positionNearSector(sector, sectorPositions);
         const { error } = await supabaseAdmin.from("admin_nodes").insert({
           node_type:         "stock",
