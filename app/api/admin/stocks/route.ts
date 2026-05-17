@@ -31,13 +31,38 @@ export async function POST(req: NextRequest) {
     if (!ticker || !company_name || !sector) {
       return NextResponse.json({ error: "Missing fields: ticker, company_name, sector" }, { status: 400 });
     }
+
+    // Auto-position near sector node if no explicit position provided
+    let posX = (x_position as number | undefined) ?? null;
+    let posY = (y_position as number | undefined) ?? null;
+    if (posX === null || posY === null) {
+      const SECTOR_TO_ETF: Record<string, string> = {
+        "Information Technology": "XLK", "Energy": "XLE", "Healthcare": "XLV",
+        "Financials": "XLF", "Industrials": "XLI", "Consumer Staples": "XLP",
+        "Consumer Discretionary": "XLY", "Communication Services": "XLC",
+        "Materials": "XLB", "Real Estate": "XLRE", "Utilities": "XLU",
+      };
+      const etf = SECTOR_TO_ETF[sector as string];
+      if (etf) {
+        const { data: sn } = await supabaseAdmin
+          .from("admin_nodes").select("x_position, y_position")
+          .eq("node_type", "sector").eq("etf_ticker", etf).single();
+        if (sn) {
+          const angle = Math.random() * 2 * Math.PI;
+          const r = 0.07 + Math.random() * 0.12;
+          posX = Math.max(0.02, Math.min(0.98, sn.x_position + Math.cos(angle) * r));
+          posY = Math.max(0.02, Math.min(0.98, sn.y_position + Math.sin(angle) * r));
+        }
+      }
+    }
+
     payload = {
       node_type: "stock",
       ticker: (ticker as string).toUpperCase(),
       company_name,
       sector,
-      x_position: x_position ?? 0.5,
-      y_position: y_position ?? 0.5,
+      x_position: posX ?? 0.5,
+      y_position: posY ?? 0.5,
       analysis_schedule: "weekly",
       scenario_schedule: "weekly",
       ...(investor_relations_url ? { investor_relations_url } : {}),
