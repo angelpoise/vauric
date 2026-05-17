@@ -62,7 +62,7 @@ export async function DELETE(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   if (!await isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const body = await req.json() as { ticker_a?: string; ticker_b?: string; tier?: number };
+  const body = await req.json() as { ticker_a?: string; ticker_b?: string; tier?: number; reason?: string };
   const { ticker_a, ticker_b } = body;
   if (!ticker_a || !ticker_b) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
 
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from("admin_connections")
-    .insert({ ticker_a, ticker_b, tier })
+    .insert({ ticker_a, ticker_b, tier, reason: body.reason ?? null })
     .select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data, { status: 201 });

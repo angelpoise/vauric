@@ -438,14 +438,14 @@ export default function ConnectionsPage() {
     if (!suggestResult || !suggestTicker) return;
     setApplying(true);
     const items = [
-      ...suggestResult.t1.filter((s) => suggestSelected.has(s.id)).map((s) => ({ id: s.id, tier: (tierOverrides[s.id] ?? 1) as 1|2|3 })),
-      ...suggestResult.t2.filter((s) => suggestSelected.has(s.id)).map((s) => ({ id: s.id, tier: (tierOverrides[s.id] ?? 2) as 1|2|3 })),
-      ...suggestResult.t3.filter((s) => suggestSelected.has(s.id)).map((s) => ({ id: s.id, tier: (tierOverrides[s.id] ?? 3) as 1|2|3 })),
+      ...suggestResult.t1.filter((s) => suggestSelected.has(s.id)).map((s) => ({ id: s.id, tier: (tierOverrides[s.id] ?? 1) as 1|2|3, reason: s.reason })),
+      ...suggestResult.t2.filter((s) => suggestSelected.has(s.id)).map((s) => ({ id: s.id, tier: (tierOverrides[s.id] ?? 2) as 1|2|3, reason: s.reason })),
+      ...suggestResult.t3.filter((s) => suggestSelected.has(s.id)).map((s) => ({ id: s.id, tier: (tierOverrides[s.id] ?? 3) as 1|2|3, reason: s.reason })),
     ];
     await Promise.all(items.map((item) =>
       adminFetch("/api/admin/connections", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticker_a: suggestTicker, ticker_b: item.id, tier: item.tier }),
+        body: JSON.stringify({ ticker_a: suggestTicker, ticker_b: item.id, tier: item.tier, reason: item.reason }),
       })
     ));
     setSuggestResult(null);
@@ -545,14 +545,14 @@ export default function ConnectionsPage() {
         if (!r.ok) { setBulkConnDone((p) => [...p, { ticker, added: 0 }]); continue; }
         const data = await r.json() as SuggestResult;
         const items = [
-          ...(data.t1 ?? []).map((s) => ({ id: s.id, tier: 1 })),
-          ...(data.t2 ?? []).map((s) => ({ id: s.id, tier: 2 })),
-          ...(data.t3 ?? []).map((s) => ({ id: s.id, tier: 3 })),
+          ...(data.t1 ?? []).map((s) => ({ id: s.id, tier: 1, reason: s.reason })),
+          ...(data.t2 ?? []).map((s) => ({ id: s.id, tier: 2, reason: s.reason })),
+          ...(data.t3 ?? []).map((s) => ({ id: s.id, tier: 3, reason: s.reason })),
         ];
         await Promise.all(items.map((item) =>
           adminFetch("/api/admin/connections", {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ticker_a: ticker, ticker_b: item.id, tier: item.tier }),
+            body: JSON.stringify({ ticker_a: ticker, ticker_b: item.id, tier: item.tier, reason: item.reason }),
           })
         ));
         const missingAdded = await addMissingAndConnect(ticker, data.missing ?? []);

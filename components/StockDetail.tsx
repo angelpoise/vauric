@@ -915,7 +915,7 @@ export default function StockDetail({ ticker }: { ticker: string }) {
   interface GraphStock { ticker: string; investor_relations_url: string | null; company_name: string; }
   const [graphStock, setGraphStock] = useState<GraphStock | null>(null);
 
-  interface StockConn { id: string; name: string; nodeType: string; tier: number; }
+  interface StockConn { id: string; name: string; nodeType: string; tier: number; reason: string | null; }
   const [connections, setConnections] = useState<StockConn[]>([]);
 
   interface EarningsItem { filing_type: string; period: string | null; filing_date: string; filing_url: string; }
@@ -1468,75 +1468,6 @@ export default function StockDetail({ ticker }: { ticker: string }) {
           )}
         </Section>
 
-        {connections.length > 0 && (
-          <Section title="Connections">
-            {(() => {
-              const TIER_LABEL: Record<number, string> = { 1: "Exposure", 2: "Peer", 3: "Impact" };
-              const TIER_COLOR: Record<number, string> = { 1: "#6366f1", 2: "#64748b", 3: "#f59e0b" };
-              const NODE_COLOR: Record<string, string> = {
-                stock: "#94a3b8", sector: "#3b82f6", subsector: "#8b5cf6", subsubsector: "#6366f1",
-              };
-              const NODE_LABEL: Record<string, string> = {
-                stock: "Stock", sector: "Sector", subsector: "Sub-sector", subsubsector: "Industry",
-              };
-              const grouped: Record<number, typeof connections> = {};
-              for (const c of connections) {
-                (grouped[c.tier] ??= []).push(c);
-              }
-              return (
-                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                  {[1, 2, 3].map((tier) => {
-                    const items = grouped[tier];
-                    if (!items?.length) return null;
-                    const tc = TIER_COLOR[tier];
-                    return (
-                      <div key={tier}>
-                        <div style={{ fontSize: 10, fontWeight: 600, color: tc, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ background: `${tc}20`, border: `1px solid ${tc}40`, borderRadius: 4, padding: "1px 6px" }}>{TIER_LABEL[tier]}</span>
-                          <span style={{ color: "#334155" }}>
-                            {tier === 1 ? "Industry & sub-sector membership" : tier === 2 ? "Direct competitors & close peers" : "Supply chain & cross-sector impact"}
-                          </span>
-                        </div>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                          {items.map((c) => {
-                            const nc = NODE_COLOR[c.nodeType] ?? "#64748b";
-                            const isStock = c.nodeType === "stock";
-                            return (
-                              <div
-                                key={c.id}
-                                onClick={() => isStock ? window.location.href = `/stock/${c.id}` : undefined}
-                                style={{
-                                  display: "flex", alignItems: "center", gap: 10,
-                                  padding: "10px 14px",
-                                  background: "rgba(255,255,255,0.02)",
-                                  border: "1px solid rgba(255,255,255,0.06)",
-                                  borderRadius: 8,
-                                  cursor: isStock ? "pointer" : "default",
-                                }}
-                              >
-                                <div style={{ width: 6, height: 6, borderRadius: "50%", background: nc, flexShrink: 0 }} />
-                                <span style={{ fontSize: 13, color: "#e2e8f0", flex: 1, fontWeight: isStock ? 500 : 400 }}>
-                                  {isStock ? c.id : c.name}
-                                  {isStock && c.name !== c.id && (
-                                    <span style={{ fontSize: 11, color: "#475569", marginLeft: 6, fontWeight: 300 }}>{c.name}</span>
-                                  )}
-                                </span>
-                                <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: nc, background: `${nc}15`, border: `1px solid ${nc}30`, borderRadius: 10, padding: "1px 7px", flexShrink: 0 }}>
-                                  {NODE_LABEL[c.nodeType] ?? c.nodeType}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-          </Section>
-        )}
-
         <Section title="Deeper dive">
           <style>{`@keyframes vauric-spin{to{transform:rotate(360deg)}}`}</style>
 
@@ -1840,6 +1771,66 @@ export default function StockDetail({ ticker }: { ticker: string }) {
             </div>
           </div>
         </Section>
+
+        {connections.length > 0 && (
+          <Section title="Connections">
+            {(() => {
+              const TIER_LABEL: Record<number, string> = { 1: "Exposure", 2: "Peer", 3: "Impact" };
+              const TIER_COLOR: Record<number, string> = { 1: "#6366f1", 2: "#64748b", 3: "#f59e0b" };
+              const NODE_COLOR: Record<string, string> = {
+                stock: "#94a3b8", sector: "#3b82f6", subsector: "#8b5cf6", subsubsector: "#6366f1",
+              };
+              const NODE_LABEL: Record<string, string> = {
+                stock: "Stock", sector: "Sector", subsector: "Sub-sector", subsubsector: "Industry",
+              };
+              const grouped: Record<number, typeof connections> = {};
+              for (const c of connections) { (grouped[c.tier] ??= []).push(c); }
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                  {[1, 2, 3].map((tier) => {
+                    const items = grouped[tier];
+                    if (!items?.length) return null;
+                    const tc = TIER_COLOR[tier];
+                    return (
+                      <div key={tier}>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: tc, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ background: `${tc}20`, border: `1px solid ${tc}40`, borderRadius: 4, padding: "1px 6px" }}>{TIER_LABEL[tier]}</span>
+                          <span style={{ color: "#334155" }}>
+                            {tier === 1 ? "Industry & sub-sector membership" : tier === 2 ? "Direct competitors & close peers" : "Supply chain & cross-sector impact"}
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {items.map((c) => {
+                            const nc = NODE_COLOR[c.nodeType] ?? "#64748b";
+                            const isStock = c.nodeType === "stock";
+                            return (
+                              <div key={c.id} onClick={() => isStock ? window.location.href = `/stock/${c.id}` : undefined}
+                                style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 14px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, cursor: isStock ? "pointer" : "default" }}>
+                                <div style={{ width: 6, height: 6, borderRadius: "50%", background: nc, flexShrink: 0, marginTop: 5 }} />
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                    <span style={{ fontSize: 13, color: "#e2e8f0", fontWeight: isStock ? 500 : 400 }}>
+                                      {isStock ? c.id : c.name}
+                                      {isStock && c.name !== c.id && <span style={{ fontSize: 11, color: "#475569", marginLeft: 6, fontWeight: 300 }}>{c.name}</span>}
+                                    </span>
+                                    <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: nc, background: `${nc}15`, border: `1px solid ${nc}30`, borderRadius: 10, padding: "1px 7px", flexShrink: 0 }}>
+                                      {NODE_LABEL[c.nodeType] ?? c.nodeType}
+                                    </span>
+                                  </div>
+                                  {c.reason && <p style={{ fontSize: 12, color: "#475569", margin: "4px 0 0", lineHeight: 1.5, fontWeight: 300 }}>{c.reason}</p>}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </Section>
+        )}
 
         <Section title="News">
           {stockNewsLoading ? (

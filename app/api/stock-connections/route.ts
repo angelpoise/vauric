@@ -6,6 +6,7 @@ export interface StockConnection {
   name: string;
   nodeType: "stock" | "subsector" | "subsubsector" | "sector";
   tier: number;
+  reason: string | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest) {
   const [connsRes, nodesRes] = await Promise.all([
     supabase
       .from("admin_connections")
-      .select("ticker_a, ticker_b, tier")
+      .select("ticker_a, ticker_b, tier, reason")
       .or(`ticker_a.eq.${ticker},ticker_b.eq.${ticker}`),
     supabase
       .from("admin_nodes")
@@ -48,6 +49,7 @@ export async function GET(req: NextRequest) {
       name,
       nodeType: node.node_type as StockConnection["nodeType"],
       tier:     c.tier,
+      reason:   c.reason ?? null,
     });
   }
 
