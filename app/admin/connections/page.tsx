@@ -48,11 +48,12 @@ interface NodeRow {
   sector: string | null;
 }
 
-const TIER_COLORS: Record<number, string> = { 1: "#3b82f6", 2: "#64748b", 3: "#475569" };
+const TIER_COLORS: Record<number, string> = { 1: "#6366f1", 2: "#64748b", 3: "#f59e0b" };
+const TIER_NAMES:  Record<number, string> = { 1: "Exposure", 2: "Peer", 3: "Impact" };
 const TIER_LABELS: Record<number, string> = {
-  1: "Most specific (sub-sub-sector / hierarchy)",
-  2: "Sub-sector / peer stock",
-  3: "Sector (broadest)",
+  1: "Exposure — stock belongs to this industry / sub-sector",
+  2: "Peer — direct competitor or close peer stock",
+  3: "Impact — indirect supply chain, macro theme or cross-sector",
 };
 const NODE_TYPE_ORDER = ["stock", "sector", "subsector", "subsubsector"];
 
@@ -60,7 +61,7 @@ function TierBadge({ tier }: { tier: number }) {
   const col = TIER_COLORS[tier] ?? "#475569";
   return (
     <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: `${col}20`, border: `1px solid ${col}40`, color: col, letterSpacing: "0.05em" }}>
-      T{tier}
+      {TIER_NAMES[tier] ?? `T${tier}`}
     </span>
   );
 }
@@ -302,6 +303,10 @@ export default function ConnectionsPage() {
   const [tierOverrides, setTierOverrides]     = useState<Record<string, 1|2|3>>({});
   const [applying, setApplying]               = useState(false);
   const [suggestErr, setSuggestErr]           = useState<string | null>(null);
+
+  // Migration state
+  const [migrating, setMigrating]             = useState(false);
+  const [migrateResult, setMigrateResult]     = useState<string | null>(null);
 
   // Bulk AI connections state
   const [bulkConnText, setBulkConnText]       = useState("");
@@ -638,6 +643,27 @@ export default function ConnectionsPage() {
         {err && <div style={{ fontSize: 12, color: "#ef4444", marginTop: 8 }}>{err}</div>}
       </div>
 
+      {/* Tier migration */}
+      <div style={{ ...CARD, marginBottom: 28, border: "1px solid rgba(245,158,11,0.2)" }}>
+        <div style={{ fontSize: 12, color: "#f59e0b", fontWeight: 500, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 6 }}>One-time tier migration</div>
+        <div style={{ fontSize: 11, color: "#475569", marginBottom: 10 }}>
+          Migrates existing connections to the new tier system: Exposure / Peer / Impact. Safe to run multiple times.
+        </div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <button style={{ ...BTN, background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.3)", color: "#f59e0b", opacity: migrating ? 0.6 : 1 }}
+            onClick={async () => {
+              setMigrating(true); setMigrateResult(null);
+              const r = await adminFetch("/api/admin/migrate-tiers", { method: "POST" });
+              const d = await r.json();
+              setMigrateResult(d.message ?? "Done");
+              setMigrating(false); load();
+            }} disabled={migrating}>
+            {migrating ? "Migrating…" : "Run migration"}
+          </button>
+          {migrateResult && <span style={{ fontSize: 12, color: "#22c55e" }}>{migrateResult}</span>}
+        </div>
+      </div>
+
       {/* Bulk AI connections */}
       <div style={{ ...CARD, marginBottom: 28 }}>
         <div style={{ fontSize: 12, color: "#475569", fontWeight: 500, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
@@ -757,7 +783,7 @@ export default function ConnectionsPage() {
                 <div style={{ marginBottom: 14 }}>
                   <div style={{ fontSize: 11, fontWeight: 600, color: TIER_COLORS[1], marginBottom: 7, display: "flex", alignItems: "center", gap: 6 }}>
                     <TierBadge tier={1} />
-                    <span>Structural connections</span>
+                    <span>Exposure — industry &amp; sub-sector membership</span>
                   </div>
                   {suggestResult.t1.map((s) => (
                     <SuggestionRow key={s.id} s={s} selected={suggestSelected.has(s.id)} onToggle={() => toggleSuggestion(s.id)}
@@ -771,7 +797,7 @@ export default function ConnectionsPage() {
                 <div style={{ marginBottom: 14 }}>
                   <div style={{ fontSize: 11, fontWeight: 600, color: TIER_COLORS[2], marginBottom: 7, display: "flex", alignItems: "center", gap: 6 }}>
                     <TierBadge tier={2} />
-                    <span>Strong peers &amp; themes</span>
+                    <span>Peer — direct competitors &amp; close peers</span>
                   </div>
                   {suggestResult.t2.map((s) => (
                     <SuggestionRow key={s.id} s={s} selected={suggestSelected.has(s.id)} onToggle={() => toggleSuggestion(s.id)}
@@ -785,7 +811,7 @@ export default function ConnectionsPage() {
                 <div style={{ marginBottom: 14 }}>
                   <div style={{ fontSize: 11, fontWeight: 600, color: TIER_COLORS[3], marginBottom: 7, display: "flex", alignItems: "center", gap: 6 }}>
                     <TierBadge tier={3} />
-                    <span>Indirect relationships</span>
+                    <span>Impact — supply chain &amp; cross-sector</span>
                   </div>
                   {suggestResult.t3.map((s) => (
                     <SuggestionRow key={s.id} s={s} selected={suggestSelected.has(s.id)} onToggle={() => toggleSuggestion(s.id)}

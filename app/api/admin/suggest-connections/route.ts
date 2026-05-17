@@ -74,33 +74,34 @@ ${existingNote}
 Available sub-sectors:
 ${subsectorLines}
 
-Available sub-sub-sectors:
+Available industries (sub-sub-sectors):
 ${subsubsectorLines}
 
 Other stocks in graph:
 ${stockLines}
 
 Connection tiers:
-- T1 (Structural membership): Every sub-sector or sub-sub-sector where this company has a PRIMARY business presence — meaning the company manufactures, develops, or delivers that category as a core product line, not just as a customer or end-user. A stock should get T1 for ALL sub-sectors it genuinely belongs to. For example, a DRAM/NAND memory chip maker belongs in BOTH "Semiconductors" (it fabricates chips) AND any storage-related sub-sector (its products ARE storage). Do not artificially limit to one T1 just because the company has a dominant category.
-- T2 (Strong peers/themes): Direct competitor stocks or close peers; stocks with strong supply-chain or thematic overlap; sub-sectors where this stock has a meaningful but secondary/adjacent presence.
-- T3 (Indirect/weak): Loose thematic links only — e.g., a raw material supplier to this company's industry, or end-market customers of a loosely related product. If you are unsure whether something is T2 or T3, prefer T2.
+- T1 (Exposure): Every industry (sub-sub-sector) or sub-sector where this company has a PRIMARY business presence — meaning the company manufactures, develops, or delivers products/services in that category as a core business line. Include ALL that genuinely apply. For example, a DRAM/NAND memory chip maker belongs in BOTH "Semiconductors" AND any storage-related industry.
+- T2 (Peer): Direct competitor stocks or close peers with strong competitive or supply-chain overlap. These are stock-to-stock only.
+- T3 (Impact): Stock-to-stock only. Indirect relationships — supply chain dependencies, macro themes, cross-sector impact (e.g. aluminium producers → beverage can companies, energy prices → airlines).
 
 Rules:
+- T1 must ONLY be used for sub-sectors and industries (never stock-to-stock)
+- T2 and T3 must ONLY be used for stock-to-stock connections
 - Use EXACT text from the lists (e.g., "Semiconductors" not "semiconductor")
 - Do NOT suggest sector ETF nodes (XLK, XLF, etc.) — those auto-connect via the sector field
 - Do NOT suggest nodes already in the existing connections list
-- Aim for 1-3 T1 items (more if genuinely warranted), 2-5 T2 items, 0-3 T3 items
+- Aim for 1-4 T1 items, 2-5 T2 items, 0-3 T3 items
 - Each reason ≤ 10 words
-- When in doubt between T1 and T2, ask: does the company MAKE/BUILD things in that category (→ T1) or just USE/COMPETE-ADJACENT to them (→ T2)?
 
 Additionally, identify up to 5 important companies NOT currently in the graph that would be highly relevant connections for ${ticker} if they were added. Only include companies with a genuine, significant relationship (direct competitor, major supplier, key customer, or strong thematic peer). Do not include companies already in the "Other stocks in graph" list above.
 
 Return ONLY valid JSON, no other text:
 {
-  "t1": [{"id": "exact name or ticker", "reason": "brief reason"}],
-  "t2": [{"id": "exact name or ticker", "reason": "brief reason"}],
-  "t3": [{"id": "exact name or ticker", "reason": "brief reason"}],
-  "missing": [{"ticker": "TICKER", "name": "Full Company Name", "reason": "brief reason", "tier": 1}]
+  "t1": [{"id": "exact sub-sector or industry name", "reason": "brief reason"}],
+  "t2": [{"id": "stock ticker", "reason": "brief reason"}],
+  "t3": [{"id": "stock ticker", "reason": "brief reason"}],
+  "missing": [{"ticker": "TICKER", "name": "Full Company Name", "reason": "brief reason", "tier": 2}]
 }`;
 
   try {

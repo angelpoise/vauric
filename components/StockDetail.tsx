@@ -1471,8 +1471,8 @@ export default function StockDetail({ ticker }: { ticker: string }) {
         {connections.length > 0 && (
           <Section title="Connections">
             {(() => {
-              const TIER_LABEL: Record<number, string> = { 1: "T1", 2: "T2", 3: "T3" };
-              const TIER_COLOR: Record<number, string> = { 1: "#3b82f6", 2: "#64748b", 3: "#475569" };
+              const TIER_LABEL: Record<number, string> = { 1: "Exposure", 2: "Peer", 3: "Impact" };
+              const TIER_COLOR: Record<number, string> = { 1: "#6366f1", 2: "#64748b", 3: "#f59e0b" };
               const NODE_COLOR: Record<string, string> = {
                 stock: "#94a3b8", sector: "#3b82f6", subsector: "#8b5cf6", subsubsector: "#6366f1",
               };
@@ -1494,7 +1494,7 @@ export default function StockDetail({ ticker }: { ticker: string }) {
                         <div style={{ fontSize: 10, fontWeight: 600, color: tc, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
                           <span style={{ background: `${tc}20`, border: `1px solid ${tc}40`, borderRadius: 4, padding: "1px 6px" }}>{TIER_LABEL[tier]}</span>
                           <span style={{ color: "#334155" }}>
-                            {tier === 1 ? "Structural" : tier === 2 ? "Strong peers & themes" : "Indirect relationships"}
+                            {tier === 1 ? "Industry & sub-sector membership" : tier === 2 ? "Direct competitors & close peers" : "Supply chain & cross-sector impact"}
                           </span>
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>

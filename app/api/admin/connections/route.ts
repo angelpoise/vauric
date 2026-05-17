@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminRequest } from "@/lib/adminSecret";
 
-// Determine tier from the node types of the two endpoints.
-// Tier 1 = most specific (sub-sub-sector), Tier 3 = broadest (sector).
+// Tier system:
+// T1 = Exposure  — stock → industry (subsubsector) or sub-sector it belongs to
+// T2 = Peer      — stock → stock, direct competitor or close relationship
+// T3 = Impact    — stock → stock, indirect (supply chain, macro theme, cross-sector)
+// Default for stock-stock = T2 (Peer); Impact (T3) must be set explicitly.
 async function computeTier(idA: string, idB: string): Promise<number> {
   const { data: nodes } = await supabaseAdmin
     .from("admin_nodes")
@@ -25,10 +28,9 @@ async function computeTier(idA: string, idB: string): Promise<number> {
   const typeB = findType(idB);
   const types = [typeA, typeB];
 
-  if (types.includes("subsubsector")) return 1;
-  if (types.includes("subsector"))    return 2;
-  if (types.includes("sector"))       return 3;
-  return 2; // stock-to-stock peer connection
+  // Any connection involving a hierarchy node is an Exposure connection
+  if (types.includes("subsubsector") || types.includes("subsector") || types.includes("sector")) return 1;
+  return 2; // stock-to-stock defaults to Peer
 }
 
 export async function GET(req: NextRequest) {
