@@ -304,10 +304,6 @@ export default function ConnectionsPage() {
   const [applying, setApplying]               = useState(false);
   const [suggestErr, setSuggestErr]           = useState<string | null>(null);
 
-  // Migration state
-  const [migrating, setMigrating]             = useState(false);
-  const [migrateResult, setMigrateResult]     = useState<string | null>(null);
-
   // Bulk AI connections state
   const [bulkConnText, setBulkConnText]       = useState("");
   const [bulkConnRunning, setBulkConnRunning] = useState(false);
@@ -641,27 +637,6 @@ export default function ConnectionsPage() {
           <button style={{ ...BTN, alignSelf: "flex-end" }} onClick={add}>Add</button>
         </div>
         {err && <div style={{ fontSize: 12, color: "#ef4444", marginTop: 8 }}>{err}</div>}
-      </div>
-
-      {/* Tier migration */}
-      <div style={{ ...CARD, marginBottom: 28, border: "1px solid rgba(245,158,11,0.2)" }}>
-        <div style={{ fontSize: 12, color: "#f59e0b", fontWeight: 500, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 6 }}>One-time tier migration</div>
-        <div style={{ fontSize: 11, color: "#475569", marginBottom: 10 }}>
-          Migrates existing connections to the new tier system: Exposure / Peer / Impact. Safe to run multiple times.
-        </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <button style={{ ...BTN, background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.3)", color: "#f59e0b", opacity: migrating ? 0.6 : 1 }}
-            onClick={async () => {
-              setMigrating(true); setMigrateResult(null);
-              const r = await adminFetch("/api/admin/migrate-tiers", { method: "POST" });
-              const d = await r.json();
-              setMigrateResult(d.message ?? "Done");
-              setMigrating(false); load();
-            }} disabled={migrating}>
-            {migrating ? "Migrating…" : "Run migration"}
-          </button>
-          {migrateResult && <span style={{ fontSize: 12, color: "#22c55e" }}>{migrateResult}</span>}
-        </div>
       </div>
 
       {/* Bulk AI connections */}
