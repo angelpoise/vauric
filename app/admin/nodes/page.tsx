@@ -373,6 +373,8 @@ export default function NodesPage() {
 
   const [clearingOverviews, setClearingOverviews] = useState(false);
   const [overviewsClearedMsg, setOverviewsClearedMsg] = useState<string | null>(null);
+  const [cleaningJunk, setCleaningJunk]   = useState(false);
+  const [junkResult, setJunkResult]       = useState<string | null>(null);
 
   async function clearAllOverviews() {
     if (!confirm("Clear cached overviews for all hierarchy nodes? They will regenerate on next page visit.")) return;
@@ -501,6 +503,20 @@ export default function NodesPage() {
         >
           {clearingOverviews ? "Clearing…" : overviewsClearedMsg ?? "Clear All Overviews"}
         </button>
+        <button
+          style={{ ...BTN, background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.25)" }}
+          onClick={async () => {
+            if (!confirm("Delete all unresolvable junk nodes and fix valid ones? This cannot be undone.")) return;
+            setCleaningJunk(true); setJunkResult(null);
+            const r = await adminFetch("/api/admin/cleanup-junk-nodes", { method: "POST" });
+            const d = await r.json();
+            setJunkResult(`Fixed ${d.updated} · Deleted ${d.deleted} of ${d.candidates} candidates`);
+            setCleaningJunk(false); load();
+          }} disabled={cleaningJunk}
+        >
+          {cleaningJunk ? "Cleaning…" : "Clean junk nodes"}
+        </button>
+        {junkResult && <span style={{ fontSize: 12, color: "#64748b" }}>{junkResult}</span>}
         <button
           style={{ ...BTN, background: "rgba(59,130,246,0.1)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.25)", marginLeft: "auto" }}
           onClick={verifyIrUrls} disabled={verifying}
