@@ -607,12 +607,25 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
           ...finalSectors.map((s) => s.id),
           ...subNodes.map((s) => s.id),
         ]);
-        const extraEdges: Edge[] = (data.connections ?? []).map((c) => ({
+        // Explicit connections from DB (stock-stock Peer/Impact, stock-hierarchy Exposure)
+        const explicitEdges: Edge[] = (data.connections ?? []).map((c) => ({
           source: c.ticker_a,
           target: c.ticker_b,
           kind:   (hierarchyIds.has(c.ticker_a) || hierarchyIds.has(c.ticker_b))
                     ? "primary" : "explicit",
         } as Edge));
+
+        // Structural edges auto-generated from parent_node_id — never need to be
+        // stored in admin_connections. Subsector → parent sector, industry → parent subsector.
+        const structuralEdges: Edge[] = subNodes.map((n) => ({
+          source: n.id,
+          target: n.kind === "subsector"
+            ? (n as SubSectorNode).parentId
+            : (n as SubSubSectorNode).parentId,
+          kind: "primary" as const,
+        })).filter((e) => !!e.target);
+
+        const extraEdges: Edge[] = [...explicitEdges, ...structuralEdges];
 
         stockNodesRef.current = stockNodes;
         extraEdgesRef.current = extraEdges;
