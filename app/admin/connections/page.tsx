@@ -903,15 +903,17 @@ export default function ConnectionsPage() {
         async function loadReview(ticker: string) {
           if (!ticker) return;
           setReviewLoading(true);
-          const [cRes, nRes] = await Promise.all([adminFetch("/api/admin/connections"), adminFetch("/api/admin/stocks")]);
-          if (!cRes.ok || !nRes.ok) { setReviewLoading(false); return; }
-          const allConns: { id: string; ticker_a: string; ticker_b: string; tier: number; reason?: string }[] = await cRes.json();
-          const allNodes: { ticker?: string; company_name?: string; node_type: string }[] = await nRes.json();
           const upper = ticker.toUpperCase();
+          const [cRes, nRes] = await Promise.all([
+            adminFetch(`/api/admin/connections?ticker=${upper}`),
+            adminFetch("/api/admin/stocks"),
+          ]);
+          if (!cRes.ok || !nRes.ok) { setReviewLoading(false); return; }
+          const conns: { id: string; ticker_a: string; ticker_b: string; tier: number; reason?: string }[] = await cRes.json();
+          const allNodes: { ticker?: string; company_name?: string; node_type: string }[] = await nRes.json();
           const nodeTypeOf = (id: string) => allNodes.find((n) => n.ticker === id || n.company_name === id)?.node_type ?? "stock";
           setReviewConns(
-            allConns
-              .filter((c) => c.ticker_a === upper || c.ticker_b === upper)
+            conns
               .map((c) => ({ id: c.id, tier: c.tier, other: c.ticker_a === upper ? c.ticker_b : c.ticker_a, otherType: nodeTypeOf(c.ticker_a === upper ? c.ticker_b : c.ticker_a), reason: c.reason ?? null }))
               .sort((a, b) => a.tier - b.tier || a.other.localeCompare(b.other))
           );

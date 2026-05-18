@@ -35,11 +35,12 @@ async function computeTier(idA: string, idB: string): Promise<number> {
 
 export async function GET(req: NextRequest) {
   if (!await isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { data, error } = await supabaseAdmin
-    .from("admin_connections")
-    .select("*")
-    .order("tier")
-    .order("ticker_a");
+  // Allow filtering by ticker for the connection review tool
+  const ticker = req.nextUrl.searchParams.get("ticker")?.toUpperCase();
+  let query = supabaseAdmin.from("admin_connections").select("*").order("tier").order("ticker_a");
+  if (ticker) query = query.or(`ticker_a.eq.${ticker},ticker_b.eq.${ticker}`);
+  else query = query.limit(50000);
+  const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
 }
