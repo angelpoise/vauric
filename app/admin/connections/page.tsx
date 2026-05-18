@@ -309,6 +309,7 @@ export default function ConnectionsPage() {
   const [bulkConnRunning, setBulkConnRunning] = useState(false);
   const [bulkConnProgress, setBulkConnProgress] = useState<{ current: number; total: number; ticker: string; added: number } | null>(null);
   const [bulkConnDone, setBulkConnDone]       = useState<{ ticker: string; added: number }[]>([]);
+  const [bulkUseHaiku, setBulkUseHaiku]       = useState(false);
 
   // Review queue state (feeds tickers into the suggestion panel one by one)
   const [reviewQueue, setReviewQueue]         = useState<string[]>([]);
@@ -540,7 +541,7 @@ export default function ConnectionsPage() {
       try {
         const r = await adminFetch("/api/admin/suggest-connections", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ticker, useHaiku: true }),
+          body: JSON.stringify({ ticker, useHaiku: bulkUseHaiku }),
         });
         if (!r.ok) { setBulkConnDone((p) => [...p, { ticker, added: 0 }]); continue; }
         const data = await r.json() as SuggestResult;
@@ -656,6 +657,18 @@ export default function ConnectionsPage() {
           disabled={bulkConnRunning}
         />
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          {/* Model toggle */}
+          <div style={{ display: "flex", gap: 2, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, padding: 2 }}>
+            {([false, true] as const).map((isHaiku) => (
+              <button key={String(isHaiku)} onClick={() => setBulkUseHaiku(isHaiku)}
+                style={{ fontSize: 10, fontWeight: 600, padding: "3px 10px", borderRadius: 4, cursor: "pointer", fontFamily: "inherit", border: "none",
+                  background: bulkUseHaiku === isHaiku ? (isHaiku ? "rgba(34,197,94,0.2)" : "rgba(168,85,247,0.2)") : "transparent",
+                  color: bulkUseHaiku === isHaiku ? (isHaiku ? "#22c55e" : "#a855f7") : "#475569",
+                }}>
+                {isHaiku ? "Haiku (~$0.006)" : "Sonnet (~$0.022)"}
+              </button>
+            ))}
+          </div>
           <button
             style={{ ...BTN, opacity: !bulkConnText.trim() || bulkConnRunning ? 0.55 : 1 }}
             onClick={runBulkConnections}
