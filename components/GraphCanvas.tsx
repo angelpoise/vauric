@@ -991,9 +991,9 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         if (cw === "all") return true;
         const srcKind = gd.nodeById.get(edge.source)?.kind;
         const tgtKind = gd.nodeById.get(edge.target)?.kind;
-        if (cw === "primary")     return edge.kind === "primary";
+        if (cw === "primary")     return edge.kind === "primary" || edge.kind === "sector";
         if (cw === "stock-stock") return srcKind === "stock" && tgtKind === "stock";
-        if (cw === "hierarchy")   return srcKind !== "stock" && tgtKind !== "stock";
+        if (cw === "hierarchy")   return edge.kind === "primary" || edge.kind === "sector";
         return true;
       }
 
