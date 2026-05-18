@@ -627,6 +627,12 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
 
         const extraEdges: Edge[] = [...explicitEdges, ...structuralEdges];
 
+        // Temporary debug: log AMD connections and which targets are missing
+        const nodeIds = new Set([...finalSectors.map(s=>s.id), ...subNodes.map(s=>s.id), ...stockNodes.map(s=>s.id)]);
+        const amdEdges = explicitEdges.filter(e => e.source === "AMD" || e.target === "AMD");
+        const amdDropped = amdEdges.filter(e => !nodeIds.has(e.source) || !nodeIds.has(e.target));
+        console.log(`[amd-debug] ${amdEdges.length} AMD edges, ${amdDropped.length} dropped:`, amdDropped.map(e => `${e.source}→${e.target}`));
+
         stockNodesRef.current = stockNodes;
         extraEdgesRef.current = extraEdges;
         graphDataRef.current  = buildGraphData(finalSectors, stockNodes, extraEdges, subNodes);
