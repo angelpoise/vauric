@@ -540,7 +540,7 @@ export default function ConnectionsPage() {
       try {
         const r = await adminFetch("/api/admin/suggest-connections", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ticker }),
+          body: JSON.stringify({ ticker, useHaiku: true }),
         });
         if (!r.ok) { setBulkConnDone((p) => [...p, { ticker, added: 0 }]); continue; }
         const data = await r.json() as SuggestResult;

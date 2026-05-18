@@ -106,8 +106,9 @@ Return ONLY valid JSON, no other text:
 
   try {
     const client = new Anthropic();
+    const useHaiku = body.useHaiku === true;
     const msg = await client.messages.create({
-      model: "claude-sonnet-4-6",
+      model: useHaiku ? "claude-haiku-4-5-20251001" : "claude-sonnet-4-6",
       max_tokens: 800,
       messages: [{ role: "user", content: prompt }],
     });
