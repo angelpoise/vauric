@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +21,7 @@ export async function GET() {
       .from("admin_connections")
       .select("ticker_a, ticker_b, tier")
       .order("ticker_a")
-      .limit(50000),
+      .limit(500000),
   ]);
 
   if (stocksRes.error || hierarchyRes.error || connectionsRes.error) {
