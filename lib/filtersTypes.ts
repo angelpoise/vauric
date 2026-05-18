@@ -56,7 +56,7 @@ export function countActiveFilters(f: ActiveFilters): number {
   if (f.fiftyTwoWeekPos.length < ALL_52W_POS.length)                   n++;
   if (f.relVolumeMin !== null)                                          n++;
   if (f.streak !== "any")                                               n++;
-  if (f.nodeSize !== "connections")                                     n++;
+  // nodeSize is a display setting, not a filter — excluded from count
   if (f.sentimentMin !== null)                                          n++;
   return n;
 }
