@@ -17,11 +17,12 @@ export async function GET() {
       .in("node_type", ["sector", "subsector", "subsubsector"])
       .order("node_type")
       .limit(2000),
-    // Paginate to bypass Supabase project-level max_rows cap
+    // Paginate in 1k-row pages to stay under Supabase's max_rows hard cap.
+    // Pages are contiguous (0-999, 1000-1999, …) so no rows are skipped.
     (async () => {
-      const PAGE = 10000;
+      const PAGE = 1000;
       const pages = await Promise.all(
-        Array.from({ length: 20 }, (_, i) =>
+        Array.from({ length: 100 }, (_, i) =>
           supabase
             .from("admin_connections")
             .select("ticker_a, ticker_b, tier")
