@@ -311,6 +311,11 @@ export default function ConnectionsPage() {
   const [bulkConnDone, setBulkConnDone]       = useState<{ ticker: string; added: number }[]>([]);
   const [bulkUseHaiku, setBulkUseHaiku]       = useState(false);
 
+  // Connection review state
+  const [reviewTicker, setReviewTicker]   = useState("");
+  const [reviewConns, setReviewConns]     = useState<{ id: string; tier: number; other: string; otherType: string; reason: string | null }[] | null>(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
+
   // Review queue state (feeds tickers into the suggestion panel one by one)
   const [reviewQueue, setReviewQueue]         = useState<string[]>([]);
   const [reviewQueueIdx, setReviewQueueIdx]   = useState(0);
@@ -887,6 +892,84 @@ export default function ConnectionsPage() {
           </div>
         )}
       </div>
+
+      {/* Connection Review */}
+      {(() => {
+        const TIER_COL: Record<number, string> = { 1: "#6366f1", 2: "#64748b", 3: "#f59e0b" };
+        const TIER_NM:  Record<number, string> = { 1: "Exposure", 2: "Peer", 3: "Impact" };
+        const NODE_COL: Record<string, string> = { stock: "#94a3b8", sector: "#3b82f6", subsector: "#8b5cf6", subsubsector: "#6366f1" };
+        const NODE_NM:  Record<string, string> = { stock: "Stock", sector: "Sector", subsector: "Sub-sector", subsubsector: "Industry" };
+
+        async function loadReview(ticker: string) {
+          if (!ticker) return;
+          setReviewLoading(true);
+          const [cRes, nRes] = await Promise.all([adminFetch("/api/admin/connections"), adminFetch("/api/admin/stocks")]);
+          if (!cRes.ok || !nRes.ok) { setReviewLoading(false); return; }
+          const allConns: { id: string; ticker_a: string; ticker_b: string; tier: number; reason?: string }[] = await cRes.json();
+          const allNodes: { ticker?: string; company_name?: string; node_type: string }[] = await nRes.json();
+          const upper = ticker.toUpperCase();
+          const nodeTypeOf = (id: string) => allNodes.find((n) => n.ticker === id || n.company_name === id)?.node_type ?? "stock";
+          setReviewConns(
+            allConns
+              .filter((c) => c.ticker_a === upper || c.ticker_b === upper)
+              .map((c) => ({ id: c.id, tier: c.tier, other: c.ticker_a === upper ? c.ticker_b : c.ticker_a, otherType: nodeTypeOf(c.ticker_a === upper ? c.ticker_b : c.ticker_a), reason: c.reason ?? null }))
+              .sort((a, b) => a.tier - b.tier || a.other.localeCompare(b.other))
+          );
+          setReviewLoading(false);
+        }
+
+        async function deleteReviewConn(id: string, other: string) {
+          await adminFetch("/api/admin/connections", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker_a: reviewTicker, ticker_b: other }) });
+          setReviewConns((prev) => prev?.filter((c) => c.id !== id) ?? null);
+          load();
+        }
+
+        return (
+          <div style={{ ...CARD, marginBottom: 28 }}>
+            <div style={{ fontSize: 12, color: "#475569", fontWeight: 500, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 12 }}>Connection Review</div>
+            <div style={{ display: "flex", gap: 10, marginBottom: reviewConns ? 16 : 0 }}>
+              <input style={{ ...INPUT, width: 140, fontFamily: "monospace" }} placeholder="Ticker…"
+                value={reviewTicker}
+                onChange={(e) => { setReviewTicker(e.target.value.toUpperCase()); setReviewConns(null); }}
+                onKeyDown={(e) => e.key === "Enter" && loadReview(reviewTicker)} />
+              <button style={{ ...BTN, opacity: !reviewTicker || reviewLoading ? 0.55 : 1 }}
+                onClick={() => loadReview(reviewTicker)} disabled={!reviewTicker || reviewLoading}>
+                {reviewLoading ? "Loading…" : "Review"}
+              </button>
+              {reviewConns && (
+                <span style={{ fontSize: 11, color: "#475569", alignSelf: "center" }}>
+                  {reviewConns.length} total — {reviewConns.filter((c) => c.tier === 1).length} Exposure · {reviewConns.filter((c) => c.tier === 2).length} Peer · {reviewConns.filter((c) => c.tier === 3).length} Impact
+                </span>
+              )}
+            </div>
+            {reviewConns?.length === 0 && <div style={{ fontSize: 12, color: "#334155" }}>No connections for {reviewTicker}.</div>}
+            {reviewConns && reviewConns.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 400, overflowY: "auto" }}>
+                {reviewConns.map((c) => {
+                  const tc = TIER_COL[c.tier] ?? "#64748b";
+                  const nc = NODE_COL[c.otherType] ?? "#64748b";
+                  return (
+                    <div key={c.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 6 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: `${tc}20`, border: `1px solid ${tc}40`, color: tc, flexShrink: 0, marginTop: 1 }}>{TIER_NM[c.tier] ?? `T${c.tier}`}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <code style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0" }}>{c.other}</code>
+                          <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: nc, background: `${nc}15`, border: `1px solid ${nc}30`, borderRadius: 10, padding: "1px 7px" }}>{NODE_NM[c.otherType] ?? c.otherType}</span>
+                        </div>
+                        {c.reason && <div style={{ fontSize: 11, color: "#475569", marginTop: 3 }}>{c.reason}</div>}
+                      </div>
+                      <button onClick={() => deleteReviewConn(c.id, c.other)}
+                        style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 5, color: "#ef4444", fontSize: 11, padding: "2px 8px", cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+                        Delete
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Table */}
       <div style={CARD}>
