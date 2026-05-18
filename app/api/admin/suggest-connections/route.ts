@@ -32,7 +32,8 @@ export async function POST(req: NextRequest) {
     supabase
       .from("admin_nodes")
       .select("node_type, ticker, company_name, display_name, etf_ticker")
-      .order("node_type"),
+      .order("node_type")
+      .limit(10000),
     supabase
       .from("admin_connections")
       .select("ticker_a, ticker_b")
