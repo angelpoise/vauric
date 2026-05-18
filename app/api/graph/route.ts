@@ -32,5 +32,7 @@ export async function GET() {
     stocks:      stocksRes.data,
     hierarchy:   hierarchyRes.data,
     connections: connectionsRes.data,
+  }, {
+    headers: { "Cache-Control": "no-store" },
   });
 }
