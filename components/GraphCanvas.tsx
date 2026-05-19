@@ -1122,15 +1122,15 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       // Stroke each bucket once — divide by scale to keep pixel-constant width
       const s = cam.scale;
       ctx.lineWidth = 0.8 / s;
-      ctx.strokeStyle = "rgba(255,255,255,0.04)";
+      ctx.strokeStyle = "rgba(255,255,255,0.06)";
       ctx.stroke(dimPath);
 
-      ctx.lineWidth = 2.0 / s;
-      ctx.strokeStyle = "rgba(255,255,255,0.28)";
+      ctx.lineWidth = 1.5 / s;
+      ctx.strokeStyle = "rgba(255,255,255,0.55)";
       ctx.stroke(normPath);
 
-      ctx.lineWidth = 4.0 / s;
-      ctx.strokeStyle = "rgba(255,255,255,0.75)";
+      ctx.lineWidth = 3.0 / s;
+      ctx.strokeStyle = "rgba(255,255,255,0.90)";
       ctx.stroke(litPath);
 
       // Nodes
