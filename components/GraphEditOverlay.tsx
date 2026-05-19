@@ -220,6 +220,24 @@ export default function GraphEditOverlay({
                 </button>
               );
             })}
+            {/* Divider */}
+            <div style={{ width: 1, height: 14, background: "rgba(255,255,255,0.08)", margin: "0 2px" }} />
+            {/* All stocks — bypasses zoom LOD so every stock node is always visible */}
+            <button
+              title="Show all stock nodes regardless of zoom level"
+              onClick={() => onAdminViewChange(!adminView)}
+              style={{
+                background:   adminView ? "rgba(59,130,246,0.18)" : "transparent",
+                border:       adminView ? "1px solid rgba(59,130,246,0.38)" : "1px solid transparent",
+                borderRadius: 5, color: adminView ? "#3b82f6" : "#475569",
+                fontSize: 10, fontWeight: adminView ? 600 : 400,
+                padding: "3px 9px", cursor: "pointer",
+                fontFamily: "inherit", letterSpacing: "0.02em",
+                transition: "all 0.12s",
+              }}
+            >
+              All stocks
+            </button>
           </div>
 
           {/* Sector filter dropdown */}
@@ -467,23 +485,6 @@ export default function GraphEditOverlay({
           )}
         </div>
 
-        {/* Admin view toggle */}
-        {isAdmin && (
-          <button
-            onClick={() => onAdminViewChange(!adminView)}
-            style={{
-              background: adminView ? "rgba(168,85,247,0.15)" : "rgba(255,255,255,0.04)",
-              border: adminView ? "1px solid rgba(168,85,247,0.4)" : "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 6,
-              color: adminView ? "#a855f7" : "#475569",
-              fontSize: 10, fontWeight: 500,
-              padding: "4px 10px", cursor: "pointer",
-              fontFamily: "inherit", letterSpacing: "0.04em",
-            }}
-          >
-            {adminView ? "◉ Admin view" : "Admin view"}
-          </button>
-        )}
       </div>
 
       {/* Context menu */}
