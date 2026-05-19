@@ -185,11 +185,13 @@ export type ConnectionMode = "structural" | "exposure" | "peer" | "impact";
 export interface ConnectionView {
   modes: ConnectionMode[];       // which tier/type to show (multi-select)
   focusTickers: string[];        // if non-empty, only show edges touching these tickers
+  focusSectors: string[];        // ETF codes — show connections relevant to these sectors
 }
 
 export const DEFAULT_CONNECTION_VIEW: ConnectionView = {
   modes: ["structural"],
   focusTickers: [],
+  focusSectors: [],
 };
 
 // ─── Graph data assembly ──────────────────────────────────────────────────────
@@ -1000,7 +1002,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
 
       const animating = targetCameraRef.current !== null || draggingNodeRef.current !== null;
       const cv = connectionViewRef.current;
-      const drawKey = `${cam.x.toFixed(1)},${cam.y.toFixed(1)},${cam.scale.toFixed(3)},${hid ?? ""},${cv.modes.join(",")},${cv.focusTickers.join(",")},${animating},${adminViewRef.current},${liveDataReadyRef.current}`;
+      const drawKey = `${cam.x.toFixed(1)},${cam.y.toFixed(1)},${cam.scale.toFixed(3)},${hid ?? ""},${cv.modes.join(",")},${cv.focusTickers.join(",")},${cv.focusSectors.join(",")},${animating},${adminViewRef.current},${liveDataReadyRef.current}`;
       if (drawKey === lastDrawKey && !animating) {
         raf = requestAnimationFrame(draw);
         return;
@@ -1009,11 +1011,26 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
 
       function shouldDrawEdge(edge: Edge): boolean {
         const cv = connectionViewRef.current;
-        const { modes, focusTickers } = cv;
+        const { modes, focusTickers, focusSectors } = cv;
 
         // Ticker focus: only show edges where at least one endpoint is a focus ticker
         if (focusTickers.length > 0) {
           if (!focusTickers.includes(edge.source) && !focusTickers.includes(edge.target)) return false;
+        }
+
+        // Sector focus: only show edges where at least one endpoint belongs to a focus sector
+        if (focusSectors.length > 0) {
+          const sectorOf = (id: string): string | null => {
+            const n = gd.nodeById.get(id);
+            if (!n) return null;
+            if (n.kind === "stock")                                     return (n as { sectorId?: string }).sectorId ?? null;
+            if (n.kind === "sector")                                    return (n as { etf?: string }).etf ?? null;
+            if (n.kind === "subsector" || n.kind === "subsubsector")    return (n as { sectorEtf?: string }).sectorEtf ?? null;
+            return null;
+          };
+          const srcSector = sectorOf(edge.source);
+          const tgtSector = sectorOf(edge.target);
+          if (!focusSectors.includes(srcSector ?? "") && !focusSectors.includes(tgtSector ?? "")) return false;
         }
 
         if (modes.length === 0) return false;

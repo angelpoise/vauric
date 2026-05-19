@@ -12,6 +12,7 @@ import SearchPanel from "@/components/SearchPanel";
 import FiltersPanel from "@/components/FiltersPanel";
 import GraphSettingsPanel from "@/components/GraphSettingsPanel";
 import GraphEditOverlay, { type ContextMenuInfo } from "@/components/GraphEditOverlay";
+import FocusListPanel from "@/components/FocusListPanel";
 import DisclaimerBanner from "@/components/DisclaimerBanner";
 import { type ActiveFilters, DEFAULT_FILTERS } from "@/lib/filtersTypes";
 import {
@@ -165,6 +166,7 @@ export default function GraphLayout() {
   const [showConnectionPrompt, setShowConnectionPrompt] = useState(false);
   const [connectionPromptPreset, setConnectionPromptPreset] = useState<string | undefined>();
   const [knownTickers, setKnownTickers]           = useState<string[]>([]);
+  const [focusListOpen, setFocusListOpen]         = useState(false);
 
   // Sector state (loaded from localStorage on first render)
   const [sectors, setSectors] = useState<SectorNode[]>(() => {
@@ -423,47 +425,61 @@ export default function GraphLayout() {
         onSettingsChange={handleSettingsChange}
       />
 
-      {isAdmin && (
-        <GraphEditOverlay
-          editMode={editMode}
-          adminView={adminView}
-          onAdminViewChange={setAdminView}
-          connectionView={connectionView}
-          onConnectionViewChange={setConnectionView}
-          isPro={(user?.publicMetadata as Record<string,unknown>)?.isPro === true}
-          saveFailures={saveFailures}
-          pendingCount={Object.keys(pendingPositions).length}
-          knownTickers={knownTickers}
-          contextMenu={contextMenu}
-          showConnectionPrompt={showConnectionPrompt}
-          connectionPromptPreset={connectionPromptPreset}
-          saving={saving}
-          onToggleEdit={handleToggleEdit}
-          onExitConfirmed={handleExitConfirmed}
-          onSave={handleSave}
-          onContextMenuClose={() => setContextMenu(null)}
-          onDeleteNode={handleDeleteNode}
-          onDeleteEdge={handleDeleteEdge}
-          onAddConnection={handleAddConnection}
-          onConnectionPromptOpen={(preset) => {
-            setConnectionPromptPreset(preset);
-            setShowConnectionPrompt(true);
-          }}
-          onConnectionPromptClose={() => setShowConnectionPrompt(false)}
-          onEditSector={handleEditSector}
-          onAddSectorOpen={handleAddSectorOpen}
-          showSectorForm={showSectorForm}
-          sectorFormMode={sectorFormMode}
-          editingSector={editingSector ? {
-            id:     editingSector.id,
-            name:   editingSector.name,
-            etf:    editingSector.etf,
-            colour: editingSector.colour ?? "#64748b",
-          } : null}
-          onSectorFormClose={handleSectorFormClose}
-          onSectorFormSubmit={handleSectorFormSubmit}
-        />
-      )}
+      {(() => {
+        const isPro = (user?.publicMetadata as Record<string,unknown>)?.isPro === true;
+        return (
+          <>
+            <GraphEditOverlay
+              isAdmin={isAdmin}
+              editMode={editMode}
+              adminView={adminView}
+              onAdminViewChange={setAdminView}
+              connectionView={connectionView}
+              onConnectionViewChange={setConnectionView}
+              isPro={isPro}
+              saveFailures={saveFailures}
+              pendingCount={Object.keys(pendingPositions).length}
+              knownTickers={knownTickers}
+              contextMenu={contextMenu}
+              showConnectionPrompt={showConnectionPrompt}
+              connectionPromptPreset={connectionPromptPreset}
+              saving={saving}
+              onToggleEdit={handleToggleEdit}
+              onExitConfirmed={handleExitConfirmed}
+              onSave={handleSave}
+              onContextMenuClose={() => setContextMenu(null)}
+              onDeleteNode={handleDeleteNode}
+              onDeleteEdge={handleDeleteEdge}
+              onAddConnection={handleAddConnection}
+              onConnectionPromptOpen={(preset) => {
+                setConnectionPromptPreset(preset);
+                setShowConnectionPrompt(true);
+              }}
+              onConnectionPromptClose={() => setShowConnectionPrompt(false)}
+              onEditSector={handleEditSector}
+              onAddSectorOpen={handleAddSectorOpen}
+              showSectorForm={showSectorForm}
+              sectorFormMode={sectorFormMode}
+              editingSector={editingSector ? {
+                id:     editingSector.id,
+                name:   editingSector.name,
+                etf:    editingSector.etf,
+                colour: editingSector.colour ?? "#64748b",
+              } : null}
+              onSectorFormClose={handleSectorFormClose}
+              onSectorFormSubmit={handleSectorFormSubmit}
+              onFocusListOpen={isPro ? () => setFocusListOpen(true) : undefined}
+            />
+            <FocusListPanel
+              open={focusListOpen}
+              onClose={() => setFocusListOpen(false)}
+              isPro={isPro}
+              connectionView={connectionView}
+              onConnectionViewChange={setConnectionView}
+            />
+          </>
+        );
+      })()}
 
       <AlertsPanel onOpenChange={setAlertsOpen} />
       <WatchlistPanel isAlertsOpen={alertsOpen} />
