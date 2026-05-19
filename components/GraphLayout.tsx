@@ -107,13 +107,32 @@ function writeSectorMeta(id: string, name: string, etf: string, colour: string, 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function GraphLayout() {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, getToken } = useAuth();
   const { user } = useUser();
   const router = useRouter();
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) router.replace("/sign-in");
   }, [isLoaded, isSignedIn, router]);
+
+  // Verify Stripe session on success redirect — fallback in case webhook didn't fire
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session_id");
+    const upgraded  = params.get("upgraded");
+    if (!upgraded || !sessionId) return;
+    // Clean the URL immediately
+    router.replace("/graph");
+    getToken().then((token) => {
+      if (!token) return;
+      fetch("/api/stripe/verify-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ sessionId }),
+      }).then((r) => { if (r.ok) window.location.reload(); });
+    });
+  }, [isLoaded, isSignedIn, getToken, router]);
 
   const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? "";
   const isAdmin = adminEmail !== "" &&
