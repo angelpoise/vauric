@@ -599,13 +599,15 @@ export default function NodesPage() {
                 </div>
               </div>
             )}
-            {/* Top clusters */}
+            {/* All clusters */}
             <div>
-              <div style={{ fontSize: 10, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Top clusters</div>
-              {repoCheck.topClusters.slice(0, 10).map((c) => (
+              <div style={{ fontSize: 10, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
+                All clusters ({repoCheck.topClusters.length})
+              </div>
+              {repoCheck.topClusters.map((c) => (
                 <div key={c.name} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", borderBottom: "1px solid rgba(255,255,255,0.04)", fontSize: 11 }}>
                   <span style={{ color: "#94a3b8" }}>{c.name}</span>
-                  <span style={{ color: "#64748b" }}>{c.count} stocks</span>
+                  <span style={{ color: c.count > 80 ? "#ef4444" : c.count > 40 ? "#f59e0b" : "#64748b" }}>{c.count}</span>
                 </div>
               ))}
             </div>

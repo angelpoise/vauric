@@ -193,7 +193,6 @@ export async function GET(req: NextRequest) {
   const clusters: { name: string; count: number }[] = [];
   hierToStocks.forEach((stocks, name) => clusters.push({ name, count: stocks.size }));
   clusters.sort((a, b) => b.count - a.count);
-  clusters.splice(20);
 
   // Sample unresolved (first 20)
   const unresolvedSample = unresolvedT1.slice(0, 20);
