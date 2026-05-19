@@ -112,7 +112,39 @@ async function buildAssignments(allNodes: AdminNode[], t1Conns: { ticker_a: stri
     stockTarget.set(ticker, best);
   });
 
-  // Fallback to sector for stocks with no resolved T1
+  // Peer-propagation pass: stocks with no T1 target look at where their T2 peers
+  // are assigned and join the most common peer destination.
+  // Run up to 3 iterations so peers-of-peers also propagate.
+  for (let iter = 0; iter < 3; iter++) {
+    let changed = false;
+    stockByTick.forEach((stock) => {
+      if (!stock.ticker || stockTarget.has(stock.ticker)) return;
+      const peers = peerMap.get(stock.ticker);
+      if (!peers || peers.size === 0) return;
+
+      const tally = new Map<string, { target: AdminNode; count: number }>();
+      peers.forEach((peerTicker) => {
+        const t = stockTarget.get(peerTicker);
+        if (!t) return;
+        const existing = tally.get(t.id);
+        if (existing) { existing.count++; }
+        else { tally.set(t.id, { target: t, count: 1 }); }
+      });
+
+      // Among peer destinations, prefer the most specific + most common
+      let best: AdminNode | null = null;
+      let bestScore = -Infinity;
+      tally.forEach(({ target, count }) => {
+        const score = (SPECIFICITY[target.node_type] ?? 0) * 1_000 + count;
+        if (score > bestScore) { bestScore = score; best = target; }
+      });
+
+      if (best) { stockTarget.set(stock.ticker, best); changed = true; }
+    });
+    if (!changed) break;
+  }
+
+  // Final fallback to sector node for stocks with neither T1 nor any placed peers
   const noT1: string[] = [];
   stockByTick.forEach((stock) => {
     if (!stock.ticker || stockTarget.has(stock.ticker)) return;
