@@ -471,6 +471,9 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
   // Connection view ref
   const connectionViewRef = useRef<ConnectionView>(DEFAULT_CONNECTION_VIEW);
 
+  // Incremented each time graph structure data arrives so the dirty key changes
+  const graphDataVersionRef = useRef(0);
+
   // Admin view ref — bypasses stock LOD so all nodes are visible at any zoom
   const adminViewRef = useRef(false);
 
@@ -681,6 +684,8 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         try {
           sessionStorage.setItem("vauric_node_positions", JSON.stringify(posMap));
         } catch { /* ignore */ }
+
+        graphDataVersionRef.current++;
 
         console.log(
           `[graph] loaded ${stockNodes.length} stocks, ${dbSectorNodes.length} sectors,`,
@@ -1004,7 +1009,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
 
       const animating = targetCameraRef.current !== null || draggingNodeRef.current !== null;
       const cv = connectionViewRef.current;
-      const drawKey = `${cam.x.toFixed(1)},${cam.y.toFixed(1)},${cam.scale.toFixed(3)},${hid ?? ""},${cv.modes.join(",")},${cv.focusTickers.join(",")},${cv.focusSectors.join(",")},${cv.relevantOnly},${animating},${adminViewRef.current},${liveDataReadyRef.current}`;
+      const drawKey = `${cam.x.toFixed(1)},${cam.y.toFixed(1)},${cam.scale.toFixed(3)},${hid ?? ""},${cv.modes.join(",")},${cv.focusTickers.join(",")},${cv.focusSectors.join(",")},${cv.relevantOnly},${animating},${adminViewRef.current},${liveDataReadyRef.current},${graphDataVersionRef.current}`;
       if (drawKey === lastDrawKey && !animating) {
         raf = requestAnimationFrame(draw);
         return;
