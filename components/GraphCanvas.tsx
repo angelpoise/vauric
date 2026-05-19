@@ -1026,7 +1026,9 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         const isStockStock = srcKind === "stock" && tgtKind === "stock";
 
         for (const mode of modes) {
-          if (mode === "structural" && (isSector || isHierarchy)) return true;
+          // Structural = only the hierarchy chain (subsector→sector, industry→subsector)
+          // Does NOT include stock→sector edges or stock→hierarchy exposure connections
+          if (mode === "structural" && isHierarchy) return true;
           if (mode === "exposure"   && isStockToHierarchy && edge.tier === 1) return true;
           if (mode === "peer"       && isStockStock && edge.tier === 2) return true;
           if (mode === "impact"     && isStockStock && edge.tier === 3) return true;
@@ -1120,15 +1122,15 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       // Stroke each bucket once — divide by scale to keep pixel-constant width
       const s = cam.scale;
       ctx.lineWidth = 0.8 / s;
-      ctx.strokeStyle = "rgba(148,163,184,0.04)";
+      ctx.strokeStyle = "rgba(255,255,255,0.04)";
       ctx.stroke(dimPath);
 
       ctx.lineWidth = 2.0 / s;
-      ctx.strokeStyle = "rgba(148,163,184,0.28)";
+      ctx.strokeStyle = "rgba(255,255,255,0.28)";
       ctx.stroke(normPath);
 
       ctx.lineWidth = 4.0 / s;
-      ctx.strokeStyle = "rgba(148,163,184,0.75)";
+      ctx.strokeStyle = "rgba(255,255,255,0.75)";
       ctx.stroke(litPath);
 
       // Nodes
