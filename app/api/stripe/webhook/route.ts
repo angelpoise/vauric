@@ -3,6 +3,14 @@ import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { clerkClient } from "@clerk/nextjs/server";
 
+// Force Node.js runtime — Stripe SDK is incompatible with the Edge runtime
+export const runtime = "nodejs";
+
+// Diagnostic: confirms the route is reachable
+export async function GET() {
+  return NextResponse.json({ ok: true, route: "stripe-webhook" });
+}
+
 // App Router does not use a body parser, so req.text() gives the raw body
 // needed for Stripe signature verification.
 
