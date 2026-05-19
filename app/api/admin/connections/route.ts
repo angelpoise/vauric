@@ -10,7 +10,8 @@ import { isAdminRequest } from "@/lib/adminSecret";
 async function computeTier(idA: string, idB: string): Promise<number> {
   const { data: nodes } = await supabaseAdmin
     .from("admin_nodes")
-    .select("ticker, company_name, etf_ticker, node_type");
+    .select("ticker, company_name, etf_ticker, node_type")
+    .limit(50000);
 
   const findType = (id: string): string | null => {
     if (!nodes) return null;

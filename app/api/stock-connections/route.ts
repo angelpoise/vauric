@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 
 export interface StockConnection {
   id: string;
@@ -20,7 +20,8 @@ export async function GET(req: NextRequest) {
       .or(`ticker_a.eq.${ticker},ticker_b.eq.${ticker}`),
     supabase
       .from("admin_nodes")
-      .select("node_type, ticker, company_name, display_name, etf_ticker"),
+      .select("node_type, ticker, company_name, display_name, etf_ticker")
+      .limit(50000),
   ]);
 
   if (connsRes.error || nodesRes.error) {

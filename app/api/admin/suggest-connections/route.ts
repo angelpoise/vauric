@@ -8,6 +8,7 @@ interface DBNode {
   company_name: string | null;
   display_name: string | null;
   etf_ticker: string | null;
+  sector: string | null;
 }
 
 function nodeId(n: DBNode): string {
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
       .single(),
     supabase
       .from("admin_nodes")
-      .select("node_type, ticker, company_name, display_name, etf_ticker")
+      .select("node_type, ticker, company_name, display_name, etf_ticker, sector")
       .order("node_type")
       .limit(50000),
     supabase
@@ -56,10 +57,16 @@ export async function POST(req: NextRequest) {
   const subsubsectors = allNodes.filter((n) => n.node_type === "subsubsector");
   const otherStocks   = allNodes.filter((n) => n.node_type === "stock" && n.ticker !== ticker);
 
+  // Limit stock list sent to Claude: same-sector stocks first, then up to 200
+  // cross-sector stocks. Keeps prompt manageable as the graph grows.
+  const sameSector   = otherStocks.filter((n) => n.sector === stock.sector);
+  const crossSector  = otherStocks.filter((n) => n.sector !== stock.sector).slice(0, 200);
+  const stockSample  = [...sameSector, ...crossSector];
+
   // Build prompt context
   const subsectorLines    = subsectors.map((n)    => `  "${n.company_name}"`).join("\n") || "  (none)";
   const subsubsectorLines = subsubsectors.map((n) => `  "${n.company_name}"`).join("\n") || "  (none)";
-  const stockLines        = otherStocks.map((n)   => `  ${n.ticker} — ${n.company_name ?? ""}`).join("\n") || "  (none)";
+  const stockLines        = stockSample.map((n)   => `  ${n.ticker} — ${n.company_name ?? ""}`).join("\n") || "  (none)";
   const existingNote      = existingIds.size > 0
     ? `Already connected to: ${Array.from(existingIds).join(", ")}`
     : "No existing explicit connections.";
