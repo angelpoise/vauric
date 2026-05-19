@@ -29,7 +29,6 @@ interface PolygonArticle {
   published_utc: string;
   tickers: string[];
   publisher: { name: string };
-  amp_url?: string;
 }
 
 async function fetchPolygonNews(
@@ -38,7 +37,6 @@ async function fetchPolygonNews(
   apiKey: string,
   maxPages = 3,
 ): Promise<PolygonArticle[]> {
-  // Fetch up to maxPages × 1000 articles using cursor pagination.
   const all: PolygonArticle[] = [];
   let url =
     `https://api.polygon.io/v2/reference/news` +
@@ -52,12 +50,9 @@ async function fetchPolygonNews(
       const json = await res.json();
       const results = (json.results ?? []) as PolygonArticle[];
       all.push(...results);
-      // Polygon provides next_url for cursor pagination; stop if no more pages
       if (!json.next_url || results.length < 1000) break;
       url = `${json.next_url}&apiKey=${apiKey}`;
-    } catch {
-      break;
-    }
+    } catch { break; }
   }
   return all;
 }
@@ -75,19 +70,15 @@ function isAuthorized(req: NextRequest): boolean {
 
 // ─── Handler ───────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
-  if (!isAuthorized(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!isAuthorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "pipeline";
-  if (!checkRateLimit(`pipeline:${ip}`, 1, 60 * 1000)) {
+  if (!checkRateLimit(`pipeline:${ip}`, 1, 60 * 1000))
     return NextResponse.json({ error: "Pipeline triggered too recently — wait 1 minute" }, { status: 429 });
-  }
 
   const polygonKey = process.env.POLYGON_API_KEY;
   if (!polygonKey) return NextResponse.json({ error: "POLYGON_API_KEY not set" }, { status: 500 });
 
-  // Check kill-switch
   try {
     const { data: config } = await supabase
       .from("pipeline_config").select("news_pipeline_enabled").eq("id", 1).single();
@@ -95,12 +86,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ message: "Pipeline disabled" });
   } catch { /* table may not exist yet */ }
 
-  const now         = new Date();
-  const cutoffMs    = now.getTime() - 48 * 60 * 60 * 1000;
-  const from        = new Date(cutoffMs).toISOString();
-  const to          = now.toISOString();
+  const now      = new Date();
+  const cutoffMs = now.getTime() - 48 * 60 * 60 * 1000;
+  const from     = new Date(cutoffMs).toISOString();
+  const to       = now.toISOString();
 
-  // Load all graph stocks with sector info
   const { data: stockRows } = await supabase
     .from("admin_nodes")
     .select("ticker, company_name, sector")
@@ -108,9 +98,13 @@ export async function GET(req: NextRequest) {
     .limit(50000);
 
   const graphTickerSet = new Set<string>((stockRows ?? []).map((r) => r.ticker as string));
-  const sectorOf = new Map<string, string>(); // ticker → sector string
+  const sectorOf       = new Map<string, string>();
+  const companyNameOf  = new Map<string, string>();
   for (const row of stockRows ?? []) {
-    if (row.ticker && row.sector) sectorOf.set(row.ticker as string, row.sector as string);
+    if (row.ticker) {
+      if (row.sector)       sectorOf.set(row.ticker as string, row.sector as string);
+      if (row.company_name) companyNameOf.set(row.ticker as string, (row.company_name as string).toLowerCase());
+    }
   }
 
   if (graphTickerSet.size === 0) {
@@ -118,80 +112,74 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ processed: 0, inserted: 0, skipped: 0, errors: [] });
   }
 
-  // Fetch news from Polygon (single request, no per-ticker loops)
   const articles = await fetchPolygonNews(from, to, polygonKey);
 
-  // Build rows to insert
   interface InsertRow {
     ticker: string; headline: string; summary: string; url: string;
     source: string; published_at: string; notification_type: string;
     generates_notification: boolean; is_sector_news: boolean; sector_id: string | null;
+    related_tickers: string | null;
   }
+
   const candidates: InsertRow[] = [];
-  const seenKeys = new Set<string>(); // url#ticker to deduplicate within this batch
+  const seenUrls = new Set<string>(); // one row per article — no #ticker suffix
 
   for (const article of articles) {
-    if (!article.article_url) continue;
+    if (!article.article_url || seenUrls.has(article.article_url)) continue;
     if (new Date(article.published_utc).getTime() < cutoffMs) continue;
 
-    // Find which graph tickers are mentioned in this article
     const graphTickers = (article.tickers ?? []).filter((t) => graphTickerSet.has(t));
     if (graphTickers.length === 0) continue;
 
-    const headline    = article.title ?? "";
-    const summary     = article.description ?? "";
-    const source      = article.publisher?.name ?? "";
-    const publishedAt = article.published_utc;
+    seenUrls.add(article.article_url);
 
-    // Determine the scope of this article
+    const headline   = article.title ?? "";
+    const summary    = article.description ?? "";
+    const titleLower = headline.toLowerCase();
+
+    // If a specific ticker or its company name appears in the headline,
+    // it is always stock-specific — prevents mis-classifying e.g. "Trump sells AMZN" as macro.
+    const titleTicker = graphTickers.find((t) => {
+      if (titleLower.includes(t.toLowerCase())) return true;
+      const name = companyNameOf.get(t) ?? "";
+      const firstWord = name.split(" ")[0];
+      return firstWord.length > 3 && titleLower.includes(firstWord);
+    });
+
     const affectedSectors = new Set(
       graphTickers.map((t) => sectorOf.get(t)).filter(Boolean) as string[]
     );
-    const isMacro = graphTickers.length >= 5 && affectedSectors.size >= 3;
 
-    if (isMacro) {
-      // Macro/market-wide news — insert once as MARKET ticker
-      const key = `${article.article_url}#MARKET`;
-      if (seenKeys.has(key)) continue;
-      seenKeys.add(key);
-      const cls = classifyNews(headline, summary, "MARKET");
-      candidates.push({
-        ticker: "MARKET", headline, summary, source,
-        url: article.article_url,
-        published_at: publishedAt,
-        notification_type: cls.type,
-        generates_notification: false,
-        is_sector_news: true,
-        sector_id: null,
-      });
-    } else {
-      // Stock-specific — insert one row per relevant ticker (up to 3)
-      const targetTickers = graphTickers.slice(0, 3);
-      for (const ticker of targetTickers) {
-        // Use url#ticker so the same article can appear for multiple stocks
-        const key = `${article.article_url}#${ticker}`;
-        if (seenKeys.has(key)) continue;
-        seenKeys.add(key);
-        const cls = classifyNews(headline, summary, ticker);
-        // Single-sector articles with 3+ stocks get sector classification
-        const isSectorWide = affectedSectors.size === 1 && graphTickers.length >= 3;
-        const etf = isSectorWide ? (SECTOR_TO_ETF[Array.from(affectedSectors)[0]] ?? null) : null;
-        candidates.push({
-          ticker, headline, summary, source,
-          url: `${article.article_url}#${ticker}`,
-          published_at: publishedAt,
-          notification_type: cls.type,
-          generates_notification: cls.generatesNotification && !isSectorWide,
-          is_sector_news: isSectorWide,
-          sector_id: etf,
-        });
-      }
-    }
+    // Macro: no specific company in title + very broad reach (7+ tickers, 4+ sectors)
+    const isMacro      = !titleTicker && graphTickers.length >= 7 && affectedSectors.size >= 4;
+    const primaryTicker = isMacro ? "MARKET" : (titleTicker ?? graphTickers[0]);
+
+    // All other mentioned graph tickers stored for cross-stock lookup
+    const otherTickers   = graphTickers.filter((t) => t !== primaryTicker);
+    const relatedTickers = otherTickers.length > 0 ? otherTickers.join(",") : null;
+
+    const isSectorWide = !isMacro && affectedSectors.size === 1 && graphTickers.length >= 3;
+    const etf          = isSectorWide ? (SECTOR_TO_ETF[Array.from(affectedSectors)[0]] ?? null) : null;
+    const cls          = classifyNews(headline, summary, primaryTicker);
+
+    candidates.push({
+      ticker:                  primaryTicker,
+      headline,
+      summary,
+      source:                  article.publisher?.name ?? "",
+      url:                     article.article_url,
+      published_at:            article.published_utc,
+      notification_type:       cls.type,
+      generates_notification:  !isMacro && !isSectorWide && cls.generatesNotification,
+      is_sector_news:          isMacro || isSectorWide,
+      sector_id:               isMacro ? null : etf,
+      related_tickers:         relatedTickers,
+    });
   }
 
   // Filter out URLs already in DB
-  const allUrls = candidates.map((c) => c.url);
-  const { data: existing } = await supabase.from("news").select("url").in("url", allUrls);
+  const { data: existing } = await supabase
+    .from("news").select("url").in("url", candidates.map((c) => c.url));
   const existingSet = new Set((existing ?? []).map((r: { url: string }) => r.url));
   const toInsert = candidates.filter((c) => !existingSet.has(c.url));
 
@@ -205,10 +193,9 @@ export async function GET(req: NextRequest) {
     } else {
       inserted = toInsert.length;
 
-      // Notifications for significant single-stock events
       const significantTickers = Array.from(new Set(
         toInsert
-          .filter((a) => a.generates_notification && !a.is_sector_news && a.ticker !== "MARKET")
+          .filter((a) => a.generates_notification && a.ticker !== "MARKET")
           .map((a) => a.ticker),
       ));
       if (significantTickers.length > 0) {

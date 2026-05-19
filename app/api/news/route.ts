@@ -20,6 +20,7 @@ interface NewsRow {
   generates_notification: boolean;
   is_sector_news: boolean;
   sector_id: string | null;
+  related_tickers: string | null;
 }
 
 interface ManualRow {
@@ -47,7 +48,7 @@ async function fetchAll(bust = false): Promise<NewsRow[]> {
 
   const { data, error } = await supabase
     .from("news")
-    .select("id, ticker, headline, summary, url, source, published_at, notification_type, created_at, generates_notification, is_sector_news, sector_id")
+    .select("id, ticker, headline, summary, url, source, published_at, notification_type, created_at, generates_notification, is_sector_news, sector_id, related_tickers")
     .gte("published_at", thirtyDaysAgo)
     .order("published_at", { ascending: false })
     .limit(1000);
@@ -95,6 +96,7 @@ function manualToNewsRow(m: ManualRow): NewsRow {
     generates_notification: true,  // manual notifications always significant
     is_sector_news:         false,
     sector_id:              null,
+    related_tickers:        null,
   };
 }
 
@@ -216,7 +218,10 @@ export async function GET(req: NextRequest) {
   let filtered: NewsRow[];
 
   if (ticker) {
-    const newsForTicker   = windowedRows.filter((r) => r.ticker === ticker).slice(0, limit);
+    const newsForTicker   = windowedRows.filter((r) =>
+      r.ticker === ticker ||
+      (r.related_tickers && r.related_tickers.split(",").includes(ticker))
+    ).slice(0, limit);
     const manualForTicker = manualRows.filter((r) => r.ticker === ticker);
     filtered = [...manualForTicker, ...newsForTicker];
   } else {
