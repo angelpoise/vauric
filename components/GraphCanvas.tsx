@@ -1163,7 +1163,10 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         // relevantOnly: skip stock nodes with no visible edges
         if (relevantNodeIds && node.kind === "stock" && !relevantNodeIds.has(node.id)) continue;
 
-        const lodA = nodeLodAlpha(node, lodScale);
+        // Nodes in the relevant set bypass zoom LOD — same behaviour as All stocks
+        const lodA = (relevantNodeIds !== null && relevantNodeIds.has(node.id))
+          ? 1
+          : nodeLodAlpha(node, lodScale);
         if (lodA === 0) continue;
 
         const pos        = worldPos(node, t);
