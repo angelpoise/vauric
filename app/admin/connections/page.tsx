@@ -315,7 +315,7 @@ export default function ConnectionsPage() {
   const [reviewTicker, setReviewTicker]   = useState("");
   const [reviewConns, setReviewConns]     = useState<{ id: string; tier: number; other: string; otherType: string; reason: string | null }[] | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
-  const [reviewExpanded, setReviewExpanded] = useState(true);
+  const [tableExpanded, setTableExpanded] = useState(true);
 
   // Review queue state (feeds tickers into the suggestion panel one by one)
   const [reviewQueue, setReviewQueue]         = useState<string[]>([]);
@@ -929,14 +929,7 @@ export default function ConnectionsPage() {
 
         return (
           <div style={{ ...CARD, marginBottom: 28 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: reviewExpanded ? 12 : 0 }}>
-              <div style={{ fontSize: 12, color: "#475569", fontWeight: 500, letterSpacing: "0.07em", textTransform: "uppercase" }}>Connection Review</div>
-              <button onClick={() => setReviewExpanded(v => !v)} style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>
-                {reviewExpanded ? "▲" : "▼"}
-              </button>
-            </div>
-            {reviewExpanded && (
-              <>
+            <div style={{ fontSize: 12, color: "#475569", fontWeight: 500, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 12 }}>Connection Review</div>
             <div style={{ display: "flex", gap: 10, marginBottom: reviewConns ? 16 : 0 }}>
               <input style={{ ...INPUT, width: 140, fontFamily: "monospace" }} placeholder="Ticker…"
                 value={reviewTicker}
@@ -977,15 +970,14 @@ export default function ConnectionsPage() {
                 })}
               </div>
             )}
-              </>
-            )}
           </div>
         );
       })()}
 
       {/* Table */}
       <div style={CARD}>
-        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: tableExpanded ? 16 : 0 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", flex: 1 }}>
           <input
             style={{ ...INPUT, width: 180, fontSize: 12, padding: "5px 10px" }}
             placeholder="Search ticker…"
@@ -1009,9 +1001,13 @@ export default function ConnectionsPage() {
           {(search || tierFilter !== "all") && (
             <span style={{ fontSize: 11, color: "#334155" }}>Showing {displayed.length} of {allConns.length}</span>
           )}
+          </div>
+          <button onClick={() => setTableExpanded(v => !v)} style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 2px", flexShrink: 0 }}>
+            {tableExpanded ? "▲" : "▼"}
+          </button>
         </div>
 
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        {tableExpanded && <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>{["Type", "Node A", "Node B / Sector", ""].map((h) => <th key={h} style={TH}>{h}</th>)}</tr>
           </thead>
@@ -1057,13 +1053,15 @@ export default function ConnectionsPage() {
               );
             })}
           </tbody>
-        </table>
+        </table>}
 
-        <div style={{ marginTop: 16, fontSize: 11, color: "#334155", lineHeight: 1.6 }}>
-          <strong style={{ color: "#475569" }}>Auto</strong> — derived from each stock&apos;s sector field. Change the dropdown to reassign a stock to a different sector ring on the graph.
-          <br />
-          <strong style={{ color: "#475569" }}>T1/T2/T3</strong> — explicit connections stored in admin_connections (sub-sector memberships, peer relationships, etc.).
-        </div>
+        {tableExpanded && (
+          <div style={{ marginTop: 16, fontSize: 11, color: "#334155", lineHeight: 1.6 }}>
+            <strong style={{ color: "#475569" }}>Auto</strong> — derived from each stock&apos;s sector field. Change the dropdown to reassign a stock to a different sector ring on the graph.
+            <br />
+            <strong style={{ color: "#475569" }}>T1/T2/T3</strong> — explicit connections stored in admin_connections (sub-sector memberships, peer relationships, etc.).
+          </div>
+        )}
       </div>
     </div>
   );
