@@ -562,6 +562,7 @@ export default function NodesPage() {
         {repoCheck && (
           <div style={{
             position: "fixed", top: 60, right: 20, zIndex: 100, width: 420,
+            maxHeight: "calc(100vh - 80px)", overflowY: "auto",
             background: "#0d1117", border: "1px solid rgba(255,255,255,0.1)",
             borderRadius: 10, padding: 18,
             fontFamily: '"DM Sans", sans-serif', fontSize: 12,
