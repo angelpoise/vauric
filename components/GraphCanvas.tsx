@@ -1021,6 +1021,21 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
 
       const lodScale = adminViewRef.current ? LOD_SUBSUBSECTOR + LOD_FADE + 1 : cam.scale;
 
+      // Viewport bounds in world space — used to cull off-screen edges
+      const vMargin = 300;
+      const vL = (-cam.x) / cam.scale - vMargin;
+      const vR = (W - cam.x) / cam.scale + vMargin;
+      const vT = (-cam.y) / cam.scale - vMargin;
+      const vB = (H - cam.y) / cam.scale + vMargin;
+
+      // Cache isNodeFiltered per frame — called up to twice per edge otherwise
+      const filterCache = new Map<string, boolean>();
+      const cachedFiltered = (node: GNode) => {
+        let r = filterCache.get(node.id);
+        if (r === undefined) { r = isNodeFiltered(node); filterCache.set(node.id, r); }
+        return r;
+      };
+
       // Edges
       for (const edge of gd.edges) {
         if (!shouldDrawEdge(edge)) continue;
@@ -1035,7 +1050,12 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         const sp  = worldPos(src, t);
         const tp  = worldPos(tgt, t);
 
-        const edgeFiltered = isNodeFiltered(src) || isNodeFiltered(tgt);
+        // Skip edges where both endpoints are outside the visible viewport
+        const srcIn = sp.x >= vL && sp.x <= vR && sp.y >= vT && sp.y <= vB;
+        const tgtIn = tp.x >= vL && tp.x <= vR && tp.y >= vT && tp.y <= vB;
+        if (!srcIn && !tgtIn) continue;
+
+        const edgeFiltered = cachedFiltered(src) || cachedFiltered(tgt);
         let alpha = edgeFiltered ? 0.04 : 0.28;
         let lineW = edgeFiltered ? 0.8 : 2.0;
         if (!edgeFiltered && hid) {
@@ -1044,6 +1064,9 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
           lineW = lit ? 4.0 : 0.8;
         }
         alpha *= edgeLodA;
+
+        // Skip nearly invisible edges
+        if (alpha < 0.02) continue;
 
         ctx.beginPath();
         ctx.moveTo(sp.x, sp.y);
