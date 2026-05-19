@@ -74,31 +74,31 @@ export async function POST(req: NextRequest) {
   }
 
   // 4. For stocks with no T1, fall back to sector node
-  for (const [, stock] of stockByTick) {
-    if (!stock.ticker || stockTarget.has(stock.ticker)) continue;
+  stockByTick.forEach((stock) => {
+    if (!stock.ticker || stockTarget.has(stock.ticker)) return;
     if (stock.sector) {
       const sectorNode = sectorByName.get(stock.sector);
       if (sectorNode) stockTarget.set(stock.ticker, sectorNode);
     }
-  }
+  });
 
   // 5. Group stocks by target node for scatter layout
   const groups = new Map<string, string[]>(); // target node id → [tickers]
-  for (const [ticker, target] of stockTarget) {
+  stockTarget.forEach((target, ticker) => {
     const list = groups.get(target.id) ?? [];
     list.push(ticker);
     groups.set(target.id, list);
-  }
+  });
 
   // Sort tickers within each group alphabetically for deterministic layout
-  for (const list of groups.values()) list.sort();
+  groups.forEach((list) => list.sort());
 
   // 6. Compute new positions
   const updates: { id: string; x_position: number; y_position: number }[] = [];
 
-  for (const [targetId, tickers] of groups) {
+  groups.forEach((tickers, targetId) => {
     const target = allNodes.find(n => n.id === targetId);
-    if (!target) continue;
+    if (!target) return;
     tickers.forEach((ticker, idx) => {
       const stock = stockByTick.get(ticker);
       if (!stock) return;
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
         y_position: target.y_position + dy,
       });
     });
-  }
+  });
 
   // 7. Batch-update positions in chunks of 500
   const CHUNK = 500;
