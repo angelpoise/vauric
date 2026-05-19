@@ -1000,7 +1000,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
 
       const animating = targetCameraRef.current !== null || draggingNodeRef.current !== null;
       const cv = connectionViewRef.current;
-      const drawKey = `${cam.x.toFixed(1)},${cam.y.toFixed(1)},${cam.scale.toFixed(3)},${hid ?? ""},${cv.modes.join(",")},${cv.focusTickers.join(",")},${animating}`;
+      const drawKey = `${cam.x.toFixed(1)},${cam.y.toFixed(1)},${cam.scale.toFixed(3)},${hid ?? ""},${cv.modes.join(",")},${cv.focusTickers.join(",")},${animating},${adminViewRef.current},${liveDataReadyRef.current}`;
       if (drawKey === lastDrawKey && !animating) {
         raf = requestAnimationFrame(draw);
         return;
@@ -1075,12 +1075,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         return r;
       };
 
-      // Edges — batched by style bucket to minimise canvas state changes.
-      // 18k individual ctx.stroke() calls → 3 stroke calls per frame.
-      const litPath  = new Path2D(); // hovered neighbour
-      const normPath = new Path2D(); // normal visible
-      const dimPath  = new Path2D(); // filtered / faded
-
+      // Edges — individual strokes preserve intersection accumulation (spiderweb effect)
       for (const edge of gd.edges) {
         if (!shouldDrawEdge(edge)) continue;
         const src = gd.nodeById.get(edge.source);
@@ -1093,45 +1088,28 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         const sp = worldPos(src, t);
         const tp = worldPos(tgt, t);
 
-        // Skip edges where both endpoints are outside the visible viewport
+        // Viewport culling — skip edges entirely off-screen
         if (!(sp.x >= vL && sp.x <= vR && sp.y >= vT && sp.y <= vB) &&
             !(tp.x >= vL && tp.x <= vR && tp.y >= vT && tp.y <= vB)) continue;
 
         const edgeFiltered = cachedFiltered(src) || cachedFiltered(tgt);
-        let bucket: Path2D;
-        let alpha: number;
-
+        let alpha = edgeFiltered ? 0.04 : 0.28;
+        let lineW = edgeFiltered ? 0.8 : 2.0;
         if (!edgeFiltered && hid) {
           const lit = edge.source === hid || edge.target === hid;
-          alpha = (lit ? 0.75 : 0.04) * edgeLodA;
-          bucket = lit ? litPath : dimPath;
-        } else if (edgeFiltered) {
-          alpha = 0.04 * edgeLodA;
-          bucket = dimPath;
-        } else {
-          alpha = 0.28 * edgeLodA;
-          bucket = normPath;
+          alpha = lit ? 0.75 : 0.04;
+          lineW = lit ? 4.0 : 0.8;
         }
-
+        alpha *= edgeLodA;
         if (alpha < 0.02) continue;
 
-        bucket.moveTo(sp.x, sp.y);
-        bucket.lineTo(tp.x, tp.y);
+        ctx.beginPath();
+        ctx.moveTo(sp.x, sp.y);
+        ctx.lineTo(tp.x, tp.y);
+        ctx.strokeStyle = `rgba(148,163,184,${alpha.toFixed(3)})`;
+        ctx.lineWidth   = lineW;
+        ctx.stroke();
       }
-
-      // Stroke each bucket once — divide by scale to keep pixel-constant width
-      const s = cam.scale;
-      ctx.lineWidth = 0.8 / s;
-      ctx.strokeStyle = "rgba(255,255,255,0.06)";
-      ctx.stroke(dimPath);
-
-      ctx.lineWidth = 1.5 / s;
-      ctx.strokeStyle = "rgba(255,255,255,0.55)";
-      ctx.stroke(normPath);
-
-      ctx.lineWidth = 3.0 / s;
-      ctx.strokeStyle = "rgba(255,255,255,0.90)";
-      ctx.stroke(litPath);
 
       // Nodes
       for (const node of gd.nodes) {
