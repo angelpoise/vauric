@@ -36,22 +36,30 @@ async function fetchPolygonNews(
   from: string,
   to: string,
   apiKey: string,
+  maxPages = 3,
 ): Promise<PolygonArticle[]> {
-  // Fetch up to 1000 articles (Polygon max per request) within the date window.
-  // Polygon's general news feed already includes ticker associations — no per-ticker
-  // calls needed, which avoids rate limit issues entirely.
-  const url =
+  // Fetch up to maxPages × 1000 articles using cursor pagination.
+  const all: PolygonArticle[] = [];
+  let url =
     `https://api.polygon.io/v2/reference/news` +
     `?published_utc.gte=${from}&published_utc.lte=${to}` +
     `&order=desc&sort=published_utc&limit=1000&apiKey=${apiKey}`;
-  try {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) return [];
-    const json = await res.json();
-    return (json.results ?? []) as PolygonArticle[];
-  } catch {
-    return [];
+
+  for (let page = 0; page < maxPages; page++) {
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) break;
+      const json = await res.json();
+      const results = (json.results ?? []) as PolygonArticle[];
+      all.push(...results);
+      // Polygon provides next_url for cursor pagination; stop if no more pages
+      if (!json.next_url || results.length < 1000) break;
+      url = `${json.next_url}&apiKey=${apiKey}`;
+    } catch {
+      break;
+    }
   }
+  return all;
 }
 
 // ─── Auth ──────────────────────────────────────────────────────────────────────
