@@ -1,11 +1,3 @@
-// CRON JOB CONFIG (add to vercel.json when upgrading to Vercel Pro):
-// {
-//   "crons": [{
-//     "path": "/api/news/fetch",
-//     "schedule": "0 * * * *"
-//   }]
-// }
-
 import { NextRequest, NextResponse } from "next/server";
 import { clerkClient } from "@clerk/nextjs/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
@@ -13,270 +5,188 @@ import { classifyNews } from "@/lib/newsClassifier";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { resend } from "@/lib/resend";
 
-// Required Supabase schema:
-//
-//   CREATE TABLE news (
-//     id             BIGSERIAL PRIMARY KEY,
-//     ticker         TEXT NOT NULL,
-//     headline       TEXT NOT NULL,
-//     summary        TEXT,
-//     url            TEXT UNIQUE,
-//     source         TEXT,
-//     published_at   TIMESTAMPTZ NOT NULL,
-//     notification_type TEXT NOT NULL,
-//     created_at     TIMESTAMPTZ DEFAULT NOW()
-//   );
-//
-//   CREATE TABLE pipeline_config (
-//     id                   INT PRIMARY KEY DEFAULT 1,
-//     news_pipeline_enabled BOOLEAN DEFAULT TRUE,
-//     last_run_at          TIMESTAMPTZ
-//   );
-
-// Manual overrides for tickers where company_name alone is ambiguous or insufficient.
-// All other stocks get terms auto-generated from ticker + company_name at runtime.
-const TICKER_TERM_OVERRIDES: Record<string, string[]> = {
-  ARM:  ["arm holdings", " arm "],          // " arm " spaced to avoid false positives
-  SMCI: ["smci", "super micro", "supermicro"],
-  SLB:  ["slb", "schlumberger"],            // keeps legacy name
-  FANG: ["fang", "diamondback"],            // ticker collides with FAANG acronym
-  LLY:  ["lly", "eli lilly", " lilly"],
-  HIMS: ["hims", "hers health"],
-  RXRX: ["rxrx", "recursion pharma", "recursion pharmaceuticals"],
+// ─── Sector ETF map ────────────────────────────────────────────────────────────
+const SECTOR_TO_ETF: Record<string, string> = {
+  "Information Technology": "XLK", Technology: "XLK",
+  Energy: "XLE",
+  Healthcare: "XLV",
+  Financials: "XLF", Finance: "XLF", "Financial Services": "XLF",
+  "Consumer Staples": "XLP",
+  "Consumer Discretionary": "XLY",
+  Industrials: "XLI",
+  "Communication Services": "XLC",
+  Materials: "XLB",
+  "Real Estate": "XLRE",
+  Utilities: "XLU",
 };
 
-// Built dynamically in the GET handler from admin_nodes (ticker + company_name).
-type TermsMap = Record<string, string[]>;
-
-function buildIsRelevant(terms: TermsMap) {
-  return function isRelevant(ticker: string, headline: string, summary: string): boolean {
-    const t = terms[ticker];
-    if (!t?.length) return true; // no terms → don't filter
-    const hl = headline.toLowerCase();
-    const sm = summary.slice(0, 100).toLowerCase();
-    return t.some((kw) => hl.includes(kw) || sm.includes(kw));
-  };
+// ─── Polygon news ──────────────────────────────────────────────────────────────
+interface PolygonArticle {
+  id: string;
+  title: string;
+  description: string | null;
+  article_url: string;
+  published_utc: string;
+  tickers: string[];
+  publisher: { name: string };
+  amp_url?: string;
 }
 
-interface FinnhubArticle {
-  id: number;
-  headline: string;
-  summary: string;
-  source: string;
-  url: string;
-  datetime: number; // Unix seconds
-  related: string;
+async function fetchPolygonNews(
+  from: string,
+  to: string,
+  apiKey: string,
+): Promise<PolygonArticle[]> {
+  // Fetch up to 1000 articles (Polygon max per request) within the date window.
+  // Polygon's general news feed already includes ticker associations — no per-ticker
+  // calls needed, which avoids rate limit issues entirely.
+  const url =
+    `https://api.polygon.io/v2/reference/news` +
+    `?published_utc.gte=${from}&published_utc.lte=${to}` +
+    `&order=desc&sort=published_utc&limit=1000&apiKey=${apiKey}`;
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) return [];
+    const json = await res.json();
+    return (json.results ?? []) as PolygonArticle[];
+  } catch {
+    return [];
+  }
 }
 
-function fmt(d: Date): string {
-  return d.toISOString().split("T")[0];
-}
-
-// Returns the ratio of shared words to the larger word count of either headline.
-// Used to catch near-duplicate articles with slightly different URLs.
-function wordOverlapRatio(a: string, b: string): number {
-  const words = (s: string) =>
-    new Set(s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean));
-  const wa = words(a);
-  const wb = words(b);
-  const shared = Array.from(wa).filter((w) => wb.has(w)).length;
-  return shared / Math.max(wa.size, wb.size, 1);
-}
-
+// ─── Auth ──────────────────────────────────────────────────────────────────────
 function isAuthorized(req: NextRequest): boolean {
-  const pipelineSecret  = process.env.PIPELINE_SECRET;
-  const cronSecret      = process.env.VERCEL_CRON_SECRET;
-  const customHeader    = req.headers.get("x-pipeline-secret");
-  const authHeader      = req.headers.get("authorization");
-
+  const pipelineSecret = process.env.PIPELINE_SECRET;
+  const cronSecret     = process.env.VERCEL_CRON_SECRET;
+  const customHeader   = req.headers.get("x-pipeline-secret");
+  const authHeader     = req.headers.get("authorization");
   if (pipelineSecret && customHeader === pipelineSecret) return true;
   if (cronSecret && authHeader === `Bearer ${cronSecret}`) return true;
   return false;
 }
 
-async function fetchTicker(
-  ticker: string,
-  from: string,
-  to: string,
-  apiKey: string,
-): Promise<FinnhubArticle[]> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10_000); // 10s per ticker
-  try {
-    const url =
-      `https://finnhub.io/api/v1/company-news?symbol=${ticker}` +
-      `&from=${from}&to=${to}&token=${apiKey}`;
-    const res = await fetch(url, { signal: controller.signal });
-    if (!res.ok) return [];
-    const json = await res.json();
-    return Array.isArray(json) ? json : [];
-  } catch {
-    return [];
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
+// ─── Handler ───────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Rate limit: pipeline is heavy — max 1 trigger per minute globally
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "pipeline";
   if (!checkRateLimit(`pipeline:${ip}`, 1, 60 * 1000)) {
     return NextResponse.json({ error: "Pipeline triggered too recently — wait 1 minute" }, { status: 429 });
   }
 
-  const finnhubKey = process.env.FINNHUB_API_KEY;
-  if (!finnhubKey) {
-    return NextResponse.json({ error: "FINNHUB_API_KEY not set" }, { status: 500 });
-  }
+  const polygonKey = process.env.POLYGON_API_KEY;
+  if (!polygonKey) return NextResponse.json({ error: "POLYGON_API_KEY not set" }, { status: 500 });
 
-  // Check pipeline kill-switch
+  // Check kill-switch
   try {
     const { data: config } = await supabase
-      .from("pipeline_config")
-      .select("news_pipeline_enabled")
-      .eq("id", 1)
-      .single();
-
-    if (config && config.news_pipeline_enabled === false) {
+      .from("pipeline_config").select("news_pipeline_enabled").eq("id", 1).single();
+    if (config?.news_pipeline_enabled === false)
       return NextResponse.json({ message: "Pipeline disabled" });
-    }
-  } catch {
-    // Table may not exist yet — proceed anyway
-  }
+  } catch { /* table may not exist yet */ }
 
-  const now = new Date();
-  const cutoffMs   = now.getTime() - 48 * 60 * 60 * 1000;
-  const today      = fmt(now);
-  const twoDaysAgo = fmt(new Date(cutoffMs));
+  const now         = new Date();
+  const cutoffMs    = now.getTime() - 48 * 60 * 60 * 1000;
+  const from        = new Date(cutoffMs).toISOString();
+  const to          = now.toISOString();
 
-  // Fetch tickers + company names from admin_nodes.
-  // company_name drives auto-generated relevance terms so newly added stocks
-  // get noise-filtered news without any code change.
+  // Load all graph stocks with sector info
   const { data: stockRows } = await supabase
     .from("admin_nodes")
-    .select("ticker, company_name")
+    .select("ticker, company_name, sector")
     .eq("node_type", "stock")
-    .order("ticker");
+    .limit(50000);
 
-  const graphTickers: string[] = stockRows?.map((r: { ticker: string }) => r.ticker) ?? [];
-
-  // Build relevance term map: manual overrides win; everything else gets
-  // [ticker.toLowerCase(), company_name.toLowerCase()] auto-derived.
-  const termsMap: TermsMap = {};
+  const graphTickerSet = new Set<string>((stockRows ?? []).map((r) => r.ticker as string));
+  const sectorOf = new Map<string, string>(); // ticker → sector string
   for (const row of stockRows ?? []) {
-    const t = row.ticker as string;
-    if (TICKER_TERM_OVERRIDES[t]) {
-      termsMap[t] = TICKER_TERM_OVERRIDES[t];
-    } else {
-      const derived: string[] = [t.toLowerCase()];
-      if (row.company_name) derived.push((row.company_name as string).toLowerCase());
-      termsMap[t] = derived;
-    }
+    if (row.ticker && row.sector) sectorOf.set(row.ticker as string, row.sector as string);
   }
-  const isRelevant = buildIsRelevant(termsMap);
 
-  if (graphTickers.length === 0) {
+  if (graphTickerSet.size === 0) {
     await supabase.from("pipeline_config").upsert({ id: 1, last_run_at: now.toISOString() });
     return NextResponse.json({ processed: 0, inserted: 0, skipped: 0, errors: [] });
   }
 
-  // Note: Finnhub free tier returns predominantly Yahoo Finance sourced articles.
-  // This is a known free tier limitation — paid plans unlock Reuters, Bloomberg, etc.
+  // Fetch news from Polygon (single request, no per-ticker loops)
+  const articles = await fetchPolygonNews(from, to, polygonKey);
 
-  // Fetch tickers in batches to avoid Finnhub free-tier rate limiting.
-  // Parallel bursts cause silent 429s; batches of 5 with a short delay stay
-  // within the rate limit.
-  const BATCH_SIZE = 5;
-  const BATCH_DELAY_MS = 700;
-  const fetched: Array<PromiseFulfilledResult<{ ticker: string; articles: FinnhubArticle[] }>> = [];
-
-  for (let i = 0; i < graphTickers.length; i += BATCH_SIZE) {
-    if (i > 0) await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
-    const batch = graphTickers.slice(i, i + BATCH_SIZE);
-    const results = await Promise.allSettled(
-      batch.map(async (ticker) => ({ ticker, articles: await fetchTicker(ticker, twoDaysAgo, today, finnhubKey) })),
-    );
-    for (const r of results) {
-      if (r.status === "fulfilled") fetched.push(r);
-    }
-  }
-
-  // Flatten articles — deduplicate by URL and by headline similarity across ALL tickers.
-  // The same story is often fetched for multiple tickers (e.g. NVDA + AMD for an AI article).
-  interface Article {
-    ticker: string; headline: string; summary: string; source: string; url: string;
-    published_at: string; notification_type: string;
+  // Build rows to insert
+  interface InsertRow {
+    ticker: string; headline: string; summary: string; url: string;
+    source: string; published_at: string; notification_type: string;
     generates_notification: boolean; is_sector_news: boolean; sector_id: string | null;
   }
-  const allArticles: Article[] = [];
-  const seenUrls = new Set<string>();
-  // All headlines seen in this batch regardless of ticker — prevents cross-ticker duplicates
-  const batchHeadlines: string[] = [];
+  const candidates: InsertRow[] = [];
+  const seenKeys = new Set<string>(); // url#ticker to deduplicate within this batch
 
-  for (const r of fetched) {
-    const { ticker, articles } = r.value;
-    for (const a of articles) {
-      if (!a.url || seenUrls.has(a.url)) continue;
-      if (a.datetime * 1000 < cutoffMs) continue;
-      const headline = a.headline ?? "";
-      // Relevance filter — skip Finnhub free-tier noise articles unrelated to this ticker
-      if (!isRelevant(ticker, headline, a.summary ?? "")) continue;
-      // Cross-ticker similarity check within the current batch
-      if (batchHeadlines.some((h) => wordOverlapRatio(h, headline) > 0.8)) continue;
-      seenUrls.add(a.url);
-      batchHeadlines.push(headline);
-      const cls = classifyNews(headline, a.summary ?? "", ticker);
-      allArticles.push({
-        ticker,
-        headline,
-        summary:                a.summary  ?? "",
-        source:                 a.source   ?? "",
-        url:                    a.url,
-        published_at:           new Date(a.datetime * 1000).toISOString(),
-        notification_type:      cls.type,
-        generates_notification: cls.generatesNotification,
-        is_sector_news:         cls.isSectorNews,
-        sector_id:              cls.sectorId,
+  for (const article of articles) {
+    if (!article.article_url) continue;
+    if (new Date(article.published_utc).getTime() < cutoffMs) continue;
+
+    // Find which graph tickers are mentioned in this article
+    const graphTickers = (article.tickers ?? []).filter((t) => graphTickerSet.has(t));
+    if (graphTickers.length === 0) continue;
+
+    const headline    = article.title ?? "";
+    const summary     = article.description ?? "";
+    const source      = article.publisher?.name ?? "";
+    const publishedAt = article.published_utc;
+
+    // Determine the scope of this article
+    const affectedSectors = new Set(
+      graphTickers.map((t) => sectorOf.get(t)).filter(Boolean) as string[]
+    );
+    const isMacro = graphTickers.length >= 5 && affectedSectors.size >= 3;
+
+    if (isMacro) {
+      // Macro/market-wide news — insert once as MARKET ticker
+      const key = `${article.article_url}#MARKET`;
+      if (seenKeys.has(key)) continue;
+      seenKeys.add(key);
+      const cls = classifyNews(headline, summary, "MARKET");
+      candidates.push({
+        ticker: "MARKET", headline, summary, source,
+        url: article.article_url,
+        published_at: publishedAt,
+        notification_type: cls.type,
+        generates_notification: false,
+        is_sector_news: true,
+        sector_id: null,
       });
+    } else {
+      // Stock-specific — insert one row per relevant ticker (up to 3)
+      const targetTickers = graphTickers.slice(0, 3);
+      for (const ticker of targetTickers) {
+        // Use url#ticker so the same article can appear for multiple stocks
+        const key = `${article.article_url}#${ticker}`;
+        if (seenKeys.has(key)) continue;
+        seenKeys.add(key);
+        const cls = classifyNews(headline, summary, ticker);
+        // Single-sector articles with 3+ stocks get sector classification
+        const isSectorWide = affectedSectors.size === 1 && graphTickers.length >= 3;
+        const etf = isSectorWide ? (SECTOR_TO_ETF[Array.from(affectedSectors)[0]] ?? null) : null;
+        candidates.push({
+          ticker, headline, summary, source,
+          url: `${article.article_url}#${ticker}`,
+          published_at: publishedAt,
+          notification_type: cls.type,
+          generates_notification: cls.generatesNotification && !isSectorWide,
+          is_sector_news: isSectorWide,
+          sector_id: etf,
+        });
+      }
     }
   }
 
-  if (allArticles.length === 0) {
-    await supabase.from("pipeline_config").upsert({ id: 1, last_run_at: now.toISOString() });
-    return NextResponse.json({ processed: 0, inserted: 0, skipped: 0, errors: [] });
-  }
-
-  // Batch-check existing URLs to avoid duplicates
-  const urls = allArticles.map((a) => a.url);
-  const { data: existing } = await supabase
-    .from("news")
-    .select("url")
-    .in("url", urls);
-
+  // Filter out URLs already in DB
+  const allUrls = candidates.map((c) => c.url);
+  const { data: existing } = await supabase.from("news").select("url").in("url", allUrls);
   const existingSet = new Set((existing ?? []).map((r: { url: string }) => r.url));
-  let urlFiltered = allArticles.filter((a) => !existingSet.has(a.url));
+  const toInsert = candidates.filter((c) => !existingSet.has(c.url));
 
-  // Secondary dedup: fetch ALL headlines stored in the past 48 h (any ticker).
-  // Catches the common case where the same article was already inserted for a
-  // different ticker in a previous pipeline run.
-  if (urlFiltered.length > 0) {
-    const { data: recentRows } = await supabase
-      .from("news")
-      .select("headline")
-      .gte("published_at", new Date(cutoffMs).toISOString());
-
-    const dbHeadlines: string[] = (recentRows ?? []).map((r) => r.headline as string);
-
-    urlFiltered = urlFiltered.filter((a) =>
-      !dbHeadlines.some((h) => wordOverlapRatio(h, a.headline) > 0.8)
-    );
-  }
-
-  const toInsert = urlFiltered;
   const errors: string[] = [];
   let inserted = 0;
 
@@ -287,18 +197,15 @@ export async function GET(req: NextRequest) {
     } else {
       inserted = toInsert.length;
 
-      // For any inserted article that is a significant single-stock event,
-      // clear that ticker's cached analysis so it regenerates on next visit.
+      // Notifications for significant single-stock events
       const significantTickers = Array.from(new Set(
         toInsert
-          .filter((a) => a.generates_notification && !a.is_sector_news)
+          .filter((a) => a.generates_notification && !a.is_sector_news && a.ticker !== "MARKET")
           .map((a) => a.ticker),
       ));
       if (significantTickers.length > 0) {
-        // Clear cached analysis — fire and forget
         void supabase.from("company_analysis").delete().in("ticker", significantTickers);
 
-        // Notify users tracking a thesis for any of these tickers
         const { data: trackers } = await supabase
           .from("thesis_tracking")
           .select("clerk_user_id, ticker, scenario")
@@ -308,7 +215,9 @@ export async function GET(req: NextRequest) {
           const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://vauric.io";
           const clerk = await clerkClient();
           for (const t of trackers as Array<{ clerk_user_id: string; ticker: string; scenario: string }>) {
-            const headline = toInsert.find(a => a.ticker === t.ticker && a.generates_notification)?.headline ?? "";
+            const headline = toInsert.find(
+              (a) => a.ticker === t.ticker && a.generates_notification
+            )?.headline ?? "";
             try {
               const clerkUser = await clerk.users.getUser(t.clerk_user_id);
               const email = clerkUser.emailAddresses[0]?.emailAddress;
@@ -344,9 +253,10 @@ export async function GET(req: NextRequest) {
   await supabase.from("pipeline_config").upsert({ id: 1, last_run_at: now.toISOString() });
 
   return NextResponse.json({
-    processed: allArticles.length,
+    processed: candidates.length,
     inserted,
-    skipped:   allArticles.length - toInsert.length,
+    skipped: candidates.length - toInsert.length,
+    articlesFromPolygon: articles.length,
     errors,
   });
 }

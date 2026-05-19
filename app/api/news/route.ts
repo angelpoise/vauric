@@ -135,10 +135,11 @@ export async function GET(req: NextRequest) {
 
   // Sector-level news for sector node notification dots.
   // Returns articles flagged is_sector_news=true from the past 24 h.
+  // MARKET articles (macro news) are excluded from sector dots to avoid all 11 lighting up.
   if (sectorNews) {
     const cutoff24h = Date.now() - 24 * 60 * 60 * 1000;
     const sectorRows = rows.filter(
-      (r) => r.is_sector_news && r.sector_id && new Date(r.published_at).getTime() > cutoff24h
+      (r) => r.is_sector_news && r.sector_id && r.ticker !== "MARKET" && new Date(r.published_at).getTime() > cutoff24h
     );
     return NextResponse.json(
       sectorRows.map((r) => ({
