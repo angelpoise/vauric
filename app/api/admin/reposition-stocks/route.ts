@@ -110,10 +110,12 @@ export async function POST(req: NextRequest) {
       let peerOverlap = 0;
       peers.forEach((peer) => { if (clusterStocks.has(peer)) peerOverlap++; });
 
-      // Weighted score: peer overlap dominates, specificity breaks ties, cluster size as final tiebreak
+      // Specificity is primary (subsubsector always beats subsector regardless of peer counts),
+      // peer overlap breaks ties within the same specificity tier,
+      // cluster size is the final tiebreak.
       const score =
-        peerOverlap * 10_000 +
-        (SPECIFICITY[candidate.node_type] ?? 0) * 100 +
+        (SPECIFICITY[candidate.node_type] ?? 0) * 1_000_000 +
+        peerOverlap * 1_000 +
         clusterStocks.size;
 
       if (score > bestScore) {
