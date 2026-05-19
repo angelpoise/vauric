@@ -315,7 +315,7 @@ export default function ConnectionsPage() {
   const [reviewTicker, setReviewTicker]   = useState("");
   const [reviewConns, setReviewConns]     = useState<{ id: string; tier: number; other: string; otherType: string; reason: string | null }[] | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
-  const [tableExpanded, setTableExpanded] = useState(true);
+  const [tableExpanded, setTableExpanded] = useState(false);
 
   // Review queue state (feeds tickers into the suggestion panel one by one)
   const [reviewQueue, setReviewQueue]         = useState<string[]>([]);
