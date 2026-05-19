@@ -1013,24 +1013,29 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         const cv = connectionViewRef.current;
         const { modes, focusTickers, focusSectors } = cv;
 
-        // Ticker focus: only show edges where at least one endpoint is a focus ticker
-        if (focusTickers.length > 0) {
-          if (!focusTickers.includes(edge.source) && !focusTickers.includes(edge.target)) return false;
-        }
+        // Ticker + sector focus: combined with OR so both can be active simultaneously.
+        // If either filter is set, the edge must satisfy at least one of them.
+        const hasTickerFocus = focusTickers.length > 0;
+        const hasSectorFocus = focusSectors.length > 0;
+        if (hasTickerFocus || hasSectorFocus) {
+          const matchesTicker = hasTickerFocus &&
+            (focusTickers.includes(edge.source) || focusTickers.includes(edge.target));
 
-        // Sector focus: only show edges where at least one endpoint belongs to a focus sector
-        if (focusSectors.length > 0) {
-          const sectorOf = (id: string): string | null => {
-            const n = gd.nodeById.get(id);
-            if (!n) return null;
-            if (n.kind === "stock")                                     return (n as { sectorId?: string }).sectorId ?? null;
-            if (n.kind === "sector")                                    return (n as { etf?: string }).etf ?? null;
-            if (n.kind === "subsector" || n.kind === "subsubsector")    return (n as { sectorEtf?: string }).sectorEtf ?? null;
-            return null;
-          };
-          const srcSector = sectorOf(edge.source);
-          const tgtSector = sectorOf(edge.target);
-          if (!focusSectors.includes(srcSector ?? "") && !focusSectors.includes(tgtSector ?? "")) return false;
+          const matchesSector = hasSectorFocus && (() => {
+            const sectorOf = (id: string): string | null => {
+              const n = gd.nodeById.get(id);
+              if (!n) return null;
+              if (n.kind === "stock")                                   return (n as { sectorId?: string }).sectorId ?? null;
+              if (n.kind === "sector")                                  return (n as { etf?: string }).etf ?? null;
+              if (n.kind === "subsector" || n.kind === "subsubsector")  return (n as { sectorEtf?: string }).sectorEtf ?? null;
+              return null;
+            };
+            const srcSector = sectorOf(edge.source);
+            const tgtSector = sectorOf(edge.target);
+            return focusSectors.includes(srcSector ?? "") || focusSectors.includes(tgtSector ?? "");
+          })();
+
+          if (!matchesTicker && !matchesSector) return false;
         }
 
         if (modes.length === 0) return false;
