@@ -189,9 +189,24 @@ export async function GET(req: NextRequest) {
     if (type === "sector") fallbackToSector.push(ticker);
   });
 
-  // Largest clusters
+  // Build cluster list from ALL hierarchy nodes (not just those with stocks)
+  // so nodes with zero assigned stocks are visible too.
+  const clusterMap = new Map<string, number>();
+  for (const n of allNodes) {
+    if (n.node_type === "subsector" || n.node_type === "subsubsector") {
+      const key = n.company_name ?? n.id;
+      if (!clusterMap.has(key)) clusterMap.set(key, 0);
+    }
+  }
+  // Fill in actual counts from the assignment results
+  stockTarget.forEach((target) => {
+    if (target.node_type === "subsector" || target.node_type === "subsubsector") {
+      const key = target.company_name ?? target.id;
+      clusterMap.set(key, (clusterMap.get(key) ?? 0) + 1);
+    }
+  });
   const clusters: { name: string; count: number }[] = [];
-  hierToStocks.forEach((stocks, name) => clusters.push({ name, count: stocks.size }));
+  clusterMap.forEach((count, name) => clusters.push({ name, count }));
   clusters.sort((a, b) => b.count - a.count);
 
   // Sample unresolved (first 20)
