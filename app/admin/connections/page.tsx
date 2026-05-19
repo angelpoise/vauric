@@ -307,6 +307,7 @@ export default function ConnectionsPage() {
   // Stale analysis state
   const [staleData, setStaleData]             = useState<{ never: string[]; stale: string[]; current: number; total: number } | null>(null);
   const [staleLoading, setStaleLoading]       = useState(false);
+  const [backfilling, setBackfilling]         = useState(false);
 
   // Bulk AI connections state
   const [bulkConnText, setBulkConnText]       = useState("");
@@ -674,14 +675,29 @@ export default function ConnectionsPage() {
       <div style={{ ...CARD, marginBottom: 28 }}>
         <div style={{ fontSize: 12, color: "#475569", fontWeight: 500, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 12 }}>Connection freshness</div>
         {!staleData ? (
-          <button style={{ ...BTN }} onClick={async () => {
-            setStaleLoading(true);
-            const r = await adminFetch("/api/admin/stale-connections");
-            if (r.ok) setStaleData(await r.json());
-            setStaleLoading(false);
-          }} disabled={staleLoading}>
-            {staleLoading ? "Checking…" : "Check freshness"}
-          </button>
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <button style={{ ...BTN }} onClick={async () => {
+              setStaleLoading(true);
+              const r = await adminFetch("/api/admin/stale-connections");
+              if (r.ok) setStaleData(await r.json());
+              setStaleLoading(false);
+            }} disabled={staleLoading}>
+              {staleLoading ? "Checking…" : "Check freshness"}
+            </button>
+            <button style={{ ...BTN, background: "rgba(100,116,139,0.1)", color: "#64748b", border: "1px solid rgba(100,116,139,0.25)" }}
+              onClick={async () => {
+                setBackfilling(true);
+                const r = await adminFetch("/api/admin/backfill-analyzed-timestamps", { method: "POST" });
+                const d = await r.json();
+                if (r.ok) {
+                  alert(`Backfilled ${d.backfilled} stocks (${d.neverAnalyzed} still have no connections)`);
+                }
+                setBackfilling(false);
+              }} disabled={backfilling}>
+              {backfilling ? "Backfilling…" : "Backfill timestamps"}
+            </button>
+            <span style={{ fontSize: 11, color: "#475569" }}>Run backfill once to mark existing stocks — then use Check freshness</span>
+          </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", gap: 24 }}>
