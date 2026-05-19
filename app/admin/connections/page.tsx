@@ -316,6 +316,8 @@ export default function ConnectionsPage() {
   const [reviewConns, setReviewConns]     = useState<{ id: string; tier: number; other: string; otherType: string; reason: string | null }[] | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [tableExpanded, setTableExpanded] = useState(false);
+  const [fixingTiers, setFixingTiers]     = useState(false);
+  const [fixTiersResult, setFixTiersResult] = useState<string | null>(null);
 
   // Review queue state (feeds tickers into the suggestion panel one by one)
   const [reviewQueue, setReviewQueue]         = useState<string[]>([]);
@@ -591,7 +593,25 @@ export default function ConnectionsPage() {
 
   return (
     <div>
-      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 24 }}>Connections</h1>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Connections</h1>
+        <button
+          style={{ ...BTN, background: "rgba(99,102,241,0.1)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.25)" }}
+          onClick={async () => {
+            setFixingTiers(true); setFixTiersResult(null);
+            const r = await adminFetch("/api/admin/fix-connection-tiers", { method: "POST" });
+            const d = await r.json();
+            setFixTiersResult(r.ok
+              ? `Fixed ${d.fixedToExposure} → Exposure, ${d.fixedToPeer} → Peer (of ${d.total} total)`
+              : d.error);
+            setFixingTiers(false); load();
+          }}
+          disabled={fixingTiers}
+        >
+          {fixingTiers ? "Sweeping…" : "Fix tier classifications"}
+        </button>
+        {fixTiersResult && <span style={{ fontSize: 12, color: "#64748b" }}>{fixTiersResult}</span>}
+      </div>
 
       {/* Add form */}
       <div style={{ ...CARD, marginBottom: 28 }}>
