@@ -58,8 +58,37 @@ export default function UpgradeButton({
 
       console.log("[UpgradeButton] response — status:", res.status, "data:", data);
 
-      if (!res.ok || !data.url) {
+      if (!res.ok) {
         setError(data.error as string ?? "Something went wrong. Please try again.");
+        return;
+      }
+
+      // Portal found no active subscription — stale isPro cleared, go to checkout
+      if (data.resubscribe) {
+        const checkoutRes = await fetch("/api/stripe/checkout", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            userId: user!.id,
+            userEmail: user!.primaryEmailAddress?.emailAddress ?? "",
+            couponCode,
+          }),
+        });
+        let checkoutData: Record<string, unknown> = {};
+        try { checkoutData = await checkoutRes.json(); } catch { /* empty */ }
+        if (!checkoutRes.ok || !checkoutData.url) {
+          setError(checkoutData.error as string ?? "Something went wrong. Please try again.");
+          return;
+        }
+        window.location.href = checkoutData.url as string;
+        return;
+      }
+
+      if (!data.url) {
+        setError("Something went wrong. Please try again.");
         return;
       }
 

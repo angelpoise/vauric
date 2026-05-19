@@ -24,6 +24,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No billing account found" }, { status: 400 });
   }
 
+  // Check if customer has an active subscription. If not, clear the stale isPro flag
+  // and tell the client to go through checkout (resubscribe) instead.
+  try {
+    const subs = await stripe.subscriptions.list({
+      customer: stripeCustomerId,
+      status: "active",
+      limit: 1,
+    });
+    if (subs.data.length === 0) {
+      const client = await clerkClient();
+      await client.users.updateUserMetadata(tokenUserId, {
+        publicMetadata: { isPro: false, stripeCustomerId },
+      });
+      return NextResponse.json({ resubscribe: true }, { status: 200 });
+    }
+  } catch { /* proceed to portal anyway */ }
+
   const portalSession = await stripe.billingPortal.sessions.create({
     customer:   stripeCustomerId,
     return_url: "https://vauric.io/graph",

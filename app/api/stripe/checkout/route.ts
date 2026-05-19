@@ -31,17 +31,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "userId and userEmail are required" }, { status: 400 });
   }
 
-  // Confirm the token belongs to the user initiating checkout
   if (tokenUserId !== userId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+
+  // Reuse existing Stripe customer if the user has one — prevents duplicate customers
+  // when re-subscribing after cancellation.
+  let existingCustomerId: string | undefined;
+  try {
+    const { clerkClient } = await import("@clerk/nextjs/server");
+    const clerk = await clerkClient();
+    const user = await clerk.users.getUser(userId);
+    existingCustomerId = user.publicMetadata?.stripeCustomerId as string | undefined;
+  } catch { /* proceed without existing customer */ }
 
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     line_items: [{ price: process.env.STRIPE_PRO_PRICE_ID!, quantity: 1 }],
     success_url: "https://vauric.io/graph?upgraded=true",
     cancel_url:  "https://vauric.io/graph",
-    customer_email: userEmail,
+    ...(existingCustomerId
+      ? { customer: existingCustomerId }
+      : { customer_email: userEmail }),
     ...(couponCode ? { discounts: [{ coupon: couponCode }] } : {}),
     metadata: { userId },
   });
