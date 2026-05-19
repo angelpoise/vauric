@@ -8,11 +8,18 @@ import { discoverIR } from "@/lib/discoverIR";
 export async function GET(req: NextRequest) {
   if (!await isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const typeFilter = req.nextUrl.searchParams.get("node_type");
-  let query = supabaseAdmin.from("admin_nodes").select("*").order("node_type").order("company_name").limit(5000);
-  if (typeFilter) query = query.eq("node_type", typeFilter);
-  const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+
+  const PAGE = 1000;
+  const pages = await Promise.all(
+    Array.from({ length: 20 }, (_, i) => {
+      let q = supabaseAdmin.from("admin_nodes").select("*").order("node_type").order("company_name");
+      if (typeFilter) q = q.eq("node_type", typeFilter);
+      return q.range(i * PAGE, (i + 1) * PAGE - 1);
+    })
+  );
+  const fetchError = pages.find((p) => p.error)?.error ?? null;
+  if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 500 });
+  return NextResponse.json(pages.flatMap((p) => p.data ?? []));
 }
 
 export async function POST(req: NextRequest) {

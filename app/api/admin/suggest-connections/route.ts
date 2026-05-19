@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 import Anthropic from "@anthropic-ai/sdk";
 
 interface DBNode {
@@ -29,11 +29,22 @@ export async function POST(req: NextRequest) {
       .eq("node_type", "stock")
       .eq("ticker", ticker)
       .single(),
-    supabase
-      .from("admin_nodes")
-      .select("node_type, ticker, company_name, display_name, etf_ticker")
-      .order("node_type")
-      .limit(10000),
+    // Paginate nodes to stay under Supabase max_rows cap
+    (async () => {
+      const PAGE = 1000;
+      const pages = await Promise.all(
+        Array.from({ length: 20 }, (_, i) =>
+          supabase
+            .from("admin_nodes")
+            .select("node_type, ticker, company_name, display_name, etf_ticker")
+            .order("node_type")
+            .range(i * PAGE, (i + 1) * PAGE - 1)
+        )
+      );
+      const error = pages.find(p => p.error)?.error ?? null;
+      const data  = error ? null : pages.flatMap(p => p.data ?? []);
+      return { data, error };
+    })(),
     supabase
       .from("admin_connections")
       .select("ticker_a, ticker_b")
