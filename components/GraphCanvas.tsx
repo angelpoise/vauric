@@ -186,12 +186,14 @@ export interface ConnectionView {
   modes: ConnectionMode[];       // which tier/type to show (multi-select)
   focusTickers: string[];        // if non-empty, only show edges touching these tickers
   focusSectors: string[];        // ETF codes — show connections relevant to these sectors
+  relevantOnly: boolean;         // hide stock nodes that have no visible edge
 }
 
 export const DEFAULT_CONNECTION_VIEW: ConnectionView = {
   modes: ["structural"],
   focusTickers: [],
   focusSectors: [],
+  relevantOnly: false,
 };
 
 // ─── Graph data assembly ──────────────────────────────────────────────────────
@@ -1002,7 +1004,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
 
       const animating = targetCameraRef.current !== null || draggingNodeRef.current !== null;
       const cv = connectionViewRef.current;
-      const drawKey = `${cam.x.toFixed(1)},${cam.y.toFixed(1)},${cam.scale.toFixed(3)},${hid ?? ""},${cv.modes.join(",")},${cv.focusTickers.join(",")},${cv.focusSectors.join(",")},${animating},${adminViewRef.current},${liveDataReadyRef.current}`;
+      const drawKey = `${cam.x.toFixed(1)},${cam.y.toFixed(1)},${cam.scale.toFixed(3)},${hid ?? ""},${cv.modes.join(",")},${cv.focusTickers.join(",")},${cv.focusSectors.join(",")},${cv.relevantOnly},${animating},${adminViewRef.current},${liveDataReadyRef.current}`;
       if (drawKey === lastDrawKey && !animating) {
         raf = requestAnimationFrame(draw);
         return;
@@ -1103,6 +1105,18 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         return r;
       };
 
+      // Pre-compute which stock node IDs have at least one visible edge (relevantOnly mode)
+      let relevantNodeIds: Set<string> | null = null;
+      if (cv.relevantOnly) {
+        relevantNodeIds = new Set<string>();
+        for (const edge of gd.edges) {
+          if (shouldDrawEdge(edge)) {
+            relevantNodeIds.add(edge.source);
+            relevantNodeIds.add(edge.target);
+          }
+        }
+      }
+
       // Edges — individual strokes preserve intersection accumulation (spiderweb effect)
       for (const edge of gd.edges) {
         if (!shouldDrawEdge(edge)) continue;
@@ -1146,6 +1160,9 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
 
       // Nodes
       for (const node of gd.nodes) {
+        // relevantOnly: skip stock nodes with no visible edges
+        if (relevantNodeIds && node.kind === "stock" && !relevantNodeIds.has(node.id)) continue;
+
         const lodA = nodeLodAlpha(node, lodScale);
         if (lodA === 0) continue;
 

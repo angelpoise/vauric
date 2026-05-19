@@ -238,6 +238,22 @@ export default function GraphEditOverlay({
             >
               All stocks
             </button>
+            {/* Linked — hide stock nodes with no visible edge under current settings */}
+            <button
+              title="Only show stock nodes that have at least one visible connection"
+              onClick={() => onConnectionViewChange({ ...connectionView, relevantOnly: !connectionView.relevantOnly })}
+              style={{
+                background:   connectionView.relevantOnly ? "rgba(59,130,246,0.18)" : "transparent",
+                border:       connectionView.relevantOnly ? "1px solid rgba(59,130,246,0.38)" : "1px solid transparent",
+                borderRadius: 5, color: connectionView.relevantOnly ? "#3b82f6" : "#475569",
+                fontSize: 10, fontWeight: connectionView.relevantOnly ? 600 : 400,
+                padding: "3px 9px", cursor: "pointer",
+                fontFamily: "inherit", letterSpacing: "0.02em",
+                transition: "all 0.12s",
+              }}
+            >
+              Linked
+            </button>
           </div>
 
           {/* Sector filter dropdown */}
