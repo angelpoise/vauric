@@ -1328,10 +1328,6 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       c.textBaseline = "middle";
       c.fillText(node.ticker, 0, 0);
 
-      c.fillStyle    = "rgba(241,245,249,0.45)";
-      c.font         = `300 9px "DM Sans", sans-serif`;
-      c.textBaseline = "top";
-      c.fillText(node.ticker, 0, r + 5);
     }
 
     // ── Event handlers ───────────────────────────────────────────────────────
@@ -1342,9 +1338,9 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
           : (node.kind === "subsector" || node.kind === "subsubsector") ? (node.etf ?? node.sectorEtf)
           : node.id;
         const live = liveDataRef.current[liveKey];
-        // Only merge live price/move when the node has its own ETF (or is a sector).
-        // Nodes with no ETF should not inherit the parent sector's price/move.
-        const hasOwnEtf = node.kind === "sector" ||
+        // Merge live price/move for stocks and for hierarchy nodes with their own ETF.
+        // Hierarchy nodes without an ETF must not inherit the parent sector's price/move.
+        const hasPriceData = node.kind === "stock" || node.kind === "sector" ||
           ((node.kind === "subsector" || node.kind === "subsubsector") && !!node.etf);
         const liveNotifs = node.kind === "stock"
           ? (notificationsRef.current[node.ticker] ?? node.notifications)
@@ -1353,7 +1349,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
             : node.notifications;
         const merged: GNode = {
           ...node,
-          ...(live && hasOwnEtf ? { price: live.price, dailyMove: live.dailyMove } : {}),
+          ...(live && hasPriceData ? { price: live.price, dailyMove: live.dailyMove } : {}),
           notifications: liveNotifs,
         };
         setHoverNode(merged);
