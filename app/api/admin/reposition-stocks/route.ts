@@ -176,7 +176,7 @@ export async function GET(req: NextRequest) {
   if (t1Res.error) return NextResponse.json({ error: t1Res.error.message }, { status: 500 });
   if (t2Res.error) return NextResponse.json({ error: t2Res.error.message }, { status: 500 });
 
-  const { stockByTick, stockTarget, hierToStocks, unresolvedT1, noT1 } =
+  const { stockByTick, stockTarget, unresolvedT1, noT1 } =
     await buildAssignments(allNodes as AdminNode[], t1Res.data ?? [], t2Res.data ?? []);
 
   // Distribution by node type
