@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 
   const portalSession = await stripe.billingPortal.sessions.create({
     customer:   stripeCustomerId,
-    return_url: "https://vauric.io/graph",
+    return_url: "https://www.vauric.io/graph",
   });
 
   return NextResponse.json({ url: portalSession.url });

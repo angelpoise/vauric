@@ -48,8 +48,8 @@ export async function POST(req: NextRequest) {
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     line_items: [{ price: process.env.STRIPE_PRO_PRICE_ID!, quantity: 1 }],
-    success_url: "https://vauric.io/graph?upgraded=true&session_id={CHECKOUT_SESSION_ID}",
-    cancel_url:  "https://vauric.io/graph",
+    success_url: "https://www.vauric.io/graph?upgraded=true&session_id={CHECKOUT_SESSION_ID}",
+    cancel_url:  "https://www.vauric.io/graph",
     ...(existingCustomerId
       ? { customer: existingCustomerId }
       : { customer_email: userEmail }),
