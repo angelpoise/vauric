@@ -377,6 +377,17 @@ export default function NodesPage() {
   const [junkResult, setJunkResult]       = useState<string | null>(null);
   const [repositioning, setRepositioning] = useState(false);
   const [repositionResult, setRepositionResult] = useState<string | null>(null);
+  const [repoChecking, setRepoChecking]   = useState(false);
+  type RepoCheck = {
+    total: number;
+    distribution: Record<string, number>;
+    unresolvedT1Count: number;
+    unresolvedSample: { ticker: string; hierRef: string }[];
+    fallbackToSector: string[];
+    noT1: string[];
+    topClusters: { name: string; count: number }[];
+  };
+  const [repoCheck, setRepoCheck]         = useState<RepoCheck | null>(null);
 
   async function clearAllOverviews() {
     if (!confirm("Clear cached overviews for all hierarchy nodes? They will regenerate on next page visit.")) return;
@@ -526,7 +537,19 @@ export default function NodesPage() {
         <button
           style={{ ...BTN, background: "rgba(168,85,247,0.1)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.25)" }}
           onClick={async () => {
-            setRepositioning(true); setRepositionResult(null);
+            setRepoChecking(true); setRepoCheck(null);
+            const r = await adminFetch("/api/admin/reposition-stocks");
+            if (r.ok) setRepoCheck(await r.json());
+            setRepoChecking(false);
+          }} disabled={repoChecking}
+        >
+          {repoChecking ? "Checking…" : "Check reposition"}
+        </button>
+        <button
+          style={{ ...BTN, background: "rgba(168,85,247,0.15)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.35)" }}
+          onClick={async () => {
+            if (!confirm("Reposition all stocks? This will overwrite current positions.")) return;
+            setRepositioning(true); setRepositionResult(null); setRepoCheck(null);
             const r = await adminFetch("/api/admin/reposition-stocks", { method: "POST" });
             const d = await r.json();
             setRepositionResult(r.ok ? `Repositioned ${d.repositioned} stocks (${d.withT1}/${d.total} had T1 connections)` : d.error);
@@ -536,6 +559,57 @@ export default function NodesPage() {
           {repositioning ? "Repositioning…" : "Reposition stocks"}
         </button>
         {repositionResult && <span style={{ fontSize: 12, color: "#64748b" }}>{repositionResult}</span>}
+        {repoCheck && (
+          <div style={{
+            position: "fixed", top: 60, right: 20, zIndex: 100, width: 420,
+            background: "#0d1117", border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: 10, padding: 18,
+            fontFamily: '"DM Sans", sans-serif', fontSize: 12,
+            boxShadow: "0 8px 40px rgba(0,0,0,0.7)",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
+              <span style={{ fontWeight: 600, color: "#f1f5f9" }}>Reposition diagnostic — {repoCheck.total} stocks</span>
+              <button onClick={() => setRepoCheck(null)} style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: 16 }}>×</button>
+            </div>
+            {/* Distribution */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 10, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Assignment distribution</div>
+              {Object.entries(repoCheck.distribution).map(([type, count]) => (
+                <div key={type} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                  <span style={{ color: type === "subsubsector" ? "#a855f7" : type === "subsector" ? "#f59e0b" : type === "sector" ? "#10b981" : "#ef4444" }}>
+                    {type === "subsubsector" ? "Industry" : type === "subsector" ? "Sub-sector" : type === "sector" ? "Sector (fallback)" : "No target"}
+                  </span>
+                  <span style={{ color: "#94a3b8", fontWeight: 600 }}>{count}</span>
+                </div>
+              ))}
+            </div>
+            {/* Unresolved T1 */}
+            {repoCheck.unresolvedT1Count > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 10, color: "#ef4444", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
+                  Unresolved T1 refs ({repoCheck.unresolvedT1Count}) — hierRef not found in DB
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                  {repoCheck.unresolvedSample.map((u) => (
+                    <span key={`${u.ticker}-${u.hierRef}`} style={{ fontSize: 10, color: "#64748b", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 4, padding: "1px 6px" }}>
+                      {u.ticker} → <span style={{ fontFamily: "monospace" }}>{u.hierRef.slice(0, 12)}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Top clusters */}
+            <div>
+              <div style={{ fontSize: 10, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Top clusters</div>
+              {repoCheck.topClusters.slice(0, 10).map((c) => (
+                <div key={c.name} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", borderBottom: "1px solid rgba(255,255,255,0.04)", fontSize: 11 }}>
+                  <span style={{ color: "#94a3b8" }}>{c.name}</span>
+                  <span style={{ color: "#64748b" }}>{c.count} stocks</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <button
           style={{ ...BTN, background: "rgba(59,130,246,0.1)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.25)", marginLeft: "auto" }}
           onClick={verifyIrUrls} disabled={verifying}

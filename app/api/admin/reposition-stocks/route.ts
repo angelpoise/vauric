@@ -13,47 +13,43 @@ function scatterOffset(idx: number, total: number): { dx: number; dy: number } {
     ring++;
     ringCapacity = (ring + 1) * 8;
   }
-  const radius = 0.06 + ring * 0.06;
+  const radius = 0.04 + ring * 0.04; // tighter rings than before
   const angle  = (remaining / ringCapacity) * 2 * Math.PI;
   return { dx: Math.cos(angle) * radius, dy: Math.sin(angle) * radius };
 }
 
-export async function POST(req: NextRequest) {
-  if (!await isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+type AdminNode = {
+  id: string;
+  ticker: string | null;
+  company_name: string | null;
+  node_type: string;
+  sector: string | null;
+  x_position: number;
+  y_position: number;
+};
 
-  // 1. Load all nodes
-  const { data: allNodes, error: nodesErr } = await supabaseAdmin
-    .from("admin_nodes")
-    .select("id, ticker, company_name, node_type, sector, x_position, y_position");
-  if (nodesErr || !allNodes) return NextResponse.json({ error: nodesErr?.message ?? "Failed to load nodes" }, { status: 500 });
+const SPECIFICITY: Record<string, number> = { subsubsector: 2, subsector: 1, sector: 0 };
 
-  // 2. Load T1 (Exposure) and T2 (Peer) connections
-  const [t1Res, t2Res] = await Promise.all([
-    supabaseAdmin.from("admin_connections").select("ticker_a, ticker_b").eq("tier", 1),
-    supabaseAdmin.from("admin_connections").select("ticker_a, ticker_b").eq("tier", 2),
-  ]);
-  if (t1Res.error) return NextResponse.json({ error: t1Res.error.message }, { status: 500 });
-  if (t2Res.error) return NextResponse.json({ error: t2Res.error.message }, { status: 500 });
-
-  const t1Conns  = t1Res.data ?? [];
-  const t2Conns  = t2Res.data ?? [];
-
-  // Build lookup maps
-  const stockByTick  = new Map<string, typeof allNodes[number]>();
-  const hierByName   = new Map<string, typeof allNodes[number]>();
-  const sectorByName = new Map<string, typeof allNodes[number]>();
+async function buildAssignments(allNodes: AdminNode[], t1Conns: { ticker_a: string; ticker_b: string }[], t2Conns: { ticker_a: string; ticker_b: string }[]) {
+  const stockByTick  = new Map<string, AdminNode>();
+  const hierByName   = new Map<string, AdminNode>(); // company_name → node
+  const hierById     = new Map<string, AdminNode>(); // uuid → node
+  const sectorByName = new Map<string, AdminNode>();
 
   for (const n of allNodes) {
     if (n.node_type === "stock" && n.ticker) {
       stockByTick.set(n.ticker, n);
     } else if (n.node_type === "subsector" || n.node_type === "subsubsector") {
       if (n.company_name) hierByName.set(n.company_name, n);
+      hierById.set(n.id, n);
     } else if (n.node_type === "sector") {
       if (n.company_name) sectorByName.set(n.company_name, n);
+      hierByName.set(n.company_name ?? "", n);
+      hierById.set(n.id, n);
     }
   }
 
-  // 3. Build T2 peer map: ticker → Set of peer tickers
+  // T2 peer map
   const peerMap = new Map<string, Set<string>>();
   for (const { ticker_a, ticker_b } of t2Conns) {
     if (!stockByTick.has(ticker_a) || !stockByTick.has(ticker_b)) continue;
@@ -63,93 +59,158 @@ export async function POST(req: NextRequest) {
     peerMap.get(ticker_b)!.add(ticker_a);
   }
 
-  // 4. Build T1 maps:
-  //    stockT1Targets: ticker → array of candidate hierarchy nodes
-  //    hierToStocks:   hierarchy node name → Set of stock tickers connected to it
-  const stockT1Targets = new Map<string, Array<typeof allNodes[number]>>();
+  // T1 maps — resolve hierarchy by company_name OR uuid
+  const stockT1Targets = new Map<string, AdminNode[]>();
   const hierToStocks   = new Map<string, Set<string>>();
+  const unresolvedT1: { ticker: string; hierRef: string }[] = [];
 
   for (const { ticker_a, ticker_b } of t1Conns) {
     const isAStock = stockByTick.has(ticker_a);
     const isBStock = stockByTick.has(ticker_b);
-    if (!isAStock && !isBStock) continue; // neither is a stock — skip
+    if (!isAStock && !isBStock) continue;
 
     const stockTicker = isAStock ? ticker_a : ticker_b;
-    const hierName    = isAStock ? ticker_b : ticker_a;
-    const hier = hierByName.get(hierName);
-    if (!hier) continue;
+    const hierRef     = isAStock ? ticker_b : ticker_a;
+
+    // Try company_name lookup first, then UUID lookup
+    const hier = hierByName.get(hierRef) ?? hierById.get(hierRef);
+    if (!hier) {
+      unresolvedT1.push({ ticker: stockTicker, hierRef });
+      continue;
+    }
 
     if (!stockT1Targets.has(stockTicker)) stockT1Targets.set(stockTicker, []);
     stockT1Targets.get(stockTicker)!.push(hier);
 
-    if (!hierToStocks.has(hierName)) hierToStocks.set(hierName, new Set());
-    hierToStocks.get(hierName)!.add(stockTicker);
+    const key = hier.company_name ?? hier.id;
+    if (!hierToStocks.has(key)) hierToStocks.set(key, new Set());
+    hierToStocks.get(key)!.add(stockTicker);
   }
 
-  // 5. Pick best T1 target per stock.
-  //    Score each candidate by how many of the stock's T2 peers share that same industry.
-  //    Tiebreak: subsubsector > subsector (more specific = better).
-  //    Secondary tiebreak: larger cluster (more stocks already positioned nearby).
-  const SPECIFICITY: Record<string, number> = { subsubsector: 2, subsector: 1, sector: 0 };
-
-  const stockTarget = new Map<string, typeof allNodes[number]>();
+  // Pick best target per stock
+  const stockTarget = new Map<string, AdminNode>();
 
   stockT1Targets.forEach((candidates, ticker) => {
     if (candidates.length === 0) return;
     if (candidates.length === 1) { stockTarget.set(ticker, candidates[0]); return; }
 
     const peers = peerMap.get(ticker) ?? new Set<string>();
-
     let best = candidates[0];
     let bestScore = -Infinity;
 
     for (const candidate of candidates) {
-      const clusterStocks = hierToStocks.get(candidate.company_name) ?? new Set<string>();
-
-      // Count how many of this stock's T2 peers live in this candidate's industry
+      const clusterStocks = hierToStocks.get(candidate.company_name ?? candidate.id) ?? new Set<string>();
       let peerOverlap = 0;
       peers.forEach((peer) => { if (clusterStocks.has(peer)) peerOverlap++; });
-
-      // Specificity is primary (subsubsector always beats subsector regardless of peer counts),
-      // peer overlap breaks ties within the same specificity tier,
-      // cluster size is the final tiebreak.
       const score =
         (SPECIFICITY[candidate.node_type] ?? 0) * 1_000_000 +
         peerOverlap * 1_000 +
         clusterStocks.size;
-
-      if (score > bestScore) {
-        bestScore = score;
-        best = candidate;
-      }
+      if (score > bestScore) { bestScore = score; best = candidate; }
     }
 
     stockTarget.set(ticker, best);
   });
 
-  // 6. Fall back to sector node for stocks with no T1 connection at all
+  // Fallback to sector for stocks with no resolved T1
+  const noT1: string[] = [];
   stockByTick.forEach((stock) => {
     if (!stock.ticker || stockTarget.has(stock.ticker)) return;
-    if (stock.sector) {
-      const sectorNode = sectorByName.get(stock.sector);
-      if (sectorNode) stockTarget.set(stock.ticker, sectorNode);
+    const sectorNode = stock.sector ? sectorByName.get(stock.sector) : undefined;
+    if (sectorNode) {
+      stockTarget.set(stock.ticker, sectorNode);
+    } else {
+      noT1.push(stock.ticker);
     }
   });
 
-  // 7. Group stocks by target node for scatter layout
-  const groups = new Map<string, string[]>(); // target node id → [tickers]
+  return { stockByTick, stockTarget, peerMap, hierToStocks, unresolvedT1, noT1 };
+}
+
+// ── GET: dry-run diagnostic ───────────────────────────────────────────────────
+
+export async function GET(req: NextRequest) {
+  if (!await isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { data: allNodes, error: nodesErr } = await supabaseAdmin
+    .from("admin_nodes")
+    .select("id, ticker, company_name, node_type, sector, x_position, y_position");
+  if (nodesErr || !allNodes) return NextResponse.json({ error: nodesErr?.message }, { status: 500 });
+
+  const [t1Res, t2Res] = await Promise.all([
+    supabaseAdmin.from("admin_connections").select("ticker_a, ticker_b").eq("tier", 1),
+    supabaseAdmin.from("admin_connections").select("ticker_a, ticker_b").eq("tier", 2),
+  ]);
+  if (t1Res.error) return NextResponse.json({ error: t1Res.error.message }, { status: 500 });
+  if (t2Res.error) return NextResponse.json({ error: t2Res.error.message }, { status: 500 });
+
+  const { stockByTick, stockTarget, hierToStocks, unresolvedT1, noT1 } =
+    await buildAssignments(allNodes as AdminNode[], t1Res.data ?? [], t2Res.data ?? []);
+
+  // Distribution by node type
+  const dist: Record<string, number> = { subsubsector: 0, subsector: 0, sector: 0, none: noT1.length };
+  const fallbackToSector: string[] = [];
+
+  stockTarget.forEach((target, ticker) => {
+    const type = target.node_type;
+    dist[type] = (dist[type] ?? 0) + 1;
+    if (type === "sector") fallbackToSector.push(ticker);
+  });
+
+  // Largest clusters
+  const clusters: { name: string; count: number }[] = [];
+  hierToStocks.forEach((stocks, name) => clusters.push({ name, count: stocks.size }));
+  clusters.sort((a, b) => b.count - a.count);
+  clusters.splice(20);
+
+  // Sample unresolved (first 20)
+  const unresolvedSample = unresolvedT1.slice(0, 20);
+
+  return NextResponse.json({
+    total: stockByTick.size,
+    distribution: dist,
+    unresolvedT1Count: unresolvedT1.length,
+    unresolvedSample,
+    fallbackToSector: fallbackToSector.slice(0, 50),
+    noT1: noT1.slice(0, 50),
+    topClusters: clusters,
+  });
+}
+
+// ── POST: apply reposition ────────────────────────────────────────────────────
+
+export async function POST(req: NextRequest) {
+  if (!await isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { data: allNodes, error: nodesErr } = await supabaseAdmin
+    .from("admin_nodes")
+    .select("id, ticker, company_name, node_type, sector, x_position, y_position");
+  if (nodesErr || !allNodes) return NextResponse.json({ error: nodesErr?.message ?? "Failed to load nodes" }, { status: 500 });
+
+  const [t1Res, t2Res] = await Promise.all([
+    supabaseAdmin.from("admin_connections").select("ticker_a, ticker_b").eq("tier", 1),
+    supabaseAdmin.from("admin_connections").select("ticker_a, ticker_b").eq("tier", 2),
+  ]);
+  if (t1Res.error) return NextResponse.json({ error: t1Res.error.message }, { status: 500 });
+  if (t2Res.error) return NextResponse.json({ error: t2Res.error.message }, { status: 500 });
+
+  const { stockByTick, stockTarget, peerMap } =
+    await buildAssignments(allNodes as AdminNode[], t1Res.data ?? [], t2Res.data ?? []);
+
+  // Group stocks by target node
+  const groups = new Map<string, string[]>();
   stockTarget.forEach((target, ticker) => {
     const list = groups.get(target.id) ?? [];
     list.push(ticker);
     groups.set(target.id, list);
   });
 
-  // Sort within each group by number of T2 peers (most connected → centre of ring)
+  // Sort within each group: most-connected stocks toward centre
   groups.forEach((list) => {
     list.sort((a, b) => (peerMap.get(b)?.size ?? 0) - (peerMap.get(a)?.size ?? 0));
   });
 
-  // 8. Compute new positions
+  // Compute new positions
   const updates: { id: string; x_position: number; y_position: number }[] = [];
 
   groups.forEach((tickers, targetId) => {
@@ -167,7 +228,7 @@ export async function POST(req: NextRequest) {
     });
   });
 
-  // 9. Batch-update positions in chunks of 500
+  // Batch-update in chunks of 500
   const CHUNK = 500;
   let updated = 0;
   for (let i = 0; i < updates.length; i += CHUNK) {
