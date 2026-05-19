@@ -385,7 +385,7 @@ export default function NodesPage() {
     unresolvedSample: { ticker: string; hierRef: string }[];
     fallbackToSector: string[];
     noT1: string[];
-    topClusters: { name: string; count: number }[];
+    topClusters: { name: string; count: number; type: string }[];
   };
   const [repoCheck, setRepoCheck]         = useState<RepoCheck | null>(null);
 
@@ -599,18 +599,25 @@ export default function NodesPage() {
                 </div>
               </div>
             )}
-            {/* All clusters */}
-            <div>
-              <div style={{ fontSize: 10, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
-                All clusters ({repoCheck.topClusters.length})
-              </div>
-              {repoCheck.topClusters.map((c) => (
-                <div key={c.name} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", borderBottom: "1px solid rgba(255,255,255,0.04)", fontSize: 11 }}>
-                  <span style={{ color: "#94a3b8" }}>{c.name}</span>
-                  <span style={{ color: c.count > 80 ? "#ef4444" : c.count > 40 ? "#f59e0b" : "#64748b" }}>{c.count}</span>
+            {/* All clusters — split by type so parent (sub-sector) vs leaf (industry) is clear */}
+            {(["subsubsector", "subsector"] as const).map((nodeType) => {
+              const label = nodeType === "subsubsector" ? "Industry nodes" : "Sub-sector nodes";
+              const col   = nodeType === "subsubsector" ? "#a855f7" : "#f59e0b";
+              const rows  = repoCheck.topClusters.filter((c: { name: string; count: number; type: string }) => c.type === nodeType);
+              return (
+                <div key={nodeType} style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 10, color: col, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>
+                    {label} ({rows.length})
+                  </div>
+                  {rows.map((c: { name: string; count: number; type: string }) => (
+                    <div key={c.name} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0", borderBottom: "1px solid rgba(255,255,255,0.03)", fontSize: 11 }}>
+                      <span style={{ color: "#94a3b8" }}>{c.name}</span>
+                      <span style={{ color: c.count > 50 ? "#ef4444" : c.count > 25 ? "#f59e0b" : c.count === 0 ? "#334155" : "#64748b" }}>{c.count}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
         )}
         <button

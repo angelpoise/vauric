@@ -217,22 +217,23 @@ export async function GET(req: NextRequest) {
     if (type === "sector") fallbackToSector.push(ticker);
   });
 
-  // All hierarchy nodes with their assigned stock counts
-  const clusterMap = new Map<string, number>();
+  // All hierarchy nodes with their assigned stock counts and node type
+  const clusterMap = new Map<string, { count: number; type: string }>();
   for (const n of allNodes) {
     if (n.node_type === "subsector" || n.node_type === "subsubsector") {
       const key = n.company_name ?? n.id;
-      if (!clusterMap.has(key)) clusterMap.set(key, 0);
+      if (!clusterMap.has(key)) clusterMap.set(key, { count: 0, type: n.node_type });
     }
   }
   stockTarget.forEach((target) => {
     if (target.node_type === "subsector" || target.node_type === "subsubsector") {
       const key = target.company_name ?? target.id;
-      clusterMap.set(key, (clusterMap.get(key) ?? 0) + 1);
+      const existing = clusterMap.get(key);
+      if (existing) existing.count++;
     }
   });
-  const clusters: { name: string; count: number }[] = [];
-  clusterMap.forEach((count, name) => clusters.push({ name, count }));
+  const clusters: { name: string; count: number; type: string }[] = [];
+  clusterMap.forEach(({ count, type }, name) => clusters.push({ name, count, type }));
   clusters.sort((a, b) => b.count - a.count);
 
   return NextResponse.json({
