@@ -10,30 +10,18 @@ export async function GET() {
       .select("ticker, company_name, sector, x_position, y_position, investor_relations_url")
       .eq("node_type", "stock")
       .order("ticker")
-      .limit(5000),
+      .limit(50000),
     supabase
       .from("admin_nodes")
       .select("id, node_type, company_name, display_name, etf_ticker, colour, parent_node_id, x_position, y_position")
       .in("node_type", ["sector", "subsector", "subsubsector"])
       .order("node_type")
-      .limit(2000),
-    // Paginate in 1k-row pages to stay under Supabase's max_rows hard cap.
-    // Pages are contiguous (0-999, 1000-1999, …) so no rows are skipped.
-    (async () => {
-      const PAGE = 1000;
-      const pages = await Promise.all(
-        Array.from({ length: 100 }, (_, i) =>
-          supabase
-            .from("admin_connections")
-            .select("ticker_a, ticker_b, tier")
-            .order("ticker_a")
-            .range(i * PAGE, (i + 1) * PAGE - 1)
-        )
-      );
-      const error = pages.find((p) => p.error)?.error ?? null;
-      const data  = error ? null : pages.flatMap((p) => p.data ?? []);
-      return { data, error };
-    })(),
+      .limit(5000),
+    supabase
+      .from("admin_connections")
+      .select("ticker_a, ticker_b, tier")
+      .order("ticker_a")
+      .limit(500000),
   ]);
 
   if (stocksRes.error || hierarchyRes.error || connectionsRes.error) {

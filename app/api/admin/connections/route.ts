@@ -48,20 +48,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(data);
   }
 
-  // Full table: paginate in 1k pages to stay under Supabase max_rows cap
-  const PAGE = 1000;
-  const pages = await Promise.all(
-    Array.from({ length: 100 }, (_, i) =>
-      supabaseAdmin
-        .from("admin_connections")
-        .select("*")
-        .order("tier").order("ticker_a")
-        .range(i * PAGE, (i + 1) * PAGE - 1)
-    )
-  );
-  const fetchError = pages.find((p) => p.error)?.error ?? null;
-  if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 500 });
-  const data = pages.flatMap((p) => p.data ?? []);
+  const { data, error } = await supabaseAdmin
+    .from("admin_connections")
+    .select("*")
+    .order("tier").order("ticker_a")
+    .limit(500000);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
 }
 
