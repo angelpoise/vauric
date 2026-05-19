@@ -315,6 +315,7 @@ export default function ConnectionsPage() {
   const [reviewTicker, setReviewTicker]   = useState("");
   const [reviewConns, setReviewConns]     = useState<{ id: string; tier: number; other: string; otherType: string; reason: string | null }[] | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewExpanded, setReviewExpanded] = useState(true);
 
   // Review queue state (feeds tickers into the suggestion panel one by one)
   const [reviewQueue, setReviewQueue]         = useState<string[]>([]);
@@ -928,7 +929,14 @@ export default function ConnectionsPage() {
 
         return (
           <div style={{ ...CARD, marginBottom: 28 }}>
-            <div style={{ fontSize: 12, color: "#475569", fontWeight: 500, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 12 }}>Connection Review</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: reviewExpanded ? 12 : 0 }}>
+              <div style={{ fontSize: 12, color: "#475569", fontWeight: 500, letterSpacing: "0.07em", textTransform: "uppercase" }}>Connection Review</div>
+              <button onClick={() => setReviewExpanded(v => !v)} style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>
+                {reviewExpanded ? "▲" : "▼"}
+              </button>
+            </div>
+            {reviewExpanded && (
+              <>
             <div style={{ display: "flex", gap: 10, marginBottom: reviewConns ? 16 : 0 }}>
               <input style={{ ...INPUT, width: 140, fontFamily: "monospace" }} placeholder="Ticker…"
                 value={reviewTicker}
@@ -968,6 +976,8 @@ export default function ConnectionsPage() {
                   );
                 })}
               </div>
+            )}
+              </>
             )}
           </div>
         );
