@@ -1058,10 +1058,10 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
           if (mode === "impact"     && isStockStock && edge.tier === 3) return true;
         }
 
-        // When a sector filter is active, always show T1 exposure connections
-        // (stock→industry links) so stocks connected to the filtered sector are visible
-        // even when Exposure mode isn't explicitly selected.
-        if (focusSectors.length > 0 && isStockToHierarchy && edge.tier === 1) return true;
+        // When a sector filter is active, show T1 exposure connections so stocks are visible.
+        // When relevantOnly (Linked) is on, T1 is used only for relevancy in the pre-pass —
+        // it shouldn't draw extra lines that look like extra connections in structural mode.
+        if (focusSectors.length > 0 && isStockToHierarchy && edge.tier === 1 && !cv.relevantOnly) return true;
 
         return false;
       }
@@ -1105,14 +1105,39 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         return r;
       };
 
-      // Pre-compute which stock node IDs have at least one visible edge (relevantOnly mode)
+      // Pre-compute which stock node IDs have at least one visible edge (relevantOnly mode).
+      // When a sector filter is active, T1 exposure edges (stock→industry) are also used to
+      // determine relevancy even if they won't be drawn (suppressed above to avoid extra lines).
       let relevantNodeIds: Set<string> | null = null;
       if (cv.relevantOnly) {
         relevantNodeIds = new Set<string>();
+        const t1SectorOf = (id: string): string | null => {
+          const n = gd.nodeById.get(id);
+          if (!n) return null;
+          if (n.kind === "stock")                                   return (n as { sectorId?: string }).sectorId ?? null;
+          if (n.kind === "sector")                                  return (n as { etf?: string }).etf ?? null;
+          if (n.kind === "subsector" || n.kind === "subsubsector")  return (n as { sectorEtf?: string }).sectorEtf ?? null;
+          return null;
+        };
         for (const edge of gd.edges) {
           if (shouldDrawEdge(edge)) {
             relevantNodeIds.add(edge.source);
             relevantNodeIds.add(edge.target);
+            continue;
+          }
+          // T1 edges are suppressed from drawing when relevantOnly is on, but they still
+          // determine which stocks count as "linked" to the selected sectors.
+          if (cv.focusSectors.length > 0 && edge.tier === 1) {
+            const srcKind = gd.nodeById.get(edge.source)?.kind;
+            const tgtKind = gd.nodeById.get(edge.target)?.kind;
+            if ((srcKind === "stock") !== (tgtKind === "stock")) {
+              const sec1 = t1SectorOf(edge.source);
+              const sec2 = t1SectorOf(edge.target);
+              if (cv.focusSectors.includes(sec1 ?? "") || cv.focusSectors.includes(sec2 ?? "")) {
+                relevantNodeIds.add(edge.source);
+                relevantNodeIds.add(edge.target);
+              }
+            }
           }
         }
       }
