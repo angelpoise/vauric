@@ -1096,7 +1096,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         // Structural edges (hierarchy chain) get a thicker base line
         const isStructural = edge.kind !== "explicit" &&
           src.kind !== "stock" && tgt.kind !== "stock";
-        const baseW = isStructural ? 6.0 : 3.5;
+        const baseW = isStructural ? 12.0 : 3.5;
 
         let alpha = edgeFiltered ? 0.04 : 0.28;
         let lineW = edgeFiltered ? 0.8 : baseW;
