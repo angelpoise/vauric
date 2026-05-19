@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminRequest } from "@/lib/adminSecret";
 
-// Scatter radius (in normalised coordinate units) for stocks around their industry node.
-// Positions are arranged in concentric rings so stocks don't stack on top of each other.
+// Concentric ring scatter around a target node.
 function scatterOffset(idx: number, total: number): { dx: number; dy: number } {
   if (total === 1) return { dx: 0, dy: 0 };
-  // Ring layout: 1st ring holds 8, 2nd ring 16, etc.
   let ring = 0;
   let remaining = idx;
   let ringCapacity = 8;
@@ -29,22 +27,24 @@ export async function POST(req: NextRequest) {
     .select("id, ticker, company_name, node_type, sector, x_position, y_position");
   if (nodesErr || !allNodes) return NextResponse.json({ error: nodesErr?.message ?? "Failed to load nodes" }, { status: 500 });
 
-  // 2. Load all T1 (Exposure) connections
-  const { data: t1Conns, error: connErr } = await supabaseAdmin
-    .from("admin_connections")
-    .select("ticker_a, ticker_b")
-    .eq("tier", 1);
-  if (connErr || !t1Conns) return NextResponse.json({ error: connErr?.message ?? "Failed to load connections" }, { status: 500 });
+  // 2. Load T1 (Exposure) and T2 (Peer) connections
+  const [t1Res, t2Res] = await Promise.all([
+    supabaseAdmin.from("admin_connections").select("ticker_a, ticker_b").eq("tier", 1),
+    supabaseAdmin.from("admin_connections").select("ticker_a, ticker_b").eq("tier", 2),
+  ]);
+  if (t1Res.error) return NextResponse.json({ error: t1Res.error.message }, { status: 500 });
+  if (t2Res.error) return NextResponse.json({ error: t2Res.error.message }, { status: 500 });
+
+  const t1Conns  = t1Res.data ?? [];
+  const t2Conns  = t2Res.data ?? [];
 
   // Build lookup maps
-  const stockById   = new Map<string, typeof allNodes[number]>();
-  const stockByTick = new Map<string, typeof allNodes[number]>();
-  const hierByName  = new Map<string, typeof allNodes[number]>();
-  const sectorByName = new Map<string, typeof allNodes[number]>(); // sector name → sector node
+  const stockByTick  = new Map<string, typeof allNodes[number]>();
+  const hierByName   = new Map<string, typeof allNodes[number]>();
+  const sectorByName = new Map<string, typeof allNodes[number]>();
 
   for (const n of allNodes) {
     if (n.node_type === "stock" && n.ticker) {
-      stockById.set(n.id, n);
       stockByTick.set(n.ticker, n);
     } else if (n.node_type === "subsector" || n.node_type === "subsubsector") {
       if (n.company_name) hierByName.set(n.company_name, n);
@@ -53,27 +53,79 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 3. For each stock find its best T1 target (subsubsector > subsector)
-  const stockTarget = new Map<string, typeof allNodes[number]>(); // ticker → best hierarchy node
+  // 3. Build T2 peer map: ticker → Set of peer tickers
+  const peerMap = new Map<string, Set<string>>();
+  for (const { ticker_a, ticker_b } of t2Conns) {
+    if (!stockByTick.has(ticker_a) || !stockByTick.has(ticker_b)) continue;
+    if (!peerMap.has(ticker_a)) peerMap.set(ticker_a, new Set());
+    if (!peerMap.has(ticker_b)) peerMap.set(ticker_b, new Set());
+    peerMap.get(ticker_a)!.add(ticker_b);
+    peerMap.get(ticker_b)!.add(ticker_a);
+  }
 
-  for (const c of t1Conns) {
-    const { ticker_a, ticker_b } = c;
-    // Determine which end is the stock and which is the hierarchy node
-    const stock = stockByTick.get(ticker_a) ?? stockByTick.get(ticker_b);
-    const hierName = stockByTick.has(ticker_a) ? ticker_b : ticker_a;
-    if (!stock || !stock.ticker) continue;
+  // 4. Build T1 maps:
+  //    stockT1Targets: ticker → array of candidate hierarchy nodes
+  //    hierToStocks:   hierarchy node name → Set of stock tickers connected to it
+  const stockT1Targets = new Map<string, Array<typeof allNodes[number]>>();
+  const hierToStocks   = new Map<string, Set<string>>();
+
+  for (const { ticker_a, ticker_b } of t1Conns) {
+    const isAStock = stockByTick.has(ticker_a);
+    const isBStock = stockByTick.has(ticker_b);
+    if (!isAStock && !isBStock) continue; // neither is a stock — skip
+
+    const stockTicker = isAStock ? ticker_a : ticker_b;
+    const hierName    = isAStock ? ticker_b : ticker_a;
     const hier = hierByName.get(hierName);
     if (!hier) continue;
 
-    const existing = stockTarget.get(stock.ticker);
-    // Prefer subsubsector over subsector
-    const betterSpecificity =
-      !existing ||
-      (hier.node_type === "subsubsector" && existing.node_type !== "subsubsector");
-    if (betterSpecificity) stockTarget.set(stock.ticker, hier);
+    if (!stockT1Targets.has(stockTicker)) stockT1Targets.set(stockTicker, []);
+    stockT1Targets.get(stockTicker)!.push(hier);
+
+    if (!hierToStocks.has(hierName)) hierToStocks.set(hierName, new Set());
+    hierToStocks.get(hierName)!.add(stockTicker);
   }
 
-  // 4. For stocks with no T1, fall back to sector node
+  // 5. Pick best T1 target per stock.
+  //    Score each candidate by how many of the stock's T2 peers share that same industry.
+  //    Tiebreak: subsubsector > subsector (more specific = better).
+  //    Secondary tiebreak: larger cluster (more stocks already positioned nearby).
+  const SPECIFICITY: Record<string, number> = { subsubsector: 2, subsector: 1, sector: 0 };
+
+  const stockTarget = new Map<string, typeof allNodes[number]>();
+
+  stockT1Targets.forEach((candidates, ticker) => {
+    if (candidates.length === 0) return;
+    if (candidates.length === 1) { stockTarget.set(ticker, candidates[0]); return; }
+
+    const peers = peerMap.get(ticker) ?? new Set<string>();
+
+    let best = candidates[0];
+    let bestScore = -Infinity;
+
+    for (const candidate of candidates) {
+      const clusterStocks = hierToStocks.get(candidate.company_name) ?? new Set<string>();
+
+      // Count how many of this stock's T2 peers live in this candidate's industry
+      let peerOverlap = 0;
+      peers.forEach((peer) => { if (clusterStocks.has(peer)) peerOverlap++; });
+
+      // Weighted score: peer overlap dominates, specificity breaks ties, cluster size as final tiebreak
+      const score =
+        peerOverlap * 10_000 +
+        (SPECIFICITY[candidate.node_type] ?? 0) * 100 +
+        clusterStocks.size;
+
+      if (score > bestScore) {
+        bestScore = score;
+        best = candidate;
+      }
+    }
+
+    stockTarget.set(ticker, best);
+  });
+
+  // 6. Fall back to sector node for stocks with no T1 connection at all
   stockByTick.forEach((stock) => {
     if (!stock.ticker || stockTarget.has(stock.ticker)) return;
     if (stock.sector) {
@@ -82,7 +134,7 @@ export async function POST(req: NextRequest) {
     }
   });
 
-  // 5. Group stocks by target node for scatter layout
+  // 7. Group stocks by target node for scatter layout
   const groups = new Map<string, string[]>(); // target node id → [tickers]
   stockTarget.forEach((target, ticker) => {
     const list = groups.get(target.id) ?? [];
@@ -90,14 +142,16 @@ export async function POST(req: NextRequest) {
     groups.set(target.id, list);
   });
 
-  // Sort tickers within each group alphabetically for deterministic layout
-  groups.forEach((list) => list.sort());
+  // Sort within each group by number of T2 peers (most connected → centre of ring)
+  groups.forEach((list) => {
+    list.sort((a, b) => (peerMap.get(b)?.size ?? 0) - (peerMap.get(a)?.size ?? 0));
+  });
 
-  // 6. Compute new positions
+  // 8. Compute new positions
   const updates: { id: string; x_position: number; y_position: number }[] = [];
 
   groups.forEach((tickers, targetId) => {
-    const target = allNodes.find(n => n.id === targetId);
+    const target = allNodes.find((n) => n.id === targetId);
     if (!target) return;
     tickers.forEach((ticker, idx) => {
       const stock = stockByTick.get(ticker);
@@ -111,7 +165,7 @@ export async function POST(req: NextRequest) {
     });
   });
 
-  // 7. Batch-update positions in chunks of 500
+  // 9. Batch-update positions in chunks of 500
   const CHUNK = 500;
   let updated = 0;
   for (let i = 0; i < updates.length; i += CHUNK) {
