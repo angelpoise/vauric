@@ -1050,6 +1050,12 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
           if (mode === "peer"       && isStockStock && edge.tier === 2) return true;
           if (mode === "impact"     && isStockStock && edge.tier === 3) return true;
         }
+
+        // When a sector filter is active, always show T1 exposure connections
+        // (stock→industry links) so stocks connected to the filtered sector are visible
+        // even when Exposure mode isn't explicitly selected.
+        if (focusSectors.length > 0 && isStockToHierarchy && edge.tier === 1) return true;
+
         return false;
       }
 

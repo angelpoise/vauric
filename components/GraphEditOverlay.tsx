@@ -314,7 +314,7 @@ export default function GraphEditOverlay({
             backdropFilter: "blur(8px)",
             position: "relative",
           }}>
-            <span style={{ fontSize: 9, color: "#334155", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", userSelect: "none" }}>
+            <span style={{ fontSize: 9, color: "#334155", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", userSelect: "none", lineHeight: 1 }}>
               Focus
             </span>
             {tickers.map((t) => (
@@ -327,7 +327,7 @@ export default function GraphEditOverlay({
               </span>
             ))}
             {tickers.length < maxTickers && (
-              <div style={{ position: "relative" }}>
+              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
                 <input
                   value={focusInput}
                   onChange={(e) => setFocusInput(e.target.value.toUpperCase())}
@@ -346,6 +346,7 @@ export default function GraphEditOverlay({
                     background: "transparent", border: "none", outline: "none",
                     color: "#94a3b8", fontSize: 10, fontFamily: "monospace",
                     width: tickers.length === 0 ? 52 : 28,
+                    padding: 0, lineHeight: 1,
                   }}
                 />
                 {showSuggestions && (
