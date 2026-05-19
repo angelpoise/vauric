@@ -146,6 +146,14 @@ Return ONLY valid JSON, no other text:
       .filter((m) => m.ticker && !graphTickerSet.has(m.ticker.toUpperCase()) && m.ticker.toUpperCase() !== ticker)
       .map((m) => ({ ticker: m.ticker.toUpperCase(), name: m.name, reason: m.reason, tier: m.tier as 1|2|3 }));
 
+    // Stamp analysis timestamp — fire and forget, don't block the response
+    supabase
+      .from("admin_nodes")
+      .update({ connections_last_analyzed: new Date().toISOString() })
+      .eq("node_type", "stock")
+      .eq("ticker", ticker)
+      .then(() => {});
+
     return NextResponse.json({
       t1: validate(parsed.t1),
       t2: validate(parsed.t2),

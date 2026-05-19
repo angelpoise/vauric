@@ -304,6 +304,10 @@ export default function ConnectionsPage() {
   const [applying, setApplying]               = useState(false);
   const [suggestErr, setSuggestErr]           = useState<string | null>(null);
 
+  // Stale analysis state
+  const [staleData, setStaleData]             = useState<{ never: string[]; stale: string[]; current: number; total: number } | null>(null);
+  const [staleLoading, setStaleLoading]       = useState(false);
+
   // Bulk AI connections state
   const [bulkConnText, setBulkConnText]       = useState("");
   const [bulkConnRunning, setBulkConnRunning] = useState(false);
@@ -666,8 +670,63 @@ export default function ConnectionsPage() {
         {err && <div style={{ fontSize: 12, color: "#ef4444", marginTop: 8 }}>{err}</div>}
       </div>
 
-      {/* Bulk AI connections */}
+      {/* Stale analysis tracker */}
       <div style={{ ...CARD, marginBottom: 28 }}>
+        <div style={{ fontSize: 12, color: "#475569", fontWeight: 500, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 12 }}>Connection freshness</div>
+        {!staleData ? (
+          <button style={{ ...BTN }} onClick={async () => {
+            setStaleLoading(true);
+            const r = await adminFetch("/api/admin/stale-connections");
+            if (r.ok) setStaleData(await r.json());
+            setStaleLoading(false);
+          }} disabled={staleLoading}>
+            {staleLoading ? "Checking…" : "Check freshness"}
+          </button>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", gap: 24 }}>
+              <div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: staleData.never.length > 0 ? "#ef4444" : "#22c55e" }}>{staleData.never.length}</div>
+                <div style={{ fontSize: 11, color: "#475569" }}>Never analyzed</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: staleData.stale.length > 0 ? "#f59e0b" : "#22c55e" }}>{staleData.stale.length}</div>
+                <div style={{ fontSize: 11, color: "#475569" }}>Stale (&gt;30 days)</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: "#22c55e" }}>{staleData.current}</div>
+                <div style={{ fontSize: 11, color: "#475569" }}>Current</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: "#94a3b8" }}>{staleData.total}</div>
+                <div style={{ fontSize: 11, color: "#475569" }}>Total stocks</div>
+              </div>
+            </div>
+            {(staleData.never.length > 0 || staleData.stale.length > 0) && (
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <button style={{ ...BTN }} onClick={() => {
+                  const tickers = [...staleData.never, ...staleData.stale];
+                  setBulkConnText(tickers.join("\n"));
+                  // Scroll to bulk section
+                  document.getElementById("bulk-ai-connections")?.scrollIntoView({ behavior: "smooth" });
+                }}>
+                  Queue {staleData.never.length + staleData.stale.length} stocks for re-analysis
+                </button>
+                <span style={{ fontSize: 11, color: "#475569" }}>
+                  Loads into the bulk AI connections queue below
+                </span>
+              </div>
+            )}
+            <button style={{ background: "none", border: "none", color: "#475569", fontSize: 11, cursor: "pointer", padding: 0, textAlign: "left" }}
+              onClick={() => setStaleData(null)}>
+              Refresh
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Bulk AI connections */}
+      <div id="bulk-ai-connections" style={{ ...CARD, marginBottom: 28 }}>
         <div style={{ fontSize: 12, color: "#475569", fontWeight: 500, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
           Bulk AI connections
           <span style={{ fontSize: 10, background: "rgba(168,85,247,0.15)", border: "1px solid rgba(168,85,247,0.3)", color: "#a855f7", padding: "2px 7px", borderRadius: 10, letterSpacing: 0, textTransform: "none" }}>Claude</span>
