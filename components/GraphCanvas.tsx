@@ -1124,7 +1124,10 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         const tgt = gd.nodeById.get(edge.target);
         if (!src || !tgt) continue;
 
-        const edgeLodA = Math.min(nodeLodAlpha(src, lodScale), nodeLodAlpha(tgt, lodScale));
+        const edgeLodA = (relevantNodeIds !== null &&
+            (relevantNodeIds.has(edge.source) || relevantNodeIds.has(edge.target)))
+          ? 1
+          : Math.min(nodeLodAlpha(src, lodScale), nodeLodAlpha(tgt, lodScale));
         if (edgeLodA === 0) continue;
 
         const sp = worldPos(src, t);
