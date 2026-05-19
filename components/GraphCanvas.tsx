@@ -976,6 +976,9 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
 
     // ── Draw loop ────────────────────────────────────────────────────────────
 
+    // Dirty-flag: skip redraw when nothing has changed
+    let lastDrawKey = "";
+
     function draw() {
       const W   = canvas.clientWidth;
       const H   = canvas.clientHeight;
@@ -985,6 +988,14 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       const hovNeighbors = hid ? (gd.adjacency.get(hid) ?? null) : null;
       const cam = cameraRef.current;
       const d   = dpr();
+
+      const animating = targetCameraRef.current !== null || draggingNodeRef.current !== null;
+      const drawKey = `${cam.x.toFixed(1)},${cam.y.toFixed(1)},${cam.scale.toFixed(3)},${hid ?? ""},${connectionViewRef.current},${animating}`;
+      if (drawKey === lastDrawKey && !animating) {
+        raf = requestAnimationFrame(draw);
+        return;
+      }
+      lastDrawKey = drawKey;
 
       function shouldDrawEdge(edge: Edge): boolean {
         const cw = connectionViewRef.current;
@@ -1036,45 +1047,62 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
         return r;
       };
 
-      // Edges
+      // Edges — batched by style bucket to minimise canvas state changes.
+      // 18k individual ctx.stroke() calls → 3 stroke calls per frame.
+      const litPath  = new Path2D(); // hovered neighbour
+      const normPath = new Path2D(); // normal visible
+      const dimPath  = new Path2D(); // filtered / faded
+
       for (const edge of gd.edges) {
         if (!shouldDrawEdge(edge)) continue;
         const src = gd.nodeById.get(edge.source);
         const tgt = gd.nodeById.get(edge.target);
         if (!src || !tgt) continue;
 
-        // Fade the edge out with the least-visible of its two endpoints
         const edgeLodA = Math.min(nodeLodAlpha(src, lodScale), nodeLodAlpha(tgt, lodScale));
         if (edgeLodA === 0) continue;
 
-        const sp  = worldPos(src, t);
-        const tp  = worldPos(tgt, t);
+        const sp = worldPos(src, t);
+        const tp = worldPos(tgt, t);
 
         // Skip edges where both endpoints are outside the visible viewport
-        const srcIn = sp.x >= vL && sp.x <= vR && sp.y >= vT && sp.y <= vB;
-        const tgtIn = tp.x >= vL && tp.x <= vR && tp.y >= vT && tp.y <= vB;
-        if (!srcIn && !tgtIn) continue;
+        if (!(sp.x >= vL && sp.x <= vR && sp.y >= vT && sp.y <= vB) &&
+            !(tp.x >= vL && tp.x <= vR && tp.y >= vT && tp.y <= vB)) continue;
 
         const edgeFiltered = cachedFiltered(src) || cachedFiltered(tgt);
-        let alpha = edgeFiltered ? 0.04 : 0.28;
-        let lineW = edgeFiltered ? 0.8 : 2.0;
+        let bucket: Path2D;
+        let alpha: number;
+
         if (!edgeFiltered && hid) {
           const lit = edge.source === hid || edge.target === hid;
-          alpha = lit ? 0.75 : 0.04;
-          lineW = lit ? 4.0 : 0.8;
+          alpha = (lit ? 0.75 : 0.04) * edgeLodA;
+          bucket = lit ? litPath : dimPath;
+        } else if (edgeFiltered) {
+          alpha = 0.04 * edgeLodA;
+          bucket = dimPath;
+        } else {
+          alpha = 0.28 * edgeLodA;
+          bucket = normPath;
         }
-        alpha *= edgeLodA;
 
-        // Skip nearly invisible edges
         if (alpha < 0.02) continue;
 
-        ctx.beginPath();
-        ctx.moveTo(sp.x, sp.y);
-        ctx.lineTo(tp.x, tp.y);
-        ctx.strokeStyle = `rgba(148,163,184,${alpha})`;
-        ctx.lineWidth   = lineW;
-        ctx.stroke();
+        bucket.moveTo(sp.x, sp.y);
+        bucket.lineTo(tp.x, tp.y);
       }
+
+      // Stroke each bucket once
+      ctx.lineWidth = 0.8;
+      ctx.strokeStyle = "rgba(148,163,184,0.04)";
+      ctx.stroke(dimPath);
+
+      ctx.lineWidth = 2.0;
+      ctx.strokeStyle = "rgba(148,163,184,0.28)";
+      ctx.stroke(normPath);
+
+      ctx.lineWidth = 4.0;
+      ctx.strokeStyle = "rgba(148,163,184,0.75)";
+      ctx.stroke(litPath);
 
       // Nodes
       for (const node of gd.nodes) {
