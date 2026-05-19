@@ -1094,11 +1094,11 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
 
         const edgeFiltered = cachedFiltered(src) || cachedFiltered(tgt);
         let alpha = edgeFiltered ? 0.04 : 0.28;
-        let lineW = edgeFiltered ? 0.8 : 2.0;
+        let lineW = edgeFiltered ? 0.8 : 3.5;
         if (!edgeFiltered && hid) {
           const lit = edge.source === hid || edge.target === hid;
           alpha = lit ? 0.75 : 0.04;
-          lineW = lit ? 4.0 : 0.8;
+          lineW = lit ? 6.0 : 0.8;
         }
         alpha *= edgeLodA;
         if (alpha < 0.02) continue;
