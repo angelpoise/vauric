@@ -1093,12 +1093,17 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
             !(tp.x >= vL && tp.x <= vR && tp.y >= vT && tp.y <= vB)) continue;
 
         const edgeFiltered = cachedFiltered(src) || cachedFiltered(tgt);
+        // Structural edges (hierarchy chain) get a thicker base line
+        const isStructural = edge.kind !== "explicit" &&
+          src.kind !== "stock" && tgt.kind !== "stock";
+        const baseW = isStructural ? 6.0 : 3.5;
+
         let alpha = edgeFiltered ? 0.04 : 0.28;
-        let lineW = edgeFiltered ? 0.8 : 3.5;
+        let lineW = edgeFiltered ? 0.8 : baseW;
         if (!edgeFiltered && hid) {
           const lit = edge.source === hid || edge.target === hid;
           alpha = lit ? 0.75 : 0.04;
-          lineW = lit ? 6.0 : 0.8;
+          lineW = lit ? baseW * 1.5 : 0.8;
         }
         alpha *= edgeLodA;
         if (alpha < 0.02) continue;
