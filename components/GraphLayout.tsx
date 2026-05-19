@@ -22,7 +22,7 @@ import {
 } from "@/lib/graphSettingsTypes";
 import type { GNode, SectorNode } from "@/lib/graphTypes";
 import { adminFetch } from "@/lib/adminFetch";
-import { type ConnectionView } from "@/components/GraphCanvas";
+import { type ConnectionView, DEFAULT_CONNECTION_VIEW } from "@/components/GraphCanvas";
 
 // ─── Sector localStorage helpers ──────────────────────────────────────────────
 
@@ -151,7 +151,7 @@ export default function GraphLayout() {
   const [alertsOpen, setAlertsOpen]         = useState(false);
 
   // Connection view
-  const [connectionView, setConnectionView] = useState<ConnectionView>("primary");
+  const [connectionView, setConnectionView] = useState<ConnectionView>(DEFAULT_CONNECTION_VIEW);
 
   // Admin view — bypasses stock LOD so all nodes visible at any zoom
   const [adminView, setAdminView] = useState(false);
@@ -430,6 +430,7 @@ export default function GraphLayout() {
           onAdminViewChange={setAdminView}
           connectionView={connectionView}
           onConnectionViewChange={setConnectionView}
+          isPro={(user?.publicMetadata as Record<string,unknown>)?.isPro === true}
           saveFailures={saveFailures}
           pendingCount={Object.keys(pendingPositions).length}
           knownTickers={knownTickers}

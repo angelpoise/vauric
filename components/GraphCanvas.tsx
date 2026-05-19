@@ -178,20 +178,28 @@ const FALLBACK_EXTRA_EDGES: Edge[] = [
   { source: "HIMS", target: "RXRX", kind: "explicit" },
 ];
 
-// ─── Connection view presets ──────────────────────────────────────────────────
+// ─── Connection view ──────────────────────────────────────────────────────────
 
-export type ConnectionView = "primary" | "all" | "stock-stock" | "hierarchy";
+export type ConnectionMode = "structural" | "exposure" | "peer" | "impact";
 
-export const CONNECTION_VIEW_PRESETS: { key: ConnectionView; label: string; description: string }[] = [
-  { key: "primary",      label: "Primary",   description: "Hierarchy structure only (sector / subsector links)" },
-  { key: "all",          label: "All",        description: "Every connection in the graph" },
-  { key: "stock-stock",  label: "Peers",      description: "Stock-to-stock connections only" },
-  { key: "hierarchy",    label: "Structure",  description: "Sector / subsector links only" },
-];
+export interface ConnectionView {
+  modes: ConnectionMode[];       // which tier/type to show (multi-select)
+  focusTickers: string[];        // if non-empty, only show edges touching these tickers
+}
+
+export const DEFAULT_CONNECTION_VIEW: ConnectionView = {
+  modes: ["structural"],
+  focusTickers: [],
+};
 
 // ─── Graph data assembly ──────────────────────────────────────────────────────
 
-interface Edge { source: string; target: string; kind: "sector" | "primary" | "explicit"; }
+interface Edge {
+  source: string;
+  target: string;
+  kind: "sector" | "primary" | "explicit";
+  tier?: number; // 1=Exposure 2=Peer 3=Impact; undefined for structural/sector edges
+}
 
 interface GraphData {
   nodes: GNode[];
@@ -457,7 +465,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
   const notificationsRef   = useRef<Record<string, Array<{ type: NotifType }>>>({});
 
   // Connection view ref
-  const connectionViewRef = useRef<ConnectionView>("primary");
+  const connectionViewRef = useRef<ConnectionView>(DEFAULT_CONNECTION_VIEW);
 
   // Admin view ref — bypasses stock LOD so all nodes are visible at any zoom
   const adminViewRef = useRef(false);
@@ -477,7 +485,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
   useEffect(() => { graphSettingsRef.current    = graphSettings  ?? DEFAULT_GRAPH_SETTINGS; }, [graphSettings]);
   useEffect(() => { editModeRef.current          = editMode       ?? false;                  }, [editMode]);
   useEffect(() => { adminViewRef.current         = adminView      ?? false;                  }, [adminView]);
-  useEffect(() => { connectionViewRef.current    = connectionView ?? "primary";             }, [connectionView]);
+  useEffect(() => { connectionViewRef.current    = connectionView ?? DEFAULT_CONNECTION_VIEW; }, [connectionView]);
   useEffect(() => { onNodeDragEndRef.current   = onNodeDragEnd;                            }, [onNodeDragEnd]);
   useEffect(() => { onContextMenuRef.current   = onContextMenu;                            }, [onContextMenu]);
   useEffect(() => { onShiftEmptyClickRef.current = onShiftEmptyClick;                      }, [onShiftEmptyClick]);
@@ -613,6 +621,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
           target: c.ticker_b,
           kind:   (hierarchyIds.has(c.ticker_a) || hierarchyIds.has(c.ticker_b))
                     ? "primary" : "explicit",
+          tier:   c.tier as number,
         } as Edge));
 
         // Structural edges auto-generated from parent_node_id — never need to be
@@ -990,7 +999,8 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       const d   = dpr();
 
       const animating = targetCameraRef.current !== null || draggingNodeRef.current !== null;
-      const drawKey = `${cam.x.toFixed(1)},${cam.y.toFixed(1)},${cam.scale.toFixed(3)},${hid ?? ""},${connectionViewRef.current},${animating}`;
+      const cv = connectionViewRef.current;
+      const drawKey = `${cam.x.toFixed(1)},${cam.y.toFixed(1)},${cam.scale.toFixed(3)},${hid ?? ""},${cv.modes.join(",")},${cv.focusTickers.join(",")},${animating}`;
       if (drawKey === lastDrawKey && !animating) {
         raf = requestAnimationFrame(draw);
         return;
@@ -998,14 +1008,30 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       lastDrawKey = drawKey;
 
       function shouldDrawEdge(edge: Edge): boolean {
-        const cw = connectionViewRef.current;
-        if (cw === "all") return true;
+        const cv = connectionViewRef.current;
+        const { modes, focusTickers } = cv;
+
+        // Ticker focus: only show edges where at least one endpoint is a focus ticker
+        if (focusTickers.length > 0) {
+          if (!focusTickers.includes(edge.source) && !focusTickers.includes(edge.target)) return false;
+        }
+
+        if (modes.length === 0) return false;
+
         const srcKind = gd.nodeById.get(edge.source)?.kind;
         const tgtKind = gd.nodeById.get(edge.target)?.kind;
-        if (cw === "primary")     return edge.kind === "primary" || edge.kind === "sector";
-        if (cw === "stock-stock") return srcKind === "stock" && tgtKind === "stock";
-        if (cw === "hierarchy")   return srcKind !== "stock" && tgtKind !== "stock";
-        return true;
+        const isSector = edge.kind === "sector";
+        const isHierarchy = !isSector && (srcKind !== "stock" && tgtKind !== "stock");
+        const isStockToHierarchy = (srcKind === "stock") !== (tgtKind === "stock"); // one each
+        const isStockStock = srcKind === "stock" && tgtKind === "stock";
+
+        for (const mode of modes) {
+          if (mode === "structural" && (isSector || isHierarchy)) return true;
+          if (mode === "exposure"   && isStockToHierarchy && edge.tier === 1) return true;
+          if (mode === "peer"       && isStockStock && edge.tier === 2) return true;
+          if (mode === "impact"     && isStockStock && edge.tier === 3) return true;
+        }
+        return false;
       }
 
       // Smooth zoom-to-node animation

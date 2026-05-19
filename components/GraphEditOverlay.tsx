@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { type ConnectionView, CONNECTION_VIEW_PRESETS } from "@/components/GraphCanvas";
+import { type ConnectionView, type ConnectionMode } from "@/components/GraphCanvas";
 
 export interface ContextMenuInfo {
   type: "node" | "edge" | "sector";
@@ -17,6 +17,7 @@ interface Props {
   onAdminViewChange: (v: boolean) => void;
   connectionView: ConnectionView;
   onConnectionViewChange: (v: ConnectionView) => void;
+  isPro: boolean;
   saveFailures: string[];
   pendingCount: number;
   knownTickers: string[];
@@ -47,7 +48,7 @@ interface Props {
 
 export default function GraphEditOverlay({
   editMode, adminView, onAdminViewChange,
-  connectionView, onConnectionViewChange, saveFailures, pendingCount, knownTickers,
+  connectionView, onConnectionViewChange, isPro, saveFailures, pendingCount, knownTickers,
   contextMenu, showConnectionPrompt, connectionPromptPreset, saving,
   onToggleEdit, onExitConfirmed, onSave, onContextMenuClose,
   onDeleteNode, onDeleteEdge, onAddConnection,
@@ -59,6 +60,7 @@ export default function GraphEditOverlay({
   const router = useRouter();
   const [connA, setConnA] = useState(knownTickers[0] ?? "");
   const [connB, setConnB] = useState(knownTickers[1] ?? "");
+  const [focusInput, setFocusInput] = useState("");
   // Exit confirm dialog — shown when user clicks "Edit mode" off with unsaved changes
   const [showExitConfirm, setShowExitConfirm] = useState(false);
 
@@ -97,6 +99,7 @@ export default function GraphEditOverlay({
       }}>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         {/* ConnectionView preset bar */}
+        {/* Connection view multi-select */}
         <div style={{
           display: "flex", alignItems: "center", gap: 1,
           background: "rgba(7,9,15,0.7)",
@@ -111,13 +114,23 @@ export default function GraphEditOverlay({
           }}>
             Connections
           </span>
-          {CONNECTION_VIEW_PRESETS.map(({ key, label, description }) => {
-            const active = connectionView === key;
+          {([ ["structural","Structure","Sector / subsector links"], ["exposure","Exposure","T1 — stock to industry"], ["peer","Peer","T2 — direct competitors"], ["impact","Impact","T3 — indirect relationships"] ] as [ConnectionMode, string, string][]).map(([mode, label, desc]) => {
+            const active = connectionView.modes.includes(mode);
             return (
               <button
-                key={key}
-                title={description}
-                onClick={() => onConnectionViewChange(key)}
+                key={mode}
+                title={desc}
+                onClick={() => {
+                  const current = connectionView.modes;
+                  let next: ConnectionMode[];
+                  if (active) {
+                    next = current.filter(m => m !== mode);
+                  } else {
+                    // Free tier: only 1 mode at a time
+                    next = isPro ? [...current, mode] : [mode];
+                  }
+                  onConnectionViewChange({ ...connectionView, modes: next });
+                }}
                 style={{
                   background:   active ? "rgba(59,130,246,0.18)" : "transparent",
                   border:       active ? "1px solid rgba(59,130,246,0.38)" : "1px solid transparent",
@@ -133,6 +146,52 @@ export default function GraphEditOverlay({
             );
           })}
         </div>
+
+        {/* Ticker focus input */}
+        {(() => {
+          const maxTickers = isPro ? 20 : 3;
+          const tickers = connectionView.focusTickers;
+          const addTicker = () => {
+            const t = focusInput.trim().toUpperCase();
+            if (!t || tickers.includes(t) || tickers.length >= maxTickers) return;
+            onConnectionViewChange({ ...connectionView, focusTickers: [...tickers, t] });
+            setFocusInput("");
+          };
+          return (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 4,
+              background: "rgba(7,9,15,0.7)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 7, padding: "2px 6px",
+              backdropFilter: "blur(8px)",
+            }}>
+              <span style={{ fontSize: 9, color: "#334155", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", userSelect: "none" }}>
+                Focus
+              </span>
+              {tickers.map(t => (
+                <span key={t} style={{ fontSize: 10, color: "#3b82f6", background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.3)", borderRadius: 4, padding: "1px 6px", display: "flex", alignItems: "center", gap: 4 }}>
+                  {t}
+                  <button onClick={() => onConnectionViewChange({ ...connectionView, focusTickers: tickers.filter(x => x !== t) })}
+                    style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", padding: 0, fontSize: 10, lineHeight: 1 }}>×</button>
+                </span>
+              ))}
+              {tickers.length < maxTickers && (
+                <input
+                  value={focusInput}
+                  onChange={e => setFocusInput(e.target.value.toUpperCase())}
+                  onKeyDown={e => e.key === "Enter" && addTicker()}
+                  placeholder={tickers.length === 0 ? "ticker…" : "+"}
+                  style={{ background: "transparent", border: "none", outline: "none", color: "#94a3b8", fontSize: 10, fontFamily: "monospace", width: tickers.length === 0 ? 52 : 28 }}
+                />
+              )}
+              {!isPro && <span style={{ fontSize: 9, color: "#334155" }}>max {maxTickers}</span>}
+              {tickers.length > 0 && (
+                <button onClick={() => onConnectionViewChange({ ...connectionView, focusTickers: [] })}
+                  style={{ background: "none", border: "none", color: "#334155", cursor: "pointer", fontSize: 9, padding: 0, fontFamily: "inherit" }}>clear</button>
+              )}
+            </div>
+          );
+        })()}
 
         {editMode && (
           <button
