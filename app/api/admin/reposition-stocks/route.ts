@@ -101,10 +101,6 @@ function layoutHierarchy(
     }
   }
 
-  // Sort sectors by their current angle from centroid to preserve visual order.
-  const cx = sectors.reduce((s, n) => s + n.x_position, 0) / (sectors.length || 1);
-  const cy = sectors.reduce((s, n) => s + n.y_position, 0) / (sectors.length || 1);
-
   // Sort by name — stable regardless of current DB positions (which may have
   // degenerated to a single point after prior scaling runs).
   const sorted = sectors
