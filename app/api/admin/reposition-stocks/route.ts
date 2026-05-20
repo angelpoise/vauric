@@ -12,23 +12,33 @@ async function isAuthorised(req: NextRequest): Promise<boolean> {
 
 // ── Layout constants ──────────────────────────────────────────────────────────
 //
-// Hierarchy layout uses proportional angular allocation:
-//   - Each sector owns an angular wedge pointing outward from the canvas centroid.
-//   - Subsectors fan within that wedge at RADIUS_SUB from the sector hub.
-//   - Subsubsectors fan from their subsector at RADIUS_SUBSUB.
-//   - Stocks fill rings around their assigned leaf node (scatterOffset).
+// Hierarchy layout — zone allocation approach:
+//   1. Sort sectors by their angle around the centroid.
+//   2. Assign each sector a proportional angular zone (more subsectors = wider zone).
+//      Zones are non-overlapping and together cover 360°.
+//   3. Spread each sector's subsectors within its zone at RADIUS_SUB from the hub.
+//   4. Subsubsectors fan from their subsector using a narrower slice of the same zone.
+//   5. Stocks fill rings around their leaf node.
+//
+// Using zone centre (not just raw outward angle) guarantees no two sectors
+// share the same angular region, eliminating the central blob.
 //
 // All positions are normalized 0-1; canvas renders at 1600×1100 px.
 
-const RADIUS_SUB        = 0.12;          // 192 px — subsector from sector hub
-const RADIUS_SUBSUB     = 0.08;          // 128 px — subsubsector from subsector
-const ANGLE_PER_SUB     = 0.50;          // ~28.6° per subsector
-const ANGLE_PER_SUBSUB  = 0.55;          // ~31.5° per subsubsector
-const MAX_SUB_SPREAD    = Math.PI * 1.5; // 270° max arc for subsectors
-const MAX_SUBSUB_SPREAD = Math.PI;       // 180° max arc for subsubsectors
+const RADIUS_SUB        = 0.16;  // 256 px — subsector from sector hub
+const RADIUS_SUBSUB     = 0.10;  // 160 px — subsubsector from subsector
+const MAX_SUBSUB_SPREAD = Math.PI * 0.7; // cap subsubsector arc at 126°
 
 function clamp(v: number, lo = 0.02, hi = 0.98) {
   return Math.max(lo, Math.min(hi, v));
+}
+
+// Reduce radius so the placed node stays safely on canvas in the given direction.
+function safeRadius(ox: number, oy: number, angle: number, r: number): number {
+  const dx = Math.cos(angle), dy = Math.sin(angle);
+  const maxX = dx > 0 ? (0.96 - ox) / dx : dx < 0 ? (ox - 0.04) / -dx : Infinity;
+  const maxY = dy > 0 ? (0.96 - oy) / dy : dy < 0 ? (oy - 0.04) / -dy : Infinity;
+  return Math.min(r, maxX, maxY, r);
 }
 
 // ── Stock scatter rings ───────────────────────────────────────────────────────
@@ -70,6 +80,7 @@ function layoutHierarchy(
 
   const sectors = allNodes.filter((n) => n.node_type === "sector");
 
+  // Canvas centroid — used only to sort sectors by angular position.
   const centroid = sectors.length
     ? {
         x: sectors.reduce((s, n) => s + n.x_position, 0) / sectors.length,
@@ -94,52 +105,70 @@ function layoutHierarchy(
     }
   }
 
-  for (const sector of sectors) {
-    const baseAngle = Math.atan2(
-      sector.y_position - centroid.y,
-      sector.x_position - centroid.x,
-    );
+  // ── Zone allocation ────────────────────────────────────────────────────────
+  // Sort sectors clockwise by their angle around the centroid, then assign each
+  // a proportional angular zone covering the full 360°.  Subsectors spread
+  // within the zone, applied outward from the sector hub — guaranteeing no two
+  // sectors' children share the same angular region.
+
+  const sorted = sectors
+    .map((s) => ({
+      s,
+      angle: Math.atan2(s.y_position - centroid.y, s.x_position - centroid.x),
+      weight: Math.max(subsectorsByParent.get(s.id)?.length ?? 0, 1),
+    }))
+    .sort((a, b) => a.angle - b.angle);
+
+  const totalWeight = sorted.reduce((sum, e) => sum + e.weight, 0);
+
+  let zoneStart = -Math.PI;
+
+  for (const { s: sector, weight } of sorted) {
+    const zoneWidth  = (weight / totalWeight) * 2 * Math.PI;
+    const zoneCenter = zoneStart + zoneWidth / 2;
 
     const subs = subsectorsByParent.get(sector.id) ?? [];
-    const N = subs.length;
-    if (N === 0) continue;
+    const N    = subs.length;
 
-    const subSpread = N === 1 ? 0 : Math.min(N * ANGLE_PER_SUB, MAX_SUB_SPREAD);
+    // Use 80 % of the zone width so there is a gap between adjacent sectors.
+    const arc = zoneWidth * 0.80;
 
     subs.forEach((sub, i) => {
-      const angle =
-        N === 1
-          ? baseAngle
-          : baseAngle - subSpread / 2 + (i / (N - 1)) * subSpread;
+      const angle = N === 1
+        ? zoneCenter
+        : zoneCenter - arc / 2 + (i / (N - 1)) * arc;
 
-      const newX = clamp(sector.x_position + Math.cos(angle) * RADIUS_SUB);
-      const newY = clamp(sector.y_position + Math.sin(angle) * RADIUS_SUB);
+      const r    = safeRadius(sector.x_position, sector.y_position, angle, RADIUS_SUB);
+      const newX = clamp(sector.x_position + Math.cos(angle) * r);
+      const newY = clamp(sector.y_position + Math.sin(angle) * r);
 
       sub.x_position = newX;
       sub.y_position = newY;
       updates.push({ id: sub.id, x_position: newX, y_position: newY });
 
+      // Subsubsectors get a narrower arc within the same zone slice.
       const subsubs = subsubsectorsByParent.get(sub.id) ?? [];
-      const M = subsubs.length;
+      const M       = subsubs.length;
       if (M === 0) return;
 
-      const subsubSpread =
-        M === 1 ? 0 : Math.min(M * ANGLE_PER_SUBSUB, MAX_SUBSUB_SPREAD);
+      const subArc = Math.min((arc / N) * 0.9, MAX_SUBSUB_SPREAD);
 
       subsubs.forEach((subsub, j) => {
-        const subAngle =
-          M === 1
-            ? angle
-            : angle - subsubSpread / 2 + (j / (M - 1)) * subsubSpread;
+        const subAngle = M === 1
+          ? angle
+          : angle - subArc / 2 + (j / (M - 1)) * subArc;
 
-        const subX = clamp(newX + Math.cos(subAngle) * RADIUS_SUBSUB);
-        const subY = clamp(newY + Math.sin(subAngle) * RADIUS_SUBSUB);
+        const sr   = safeRadius(newX, newY, subAngle, RADIUS_SUBSUB);
+        const subX = clamp(newX + Math.cos(subAngle) * sr);
+        const subY = clamp(newY + Math.sin(subAngle) * sr);
 
         subsub.x_position = subX;
         subsub.y_position = subY;
         updates.push({ id: subsub.id, x_position: subX, y_position: subY });
       });
     });
+
+    zoneStart += zoneWidth;
   }
 
   return updates;
