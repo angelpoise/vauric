@@ -373,10 +373,11 @@ export default function Home() {
                 sub="Full graph access. No credit card needed."
                 items={[
                   "Full knowledge graph — all 1,300+ stocks",
+                  "All connections visible — sector, industry, peer, and exposure",
                   "Real-time prices and daily moves",
-                  "Personal watchlist with live tracking",
-                  "Stock pages with company analysis",
-                  "Sector, exposure, peer, and impact views",
+                  "Stock detail pages",
+                  "Personal watchlist",
+                  "General news feed",
                 ]}
                 cta="Get started free"
                 ctaHref="/sign-up"
@@ -386,13 +387,13 @@ export default function Home() {
               <PricingCard
                 tier="Plus"
                 price="$9"
-                sub="An upgraded version of the app with real-time alerts built in."
+                sub="Alerts and AI market intelligence on top of the full graph."
                 items={[
                   "Everything in Free",
+                  "AI market summary — biggest stories each day",
                   "Price and earnings alerts",
                   "Analyst upgrade and downgrade notifications",
                   "Corporate action alerts",
-                  "Extended watchlist",
                 ]}
                 cta="Start Plus"
                 ctaHref="/sign-up?plan=plus"
@@ -406,11 +407,12 @@ export default function Home() {
                 sub="The complete toolkit for serious investors."
                 items={[
                   "Everything in Plus",
-                  "AI analysis on every company",
+                  "AI market summary filtered to your watchlist",
+                  "AI analysis on every company page",
                   "Bull, base, and bear scenario modelling",
-                  "Multi-select connection views",
                   "Saved focus lists",
                   "Portfolio tracking and export",
+                  "Multi-select connection views",
                 ]}
                 cta="Start Pro"
                 ctaHref="/sign-up?plan=pro"
