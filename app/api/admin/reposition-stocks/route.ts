@@ -434,10 +434,15 @@ export async function POST(req: NextRequest) {
     updated += chunk.length;
   }
 
+  const sectorSample = hierUpdates.slice(0, 11).map(u => ({ id: u.id, x: u.x_position, y: u.y_position }));
+
   return NextResponse.json({
     ok:               true,
     hierRepositioned: hierUpdates.length,
     stockRepositioned: stockUpdates.length,
     total:            updated,
+    sectorSample,
+    elA: EL_A,
+    elB: EL_B,
   });
 }
