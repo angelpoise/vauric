@@ -29,18 +29,15 @@ const EL_A  = 3.20;  // sector ring radius (horizontal) — larger → more room
 const EL_B  = 2.40;  // sector ring radius (vertical)
 
 // Each child level progressively further out.
-const RADIUS_SUB    = 1.60;
-const RADIUS_SUBSUB = 1.10;
-const STOCK_RADIUS  = 1.30;
+const RADIUS_SUB    = 2.20;  // longer spokes — subsectors further from hub
+const RADIUS_SUBSUB = 1.50;  // subsubsectors further from subsector
+const STOCK_RADIUS  = 1.60;  // stocks clearly beyond
 
-// Per-node spread angle — no zone cap, just a fixed maximum arc so large sectors
-// fan wide and small sectors scale proportionally.
-// With EL_A=3.20 the inter-sector chord is ~1.80; subsectors overlap at >68°.
-// We accept that tradeoff so the fans are actually visible.
-const ANGLE_PER_SUB    = 0.20;   // ~11.5° per subsector
-const MAX_SUB_ARC      = 1.20;   // ~69° hard cap for subsectors
-const ANGLE_PER_SUBSUB = 0.22;   // ~12.6° per subsubsector
-const MAX_SUBSUB_ARC   = 0.90;   // ~52° hard cap for subsubsectors
+// Per-node spread angle — fixed maximum arc, no zone cap.
+const ANGLE_PER_SUB    = 0.22;   // ~12.6° per subsector
+const MAX_SUB_ARC      = 1.60;   // ~91° hard cap
+const ANGLE_PER_SUBSUB = 0.25;   // ~14.3° per subsubsector
+const MAX_SUBSUB_ARC   = 1.20;   // ~69° hard cap
 
 // Stocks sit on one curved arc.
 const ANGLE_PER_STOCK = 0.055;
