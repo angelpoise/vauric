@@ -30,23 +30,32 @@ async function isAuthorised(req: NextRequest): Promise<boolean> {
 // and the graph has pan/zoom so nodes can legitimately sit outside 0-1.
 // DO NOT clamp to 0-1 — that was collapsing off-canvas sectors onto the boundary.
 
-const RADIUS_SUB        = 0.38;          // subsector spread from sector hub
-const RADIUS_SUBSUB     = 0.26;          // subsubsector spread from subsector
-const MAX_SUBSUB_SPREAD = Math.PI * 0.9; // cap subsubsector arc at 162°
+// Compress sector hubs toward the centroid so there is room for children
+// to spread outward without going off-screen.
+const SECTOR_SCALE  = 0.45;
+
+// Each child level is progressively further from its parent.
+const RADIUS_SUB        = 0.65;           // subsectors from sector hub
+const RADIUS_SUBSUB     = 0.42;           // subsubsectors from subsector
+// Arc allocation: allow each sector to use more than its proportional zone
+// so subsectors are visually spread apart. Capped to avoid severe overlap.
+const ARC_MULTIPLIER    = 1.5;
+const MAX_SUB_ARC       = Math.PI * 1.1;  // 198° max
+const MAX_SUBSUB_SPREAD = Math.PI * 0.9;  // 162° max
 
 // ── Stock scatter rings ───────────────────────────────────────────────────────
 
 function scatterOffset(idx: number, total: number): { dx: number; dy: number } {
-  if (total === 1) return { dx: 0.09, dy: 0 };
+  if (total === 1) return { dx: 0.22, dy: 0 };
   let ring = 0;
   let remaining = idx;
-  let ringCapacity = 10;
+  let ringCapacity = 12;
   while (remaining >= ringCapacity) {
     remaining -= ringCapacity;
     ring++;
-    ringCapacity = (ring + 1) * 10;
+    ringCapacity = (ring + 1) * 12;
   }
-  const radius = 0.15 + ring * 0.11;
+  const radius = 0.22 + ring * 0.18;
   const angle  = (remaining / ringCapacity) * 2 * Math.PI;
   return { dx: Math.cos(angle) * radius, dy: Math.sin(angle) * radius };
 }
@@ -98,12 +107,6 @@ function layoutHierarchy(
     }
   }
 
-  // ── Zone allocation ────────────────────────────────────────────────────────
-  // Sort sectors clockwise by their angle around the centroid, then assign each
-  // a proportional angular zone covering the full 360°.  Subsectors spread
-  // within the zone, applied outward from the sector hub — guaranteeing no two
-  // sectors' children share the same angular region.
-
   const sorted = sectors
     .map((s) => ({
       s,
@@ -114,19 +117,27 @@ function layoutHierarchy(
 
   const totalWeight = sorted.reduce((sum, e) => sum + e.weight, 0);
 
+  // Step 1: Pull sector hubs closer together so their children have room to
+  // spread outward without going off-screen.
+  for (const { s: sector } of sorted) {
+    sector.x_position = centroid.x + (sector.x_position - centroid.x) * SECTOR_SCALE;
+    sector.y_position = centroid.y + (sector.y_position - centroid.y) * SECTOR_SCALE;
+    updates.push({ id: sector.id, x_position: sector.x_position, y_position: sector.y_position });
+  }
+
+  // Step 2: Fan subsectors and subsubsectors outward from the scaled hubs.
   let zoneStart = -Math.PI;
 
   for (const { s: sector, weight } of sorted) {
     const zoneWidth  = (weight / totalWeight) * 2 * Math.PI;
     const zoneCenter = zoneStart + zoneWidth / 2;
+    // Children spread INWARD (flip 180°) — sector hubs are on the outer ring.
+    const inward = zoneCenter + Math.PI;
+    // Allow a wider arc than the strict zone so subsectors are well spread.
+    const arc = Math.min(zoneWidth * ARC_MULTIPLIER, MAX_SUB_ARC);
 
     const subs = subsectorsByParent.get(sector.id) ?? [];
     const N    = subs.length;
-
-    // Sectors sit on the outer ring; subsectors must spread INWARD toward the
-    // canvas interior, not outward (which would go off-screen). Flip 180°.
-    const inward = zoneCenter + Math.PI;
-    const arc    = zoneWidth * 0.88;
 
     subs.forEach((sub, i) => {
       const angle = N === 1
@@ -140,13 +151,10 @@ function layoutHierarchy(
       sub.y_position = newY;
       updates.push({ id: sub.id, x_position: newX, y_position: newY });
 
-      // Subsubsectors get a narrower arc within the same zone slice.
       const subsubs = subsubsectorsByParent.get(sub.id) ?? [];
       const M       = subsubs.length;
       if (M === 0) return;
 
-      // Each subsector gets its own arc slice proportional to how many
-      // subsubsectors it has — use the full arc width, not arc/N.
       const subArc = Math.min(arc * 0.85, MAX_SUBSUB_SPREAD);
 
       subsubs.forEach((subsub, j) => {
