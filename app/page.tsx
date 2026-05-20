@@ -91,47 +91,48 @@ function PricingCard({
   items: string[];
   cta: string;
   ctaHref: string;
-  highlight?: boolean;
-  accent?: boolean;
+  highlight?: boolean; // Pro — blue
+  accent?: boolean;    // Plus — bright white/silver
+  // Free — grey (neither flag set)
 }) {
+  // Colour tokens per tier
+  const borderCol = highlight
+    ? "rgba(59,130,246,0.4)"
+    : accent
+    ? "rgba(255,255,255,0.24)"
+    : "rgba(255,255,255,0.07)";
+  const bgCol = highlight
+    ? "rgba(59,130,246,0.06)"
+    : accent
+    ? "rgba(255,255,255,0.05)"
+    : "var(--bg2)";
+  const tierCol  = highlight ? "var(--blue)"    : accent ? "#94a3b8"  : "#475569";
+  const priceCol = highlight ? "var(--text)"    : accent ? "var(--text)" : "#64748b";
+  const subCol   = highlight ? "var(--text-dim)": accent ? "var(--text-dim)" : "#475569";
+  const itemCol  = highlight ? "var(--text-dim)": accent ? "#94a3b8"  : "#475569";
+  const checkCol = highlight ? "var(--blue)"    : accent ? "#64748b"  : "#334155";
+
   return (
     <div style={{
-      border: `1px solid ${highlight ? "rgba(59,130,246,0.38)" : accent ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.07)"}`,
+      border: `1px solid ${borderCol}`,
       borderRadius: 14,
-      background: highlight ? "rgba(59,130,246,0.05)" : accent ? "rgba(255,255,255,0.03)" : "var(--bg2)",
+      background: bgCol,
       padding: "30px 28px",
       display: "flex", flexDirection: "column",
     }}>
 
-      {/* Tier + optional badge */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <p style={{
-          fontFamily: DM, fontSize: 11, fontWeight: 700,
-          letterSpacing: "0.12em", textTransform: "uppercase",
-          color: highlight ? "var(--blue)" : accent ? "#94a3b8" : "#475569",
-          margin: 0,
-        }}>
-          {tier}
-        </p>
-        {highlight && (
-          <span style={{
-            fontFamily: DM, fontSize: 10, fontWeight: 600,
-            letterSpacing: "0.06em", textTransform: "uppercase",
-            color: "var(--blue)", background: "rgba(59,130,246,0.12)",
-            border: "1px solid rgba(59,130,246,0.25)",
-            borderRadius: 20, padding: "2px 9px",
-          }}>
-            Best value
-          </span>
-        )}
-      </div>
+      {/* Tier label */}
+      <p style={{
+        fontFamily: DM, fontSize: 11, fontWeight: 700,
+        letterSpacing: "0.12em", textTransform: "uppercase",
+        color: tierCol, margin: "0 0 20px",
+      }}>
+        {tier}
+      </p>
 
       {/* Price */}
       <div style={{ minHeight: 52, marginBottom: 8 }}>
-        <span style={{
-          fontFamily: SERIF, fontSize: 40, fontWeight: 400,
-          color: highlight ? "var(--text)" : accent ? "#cbd5e1" : "#64748b",
-        }}>
+        <span style={{ fontFamily: SERIF, fontSize: 40, fontWeight: 400, color: priceCol }}>
           {price}
         </span>
         {price !== "Free" && (
@@ -143,8 +144,7 @@ function PricingCard({
 
       {/* Sub */}
       <p style={{
-        fontFamily: DM, fontSize: 13,
-        color: highlight ? "var(--text-dim)" : accent ? "#94a3b8" : "#475569",
+        fontFamily: DM, fontSize: 13, color: subCol,
         fontWeight: 300, minHeight: 44, marginBottom: 24, lineHeight: 1.6,
       }}>
         {sub}
@@ -154,14 +154,10 @@ function PricingCard({
       <ul style={{ listStyle: "none", padding: 0, margin: "0 0 28px", display: "flex", flexDirection: "column", gap: 11, flex: 1 }}>
         {items.map((item) => (
           <li key={item} style={{
-            fontFamily: DM, fontSize: 13,
-            color: highlight ? "var(--text-dim)" : accent ? "#94a3b8" : "#475569",
+            fontFamily: DM, fontSize: 13, color: itemCol,
             fontWeight: 300, display: "flex", alignItems: "flex-start", gap: 10,
           }}>
-            <span style={{
-              flexShrink: 0, marginTop: 1,
-              color: highlight ? "var(--blue)" : accent ? "#64748b" : "#334155",
-            }}>✓</span>
+            <span style={{ flexShrink: 0, marginTop: 1, color: checkCol }}>✓</span>
             {item}
           </li>
         ))}
@@ -178,7 +174,7 @@ function PricingCard({
           background: highlight
             ? "var(--blue)"
             : accent
-            ? "rgba(255,255,255,0.07)"
+            ? "rgba(255,255,255,0.08)"
             : "transparent",
           border: highlight
             ? "none"
