@@ -25,21 +25,14 @@ async function isAuthorised(req: NextRequest): Promise<boolean> {
 //
 // All positions are normalized 0-1; canvas renders at 1600×1100 px.
 
-const RADIUS_SUB        = 0.16;  // 256 px — subsector from sector hub
-const RADIUS_SUBSUB     = 0.10;  // 160 px — subsubsector from subsector
+// Sector positions are in world-space units (not constrained to 0-1).
+// Canvas renders positions as x_position * 1600 / y_position * 1100,
+// and the graph has pan/zoom so nodes can legitimately sit outside 0-1.
+// DO NOT clamp to 0-1 — that was collapsing off-canvas sectors onto the boundary.
+
+const RADIUS_SUB        = 0.28;          // subsector spread from sector hub
+const RADIUS_SUBSUB     = 0.16;          // subsubsector spread from subsector
 const MAX_SUBSUB_SPREAD = Math.PI * 0.7; // cap subsubsector arc at 126°
-
-function clamp(v: number, lo = 0.02, hi = 0.98) {
-  return Math.max(lo, Math.min(hi, v));
-}
-
-// Reduce radius so the placed node stays safely on canvas in the given direction.
-function safeRadius(ox: number, oy: number, angle: number, r: number): number {
-  const dx = Math.cos(angle), dy = Math.sin(angle);
-  const maxX = dx > 0 ? (0.96 - ox) / dx : dx < 0 ? (ox - 0.04) / -dx : Infinity;
-  const maxY = dy > 0 ? (0.96 - oy) / dy : dy < 0 ? (oy - 0.04) / -dy : Infinity;
-  return Math.min(r, maxX, maxY, r);
-}
 
 // ── Stock scatter rings ───────────────────────────────────────────────────────
 
@@ -138,9 +131,8 @@ function layoutHierarchy(
         ? zoneCenter
         : zoneCenter - arc / 2 + (i / (N - 1)) * arc;
 
-      const r    = safeRadius(sector.x_position, sector.y_position, angle, RADIUS_SUB);
-      const newX = clamp(sector.x_position + Math.cos(angle) * r);
-      const newY = clamp(sector.y_position + Math.sin(angle) * r);
+      const newX = sector.x_position + Math.cos(angle) * RADIUS_SUB;
+      const newY = sector.y_position + Math.sin(angle) * RADIUS_SUB;
 
       sub.x_position = newX;
       sub.y_position = newY;
@@ -158,9 +150,8 @@ function layoutHierarchy(
           ? angle
           : angle - subArc / 2 + (j / (M - 1)) * subArc;
 
-        const sr   = safeRadius(newX, newY, subAngle, RADIUS_SUBSUB);
-        const subX = clamp(newX + Math.cos(subAngle) * sr);
-        const subY = clamp(newY + Math.sin(subAngle) * sr);
+        const subX = newX + Math.cos(subAngle) * RADIUS_SUBSUB;
+        const subY = newY + Math.sin(subAngle) * RADIUS_SUBSUB;
 
         subsub.x_position = subX;
         subsub.y_position = subY;
@@ -416,8 +407,8 @@ export async function POST(req: NextRequest) {
       const { dx, dy } = scatterOffset(idx, tickers.length);
       stockUpdates.push({
         id:         stock.id,
-        x_position: clamp(target.x_position + dx),
-        y_position: clamp(target.y_position + dy),
+        x_position: target.x_position + dx,
+        y_position: target.y_position + dy,
       });
     });
   });
