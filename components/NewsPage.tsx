@@ -244,6 +244,7 @@ export default function NewsPage() {
   const [showAiPanel, setShowAiPanel]       = useState(false);
   const [aiMode, setAiMode]                 = useState<AiMode>("general");
   const [aiSummary, setAiSummary]           = useState<string | null>(null);
+  const [aiGeneratedAt, setAiGeneratedAt]   = useState<string | null>(null);
   const [aiLoading, setAiLoading]           = useState(false);
   const [aiError, setAiError]               = useState<string | null>(null);
   const [customTickers, setCustomTickers]   = useState<string[]>([]);
@@ -257,6 +258,7 @@ export default function NewsPage() {
     setAiLoading(true);
     setAiError(null);
     setAiSummary(null);
+    setAiGeneratedAt(null);
     try {
       const token = await getToken();
       const params = new URLSearchParams({ mode });
@@ -266,12 +268,12 @@ export default function NewsPage() {
       const r = await fetch(`/api/news/ai-summary?${params}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
+      const json = await r.json() as { summary?: string; generatedAt?: string; error?: string };
       if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        setAiError((err as { error?: string }).error ?? "Failed to generate summary.");
+        setAiError(json.error ?? "Failed to generate summary.");
       } else {
-        const { summary } = await r.json() as { summary: string };
-        setAiSummary(summary);
+        setAiSummary(json.summary ?? "");
+        setAiGeneratedAt(json.generatedAt ?? null);
       }
     } catch {
       setAiError("Network error — please try again.");
@@ -291,6 +293,7 @@ export default function NewsPage() {
   function handleAiModeChange(mode: AiMode) {
     setAiMode(mode);
     setAiSummary(null);
+    setAiGeneratedAt(null);
     setAiError(null);
   }
 
@@ -519,12 +522,19 @@ export default function NewsPage() {
                     <div style={{ fontSize: 13, color: "#475569", fontWeight: 300 }}>Generating summary…</div>
                   )}
                   {aiError && (
-                    <div style={{ fontSize: 13, color: "#ef4444" }}>{aiError}</div>
+                    <div style={{ fontSize: 13, color: "#ef4444", lineHeight: 1.6 }}>{aiError}</div>
                   )}
                   {aiSummary && (
-                    <div style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.75, fontWeight: 300, whiteSpace: "pre-wrap" }}>
-                      {aiSummary}
-                    </div>
+                    <>
+                      <div style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.75, fontWeight: 300, whiteSpace: "pre-wrap" }}>
+                        {aiSummary}
+                      </div>
+                      {aiGeneratedAt && (
+                        <div style={{ fontSize: 11, color: "#334155", marginTop: 12 }}>
+                          Generated {new Date(aiGeneratedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               )}
@@ -533,11 +543,18 @@ export default function NewsPage() {
               {isPro && aiMode === "custom" && (aiSummary || aiLoading || aiError) && (
                 <div style={{ marginTop: 16 }}>
                   {aiLoading && <div style={{ fontSize: 13, color: "#475569", fontWeight: 300 }}>Generating…</div>}
-                  {aiError  && <div style={{ fontSize: 13, color: "#ef4444" }}>{aiError}</div>}
+                  {aiError  && <div style={{ fontSize: 13, color: "#ef4444", lineHeight: 1.6 }}>{aiError}</div>}
                   {aiSummary && (
-                    <div style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.75, fontWeight: 300, whiteSpace: "pre-wrap" }}>
-                      {aiSummary}
-                    </div>
+                    <>
+                      <div style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.75, fontWeight: 300, whiteSpace: "pre-wrap" }}>
+                        {aiSummary}
+                      </div>
+                      {aiGeneratedAt && (
+                        <div style={{ fontSize: 11, color: "#334155", marginTop: 12 }}>
+                          Generated {new Date(aiGeneratedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
