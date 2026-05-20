@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Logo from "@/components/Logo";
 import KnowledgeGraph from "@/components/KnowledgeGraph";
+import StatsCounter from "@/components/StatsCounter";
 
 const DM    = 'var(--font-dm-sans), "DM Sans", sans-serif';
 const SERIF = 'var(--font-dm-serif), serif';
@@ -50,26 +51,6 @@ function Nav() {
         </div>
       </div>
     </header>
-  );
-}
-
-// ─── Stats bar ────────────────────────────────────────────────────────────────
-
-function StatItem({ value, label }: { value: string; label: string }) {
-  return (
-    <div style={{ textAlign: "center" }}>
-      <div style={{
-        fontFamily: SERIF, fontSize: "clamp(24px, 3vw, 34px)",
-        fontWeight: 400, color: "var(--text)", lineHeight: 1.1, marginBottom: 4,
-      }}>
-        {value}
-      </div>
-      <div style={{
-        fontFamily: DM, fontSize: 13, color: "var(--text-muted)", fontWeight: 300,
-      }}>
-        {label}
-      </div>
-    </div>
   );
 }
 
@@ -263,34 +244,7 @@ export default function Home() {
         </section>
 
         {/* ── Stats ───────────────────────────────────────────────────────── */}
-        <section style={{
-          maxWidth: 860, margin: "0 auto",
-          padding: "0 24px 80px",
-        }}>
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-            gap: 1,
-            background: "rgba(255,255,255,0.06)",
-            border: "1px solid rgba(255,255,255,0.06)",
-            borderRadius: 12, overflow: "hidden",
-          }}>
-            {[
-              { value: "1,300+",  label: "Listed stocks" },
-              { value: "11",      label: "Market sectors" },
-              { value: "200+",    label: "Industry nodes" },
-              { value: "18,000+", label: "Connections mapped" },
-            ].map(({ value, label }) => (
-              <div key={label} style={{
-                background: "var(--bg2)",
-                padding: "28px 20px",
-                textAlign: "center",
-              }}>
-                <StatItem value={value} label={label} />
-              </div>
-            ))}
-          </div>
-        </section>
+        <StatsCounter />
 
         {/* ── Graph preview ───────────────────────────────────────────────── */}
         <section style={{
@@ -360,7 +314,7 @@ export default function Home() {
             color: "var(--text-muted)", textAlign: "center",
             maxWidth: 480, margin: "0 auto 48px", lineHeight: 1.65,
           }}>
-            Most platforms show you the same 30 names. Vauric is built to surface the other 1,270.
+            Most platforms show you the same 30 names. Vauric is built to surface the others.
           </p>
 
           <div style={{
@@ -419,17 +373,29 @@ export default function Home() {
               ctaHref="/sign-up"
             />
             <PricingCard
-              tier="Pro"
-              price="$15"
-              sub="For investors who want the full picture."
+              tier="Plus"
+              price="$9"
+              sub="Alerts and a bigger watchlist."
               items={[
                 "Everything in Free",
-                "Unlimited watchlist",
-                "All connection views and multi-select",
-                "AI analysis and scenario modelling",
-                "Price, analyst, and earnings alerts",
+                "Price and earnings alerts",
+                "Extended watchlist",
+                "Analyst action notifications",
+              ]}
+              cta="Start Plus"
+              ctaHref="/sign-up?plan=plus"
+            />
+            <PricingCard
+              tier="Pro"
+              price="$15"
+              sub="The full picture — alerts, AI, and scenarios."
+              items={[
+                "Everything in Plus",
+                "AI analysis on every company",
+                "Bull, base, and bear scenario modelling",
+                "Multi-select connection views",
                 "Saved focus lists",
-                "Export and portfolio tracking",
+                "Portfolio tracking and export",
               ]}
               cta="Start Pro"
               ctaHref="/sign-up?plan=pro"

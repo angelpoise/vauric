@@ -41,6 +41,20 @@ body::before {
   background-size: 48px 48px;
   pointer-events: none;
   z-index: 0;
+  animation: gridDrift 90s linear infinite;
+}
+
+/* Subtle second layer — sparse dot grid at a different scale/opacity */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(59, 130, 246, 0.08) 1px, transparent 1px);
+  background-size: 120px 120px;
+  pointer-events: none;
+  z-index: 0;
+  animation: gridDrift 140s linear infinite reverse;
+  opacity: 0.6;
 }
 
 /* GLOW ORBS */
@@ -348,6 +362,11 @@ footer a { color: var(--text-muted); text-decoration: none; }
 footer a:hover { color: var(--text-dim); }
 
 /* ANIMATIONS */
+/* Grid pan — both layers drift at different speeds/directions */
+@keyframes gridDrift {
+  0%   { background-position: 0 0; }
+  100% { background-position: 48px 48px; }
+}
 @keyframes drift1 { from { transform: translate(0, 0); } to { transform: translate(40px, 30px); } }
 @keyframes drift2 { from { transform: translate(0, 0); } to { transform: translate(-30px, -20px); } }
 @keyframes pulse {
