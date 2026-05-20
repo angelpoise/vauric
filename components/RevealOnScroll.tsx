@@ -29,7 +29,7 @@ export default function RevealOnScroll({
     if (!el) return;
     const obs = new IntersectionObserver(
       ([e]) => { if (e.isIntersecting) { setVisible(true); obs.disconnect(); } },
-      { threshold: 0.1 },
+      { threshold: 0.1, rootMargin: "0px 0px -120px 0px" },
     );
     obs.observe(el);
     return () => obs.disconnect();
