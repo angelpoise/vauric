@@ -364,6 +364,14 @@ export default function Home() {
               title="Catalyst alerts that matter"
               body="Earnings, analyst upgrades and downgrades, short squeeze conditions, insider filings. Alerts are tied to your watchlist — so you only hear about what you actually care about."
             />
+            <Feature
+              title="Live data on every stock"
+              body="Real-time prices, daily moves, and relative strength vs sector ETFs. Every node on the graph is a live data point, not a static label."
+            />
+            <Feature
+              title="Watchlist and portfolio tracking"
+              body="Save the stocks you're following and track your holdings in one place. See performance, alerts, and analysis for everything you own or are watching."
+            />
           </div>
         </section>
 

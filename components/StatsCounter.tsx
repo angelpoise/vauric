@@ -49,7 +49,7 @@ export default function StatsCounter() {
     <div ref={ref} style={{ maxWidth: 960, margin: "0 auto", padding: "0 24px 80px" }}>
       <div style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
         gap: 1,
         background: "rgba(255,255,255,0.05)",
         border: "1px solid rgba(255,255,255,0.06)",
@@ -75,20 +75,6 @@ export default function StatsCounter() {
           </div>
         ))}
 
-        {/* Two qualitative blocks */}
-        {[
-          { title: "Live market data",  body: "Prices sourced from Polygon and refreshed throughout every trading session." },
-          { title: "AI company analysis", body: "Business model, margins, and guidance summarised on demand for any stock." },
-        ].map(({ title, body }) => (
-          <div key={title} style={{ background: "var(--bg2)", padding: "24px 20px", textAlign: "center", borderLeft: "1px solid rgba(255,255,255,0.05)" }}>
-            <p style={{ fontFamily: DM, fontSize: 13, fontWeight: 600, color: "var(--text-dim)", marginBottom: 6 }}>
-              {title}
-            </p>
-            <p style={{ fontFamily: DM, fontSize: 12, fontWeight: 300, color: "var(--text-muted)", lineHeight: 1.6, margin: 0 }}>
-              {body}
-            </p>
-          </div>
-        ))}
 
       </div>
     </div>
