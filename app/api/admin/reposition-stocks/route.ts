@@ -12,41 +12,36 @@ async function isAuthorised(req: NextRequest): Promise<boolean> {
 
 // ── Layout constants ──────────────────────────────────────────────────────────
 //
-// Hierarchy layout — zone allocation approach:
-//   1. Sort sectors by their angle around the centroid.
-//   2. Assign each sector a proportional angular zone (more subsectors = wider zone).
-//      Zones are non-overlapping and together cover 360°.
-//   3. Spread each sector's subsectors within its zone at RADIUS_SUB from the hub.
-//   4. Subsubsectors fan from their subsector using a narrower slice of the same zone.
-//   5. Stocks fill rings around their leaf node.
+// Ellipse-based layout — clean reset every run:
+//   1. Sectors are placed on a fixed ellipse (sorts preserved, positions reset).
+//   2. For each sector the "outward" direction is from ellipse centre → sector hub.
+//   3. Subsectors fan outward at RADIUS_SUB in that direction.
+//   4. Subsubsectors fan further outward at RADIUS_SUBSUB.
+//   5. Stocks fill rings outward from their leaf node.
 //
-// Using zone centre (not just raw outward angle) guarantees no two sectors
-// share the same angular region, eliminating the central blob.
-//
-// All positions are normalized 0-1; canvas renders at 1600×1100 px.
+// All positions are in world-space units; canvas renders x*1600, y*1100.
+// Graph has pan/zoom so nodes may legitimately sit outside 0-1.
 
-// Sector positions are in world-space units (not constrained to 0-1).
-// Canvas renders positions as x_position * 1600 / y_position * 1100,
-// and the graph has pan/zoom so nodes can legitimately sit outside 0-1.
-// DO NOT clamp to 0-1 — that was collapsing off-canvas sectors onto the boundary.
+// Ellipse on which sector hubs sit.
+const EL_CX = 1.2;   // horizontal centre of ellipse
+const EL_CY = 0.45;  // vertical centre
+const EL_A  = 0.62;  // horizontal semi-axis  → sectors span x ≈ 0.58 – 1.82
+const EL_B  = 0.44;  // vertical semi-axis    → sectors span y ≈ 0.01 – 0.89
 
-// Compress sector hubs toward the centroid so there is room for children
-// to spread outward without going off-screen.
-const SECTOR_SCALE  = 0.22; // tighter inner ring so outward children stay in view
+// Child level radii (each ring further from parent than the last).
+const RADIUS_SUB        = 0.52;          // subsector distance from sector hub
+const RADIUS_SUBSUB     = 0.34;          // subsubsector distance from subsector
 
-// Each child level is progressively further from its parent.
-const RADIUS_SUB        = 0.65;           // subsectors from sector hub
-const RADIUS_SUBSUB     = 0.42;           // subsubsectors from subsector
-// Arc allocation: allow each sector to use more than its proportional zone
-// so subsectors are visually spread apart. Capped to avoid severe overlap.
-const ARC_MULTIPLIER    = 1.5;
-const MAX_SUB_ARC       = Math.PI * 1.1;  // 198° max
-const MAX_SUBSUB_SPREAD = Math.PI * 0.9;  // 162° max
+// Arc spread — each sector fans its children through this fraction of its
+// proportional zone, capped so they don't wrap into adjacent sectors.
+const ARC_FRACTION      = 1.3;
+const MAX_SUB_ARC       = Math.PI * 1.0; // 180° hard cap for subsectors
+const MAX_SUBSUB_SPREAD = Math.PI * 0.8; // 144° hard cap for subsubsectors
 
 // ── Stock scatter rings ───────────────────────────────────────────────────────
 
 function scatterOffset(idx: number, total: number): { dx: number; dy: number } {
-  if (total === 1) return { dx: 0.22, dy: 0 };
+  if (total === 1) return { dx: 0.20, dy: 0 };
   let ring = 0;
   let remaining = idx;
   let ringCapacity = 12;
@@ -55,7 +50,7 @@ function scatterOffset(idx: number, total: number): { dx: number; dy: number } {
     ring++;
     ringCapacity = (ring + 1) * 12;
   }
-  const radius = 0.22 + ring * 0.18;
+  const radius = 0.20 + ring * 0.16;
   const angle  = (remaining / ringCapacity) * 2 * Math.PI;
   return { dx: Math.cos(angle) * radius, dy: Math.sin(angle) * radius };
 }
@@ -82,14 +77,6 @@ function layoutHierarchy(
 
   const sectors = allNodes.filter((n) => n.node_type === "sector");
 
-  // Canvas centroid — used only to sort sectors by angular position.
-  const centroid = sectors.length
-    ? {
-        x: sectors.reduce((s, n) => s + n.x_position, 0) / sectors.length,
-        y: sectors.reduce((s, n) => s + n.y_position, 0) / sectors.length,
-      }
-    : { x: 0.5, y: 0.5 };
-
   const subsectorsByParent    = new Map<string, AdminNode[]>();
   const subsubsectorsByParent = new Map<string, AdminNode[]>();
 
@@ -107,33 +94,46 @@ function layoutHierarchy(
     }
   }
 
+  // Sort sectors by their current angle from the current centroid so the
+  // visual order (Industrials left → IT right) is preserved on the ellipse.
+  const cx = sectors.reduce((s, n) => s + n.x_position, 0) / (sectors.length || 1);
+  const cy = sectors.reduce((s, n) => s + n.y_position, 0) / (sectors.length || 1);
+
   const sorted = sectors
     .map((s) => ({
       s,
-      angle: Math.atan2(s.y_position - centroid.y, s.x_position - centroid.x),
+      angle:  Math.atan2(s.y_position - cy, s.x_position - cx),
       weight: Math.max(subsectorsByParent.get(s.id)?.length ?? 0, 1),
     }))
     .sort((a, b) => a.angle - b.angle);
 
   const totalWeight = sorted.reduce((sum, e) => sum + e.weight, 0);
 
-  // Step 1: Pull sector hubs closer together so their children have room to
-  // spread outward without going off-screen.
-  for (const { s: sector } of sorted) {
-    sector.x_position = centroid.x + (sector.x_position - centroid.x) * SECTOR_SCALE;
-    sector.y_position = centroid.y + (sector.y_position - centroid.y) * SECTOR_SCALE;
-    updates.push({ id: sector.id, x_position: sector.x_position, y_position: sector.y_position });
-  }
-
-  // Step 2: Fan subsectors and subsubsectors outward from the scaled hubs.
-  let zoneStart = -Math.PI;
+  // ── Step 1: Place sectors on the ellipse ────────────────────────────────────
+  // Position is proportional to subsector count so large sectors get more arc.
+  let ellipseAngle = -Math.PI; // start from left
 
   for (const { s: sector, weight } of sorted) {
-    const zoneWidth  = (weight / totalWeight) * 2 * Math.PI;
-    const zoneCenter = zoneStart + zoneWidth / 2;
-    // Children spread OUTWARD from the sector hub (away from centroid).
-    const outward = zoneCenter; // zone centre already points away from centroid
-    const arc = Math.min(zoneWidth * ARC_MULTIPLIER, MAX_SUB_ARC);
+    const arc          = (weight / totalWeight) * 2 * Math.PI;
+    const midAngle     = ellipseAngle + arc / 2;
+    sector.x_position  = EL_CX + Math.cos(midAngle) * EL_A;
+    sector.y_position  = EL_CY + Math.sin(midAngle) * EL_B;
+    updates.push({ id: sector.id, x_position: sector.x_position, y_position: sector.y_position });
+    ellipseAngle      += arc;
+  }
+
+  // ── Step 2: Fan children outward from each sector hub ──────────────────────
+  // "Outward" = the direction from the ellipse centre to the sector hub.
+  // This is always a clean, unambiguous outward direction.
+
+  ellipseAngle = -Math.PI;
+
+  for (const { s: sector, weight } of sorted) {
+    const arc         = (weight / totalWeight) * 2 * Math.PI;
+    // True outward direction: ellipse centre → sector hub.
+    const outward     = Math.atan2(sector.y_position - EL_CY, sector.x_position - EL_CX);
+    // Fan arc — wider than the proportional zone so subsectors spread well apart.
+    const subArc      = Math.min(arc * ARC_FRACTION, MAX_SUB_ARC);
 
     const subs = subsectorsByParent.get(sector.id) ?? [];
     const N    = subs.length;
@@ -141,7 +141,7 @@ function layoutHierarchy(
     subs.forEach((sub, i) => {
       const angle = N === 1
         ? outward
-        : outward - arc / 2 + (i / (N - 1)) * arc;
+        : outward - subArc / 2 + (i / (N - 1)) * subArc;
 
       const newX = sector.x_position + Math.cos(angle) * RADIUS_SUB;
       const newY = sector.y_position + Math.sin(angle) * RADIUS_SUB;
@@ -154,12 +154,12 @@ function layoutHierarchy(
       const M       = subsubs.length;
       if (M === 0) return;
 
-      const subArc = Math.min(arc * 0.85, MAX_SUBSUB_SPREAD);
+      const ssArc = Math.min(subArc * 0.85, MAX_SUBSUB_SPREAD);
 
       subsubs.forEach((subsub, j) => {
         const subAngle = M === 1
           ? angle
-          : angle - subArc / 2 + (j / (M - 1)) * subArc;
+          : angle - ssArc / 2 + (j / (M - 1)) * ssArc;
 
         const subX = newX + Math.cos(subAngle) * RADIUS_SUBSUB;
         const subY = newY + Math.sin(subAngle) * RADIUS_SUBSUB;
@@ -170,7 +170,7 @@ function layoutHierarchy(
       });
     });
 
-    zoneStart += zoneWidth;
+    ellipseAngle += arc;
   }
 
   return updates;
