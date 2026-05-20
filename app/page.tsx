@@ -1,59 +1,11 @@
 import Link from "next/link";
-import Logo from "@/components/Logo";
+import { RadarIcon } from "@/components/Logo";
 import KnowledgeGraph from "@/components/KnowledgeGraph";
 import StatsCounter from "@/components/StatsCounter";
 import RevealOnScroll from "@/components/RevealOnScroll";
 
 const DM    = 'var(--font-dm-sans), "DM Sans", sans-serif';
 const SERIF = 'var(--font-dm-serif), serif';
-
-// ─── Nav ─────────────────────────────────────────────────────────────────────
-
-function Nav() {
-  return (
-    <header style={{
-      position: "sticky", top: 0, zIndex: 50,
-      borderBottom: "1px solid rgba(255,255,255,0.06)",
-      background: "rgba(8,11,18,0.92)",
-      backdropFilter: "blur(12px)",
-    }}>
-      <div style={{
-        maxWidth: 1100, margin: "0 auto",
-        padding: "0 24px",
-        height: 60,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-      }}>
-        <Logo variant="default" />
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Link
-            href="/sign-in"
-            className="hp-link"
-            style={{
-              fontFamily: DM, fontSize: 14, fontWeight: 400,
-              color: "var(--text-dim)", textDecoration: "none",
-              padding: "8px 14px", borderRadius: 7,
-            }}
-          >
-            Sign in
-          </Link>
-          <Link
-            href="/sign-up"
-            className="hp-cta-primary"
-            style={{
-              fontFamily: DM, fontSize: 14, fontWeight: 500,
-              color: "#fff", textDecoration: "none",
-              padding: "8px 18px", borderRadius: 7,
-              background: "var(--blue)",
-              display: "inline-block",
-            }}
-          >
-            Get started free
-          </Link>
-        </div>
-      </div>
-    </header>
-  );
-}
 
 // ─── Feature ─────────────────────────────────────────────────────────────────
 
@@ -209,16 +161,30 @@ export default function Home() {
         .hp-feature:hover { border-color: rgba(255,255,255,0.14) !important; }
       `}</style>
 
-      <Nav />
-
       <main>
 
         {/* ── Hero ────────────────────────────────────────────────────────── */}
         <section style={{
           maxWidth: 780, margin: "0 auto",
-          padding: "96px 24px 80px",
+          padding: "80px 24px 80px",
           textAlign: "center",
         }}>
+
+          {/* Brand mark */}
+          <div style={{
+            display: "flex", flexDirection: "column", alignItems: "center",
+            gap: 14, marginBottom: 56,
+          }}>
+            <RadarIcon size={58} />
+            <span style={{
+              fontFamily: DM, fontSize: 13, fontWeight: 700,
+              letterSpacing: "0.28em", color: "#fff",
+              lineHeight: 1,
+            }}>
+              VAURIC
+            </span>
+          </div>
+
           <h1 style={{
             fontFamily: SERIF,
             fontSize: "clamp(38px, 5.5vw, 68px)",
