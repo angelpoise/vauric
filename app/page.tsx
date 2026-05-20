@@ -257,7 +257,7 @@ export default function Home() {
               background: "var(--blue)", display: "inline-block",
             }}
           >
-            Start exploring free
+            Start exploring for free
           </Link>
         </section>
 
