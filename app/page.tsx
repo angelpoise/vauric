@@ -2,6 +2,7 @@ import Link from "next/link";
 import Logo from "@/components/Logo";
 import KnowledgeGraph from "@/components/KnowledgeGraph";
 import StatsCounter from "@/components/StatsCounter";
+import RevealOnScroll from "@/components/RevealOnScroll";
 
 const DM    = 'var(--font-dm-sans), "DM Sans", sans-serif';
 const SERIF = 'var(--font-dm-serif), serif';
@@ -63,6 +64,7 @@ function Feature({ title, body }: { title: string; body: string }) {
       border: "1px solid rgba(255,255,255,0.07)",
       borderRadius: 12,
       background: "var(--bg2)",
+      flex: 1,
     }}>
       <p style={{
         fontFamily: DM, fontSize: 15, fontWeight: 600,
@@ -119,6 +121,7 @@ function PricingCard({
       background: bgCol,
       padding: "30px 28px",
       display: "flex", flexDirection: "column",
+      flex: 1,
     }}>
 
       {/* Tier label */}
@@ -258,56 +261,62 @@ export default function Home() {
         </section>
 
         {/* ── Stats ───────────────────────────────────────────────────────── */}
-        <StatsCounter />
+        <RevealOnScroll direction="up">
+          <StatsCounter />
+        </RevealOnScroll>
 
         {/* ── Graph preview ───────────────────────────────────────────────── */}
         <section style={{
           maxWidth: 1060, margin: "0 auto",
           padding: "0 24px 96px",
         }}>
-          <p style={{
-            fontFamily: DM, fontSize: 11,
-            letterSpacing: "0.14em", textTransform: "uppercase",
-            color: "var(--text-muted)", textAlign: "center",
-            marginBottom: 20,
-          }}>
-            Live market knowledge graph
-          </p>
-          <div style={{
-            border: "1px solid rgba(255,255,255,0.08)",
-            borderRadius: 14, overflow: "hidden",
-            background: "var(--bg2)",
-            position: "relative",
-          }}>
-            {/* Browser chrome strip */}
-            <div style={{
-              height: 36, background: "var(--bg3)",
-              borderBottom: "1px solid rgba(255,255,255,0.06)",
-              display: "flex", alignItems: "center", gap: 7, padding: "0 14px",
+          <RevealOnScroll direction="up">
+            <p style={{
+              fontFamily: DM, fontSize: 11,
+              letterSpacing: "0.14em", textTransform: "uppercase",
+              color: "var(--text-muted)", textAlign: "center",
+              marginBottom: 20,
             }}>
-              {["#ef4444","#f59e0b","#22c55e"].map((c) => (
-                <div key={c} style={{ width: 10, height: 10, borderRadius: "50%", background: c, opacity: 0.7 }} />
-              ))}
-              <div style={{
-                flex: 1, marginLeft: 12, height: 22,
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.06)",
-                borderRadius: 5,
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                <span style={{ fontFamily: DM, fontSize: 11, color: "var(--text-muted)" }}>
-                  vauric.io/graph
-                </span>
-              </div>
-            </div>
-            {/* Fade overlays */}
+              Live market knowledge graph
+            </p>
+          </RevealOnScroll>
+          <RevealOnScroll direction="right" delay={80}>
             <div style={{
-              position: "absolute", bottom: 0, left: 0, right: 0, height: 100,
-              background: "linear-gradient(to top, var(--bg2), transparent)",
-              zIndex: 2, pointerEvents: "none",
-            }} />
-            <KnowledgeGraph />
-          </div>
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 14, overflow: "hidden",
+              background: "var(--bg2)",
+              position: "relative",
+            }}>
+              {/* Browser chrome strip */}
+              <div style={{
+                height: 36, background: "var(--bg3)",
+                borderBottom: "1px solid rgba(255,255,255,0.06)",
+                display: "flex", alignItems: "center", gap: 7, padding: "0 14px",
+              }}>
+                {["#ef4444","#f59e0b","#22c55e"].map((c) => (
+                  <div key={c} style={{ width: 10, height: 10, borderRadius: "50%", background: c, opacity: 0.7 }} />
+                ))}
+                <div style={{
+                  flex: 1, marginLeft: 12, height: 22,
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  borderRadius: 5,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <span style={{ fontFamily: DM, fontSize: 11, color: "var(--text-muted)" }}>
+                    vauric.io/graph
+                  </span>
+                </div>
+              </div>
+              {/* Fade overlays */}
+              <div style={{
+                position: "absolute", bottom: 0, left: 0, right: 0, height: 100,
+                background: "linear-gradient(to top, var(--bg2), transparent)",
+                zIndex: 2, pointerEvents: "none",
+              }} />
+              <KnowledgeGraph />
+            </div>
+          </RevealOnScroll>
         </section>
 
         {/* ── Features ────────────────────────────────────────────────────── */}
@@ -315,43 +324,57 @@ export default function Home() {
           maxWidth: 920, margin: "0 auto",
           padding: "0 24px 96px",
         }}>
-          <h2 style={{
-            fontFamily: SERIF,
-            fontSize: "clamp(28px, 4vw, 44px)",
-            fontWeight: 400, color: "var(--text)",
-            textAlign: "center", marginBottom: 14, lineHeight: 1.15,
-          }}>
-            Find the stocks others overlook
-          </h2>
+          <RevealOnScroll direction="up">
+            <h2 style={{
+              fontFamily: SERIF,
+              fontSize: "clamp(28px, 4vw, 44px)",
+              fontWeight: 400, color: "var(--text)",
+              textAlign: "center", marginBottom: 14, lineHeight: 1.15,
+            }}>
+              Find the stocks others overlook
+            </h2>
+          </RevealOnScroll>
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
             gap: 14,
           }}>
-            <Feature
-              title="Navigate by connection, not just ticker"
-              body="Every stock is linked to its sector, sub-sector, industry node, direct peers, and indirect relationships. Spot capital rotation as it happens — not after the chart already moved."
-            />
-            <Feature
-              title="Instant company analysis"
-              body="Click any node to get a breakdown of business segments, margins, guidance, and key relationships — generated on demand and updated automatically. No research rabbit hole required."
-            />
-            <Feature
-              title="Scenario modelling"
-              body="Bull, base, and bear case price targets with 6-month, 1-year, and 2-year horizons. Understand the conditions that need to be true for each outcome before you size a position."
-            />
-            <Feature
-              title="Catalyst alerts that matter"
-              body="Earnings, analyst upgrades and downgrades, short squeeze conditions, insider filings. Alerts are tied to your watchlist — so you only hear about what you actually care about."
-            />
-            <Feature
-              title="Live data on every stock"
-              body="Real-time prices, daily moves, and relative strength vs sector ETFs. Every node on the graph is a live data point, not a static label."
-            />
-            <Feature
-              title="Watchlist and portfolio tracking"
-              body="Save the stocks you're following and track your holdings in one place. See performance, alerts, and analysis for everything you own or are watching."
-            />
+            <RevealOnScroll direction="left" delay={0} style={{ display: "flex", flexDirection: "column" }}>
+              <Feature
+                title="Navigate by connection, not just ticker"
+                body="Every stock is linked to its sector, sub-sector, industry node, direct peers, and indirect relationships. Spot capital rotation as it happens — not after the chart already moved."
+              />
+            </RevealOnScroll>
+            <RevealOnScroll direction="up" delay={100} style={{ display: "flex", flexDirection: "column" }}>
+              <Feature
+                title="Instant company analysis"
+                body="Click any node to get a breakdown of business segments, margins, guidance, and key relationships — generated on demand and updated automatically. No research rabbit hole required."
+              />
+            </RevealOnScroll>
+            <RevealOnScroll direction="right" delay={200} style={{ display: "flex", flexDirection: "column" }}>
+              <Feature
+                title="Scenario modelling"
+                body="Bull, base, and bear case price targets with 6-month, 1-year, and 2-year horizons. Understand the conditions that need to be true for each outcome before you size a position."
+              />
+            </RevealOnScroll>
+            <RevealOnScroll direction="left" delay={0} style={{ display: "flex", flexDirection: "column" }}>
+              <Feature
+                title="Catalyst alerts that matter"
+                body="Earnings, analyst upgrades and downgrades, short squeeze conditions, insider filings. Alerts are tied to your watchlist — so you only hear about what you actually care about."
+              />
+            </RevealOnScroll>
+            <RevealOnScroll direction="up" delay={100} style={{ display: "flex", flexDirection: "column" }}>
+              <Feature
+                title="Live data on every stock"
+                body="Real-time prices, daily moves, and relative strength vs sector ETFs. Every node on the graph is a live data point, not a static label."
+              />
+            </RevealOnScroll>
+            <RevealOnScroll direction="right" delay={200} style={{ display: "flex", flexDirection: "column" }}>
+              <Feature
+                title="Watchlist and portfolio tracking"
+                body="Save the stocks you're following and track your holdings in one place. See performance, alerts, and analysis for everything you own or are watching."
+              />
+            </RevealOnScroll>
           </div>
         </section>
 
@@ -360,14 +383,16 @@ export default function Home() {
           maxWidth: 920, margin: "0 auto",
           padding: "0 24px 96px",
         }}>
-          <h2 style={{
-            fontFamily: SERIF,
-            fontSize: "clamp(28px, 4vw, 44px)",
-            fontWeight: 400, color: "var(--text)",
-            textAlign: "center", marginBottom: 48, lineHeight: 1.15,
-          }}>
-            Simple pricing
-          </h2>
+          <RevealOnScroll direction="up">
+            <h2 style={{
+              fontFamily: SERIF,
+              fontSize: "clamp(28px, 4vw, 44px)",
+              fontWeight: 400, color: "var(--text)",
+              textAlign: "center", marginBottom: 48, lineHeight: 1.15,
+            }}>
+              Simple pricing
+            </h2>
+          </RevealOnScroll>
 
           <div style={{
             display: "grid",
@@ -375,55 +400,62 @@ export default function Home() {
             gap: 16,
             alignItems: "stretch",
           }}>
-            <PricingCard
-              tier="Free"
-              price="Free"
-              sub="Full graph access. No credit card needed."
-              items={[
-                "Full knowledge graph — all 1,300+ stocks",
-                "Real-time prices and daily moves",
-                "Personal watchlist with live tracking",
-                "Stock pages with company analysis",
-                "Sector, exposure, peer, and impact views",
-              ]}
-              cta="Get started free"
-              ctaHref="/sign-up"
-            />
-            <PricingCard
-              tier="Plus"
-              price="$9"
-              sub="An upgraded version of the app with real-time alerts built in."
-              items={[
-                "Everything in Free",
-                "Price and earnings alerts",
-                "Analyst upgrade and downgrade notifications",
-                "Corporate action alerts",
-                "Extended watchlist",
-              ]}
-              cta="Start Plus"
-              ctaHref="/sign-up?plan=plus"
-              accent
-            />
-            <PricingCard
-              tier="Pro"
-              price="$15"
-              sub="The complete toolkit for serious investors."
-              items={[
-                "Everything in Plus",
-                "AI analysis on every company",
-                "Bull, base, and bear scenario modelling",
-                "Multi-select connection views",
-                "Saved focus lists",
-                "Portfolio tracking and export",
-              ]}
-              cta="Start Pro"
-              ctaHref="/sign-up?plan=pro"
-              highlight
-            />
+            <RevealOnScroll direction="left" delay={0} style={{ display: "flex" }}>
+              <PricingCard
+                tier="Free"
+                price="Free"
+                sub="Full graph access. No credit card needed."
+                items={[
+                  "Full knowledge graph — all 1,300+ stocks",
+                  "Real-time prices and daily moves",
+                  "Personal watchlist with live tracking",
+                  "Stock pages with company analysis",
+                  "Sector, exposure, peer, and impact views",
+                ]}
+                cta="Get started free"
+                ctaHref="/sign-up"
+              />
+            </RevealOnScroll>
+            <RevealOnScroll direction="up" delay={120} style={{ display: "flex" }}>
+              <PricingCard
+                tier="Plus"
+                price="$9"
+                sub="An upgraded version of the app with real-time alerts built in."
+                items={[
+                  "Everything in Free",
+                  "Price and earnings alerts",
+                  "Analyst upgrade and downgrade notifications",
+                  "Corporate action alerts",
+                  "Extended watchlist",
+                ]}
+                cta="Start Plus"
+                ctaHref="/sign-up?plan=plus"
+                accent
+              />
+            </RevealOnScroll>
+            <RevealOnScroll direction="right" delay={240} style={{ display: "flex" }}>
+              <PricingCard
+                tier="Pro"
+                price="$15"
+                sub="The complete toolkit for serious investors."
+                items={[
+                  "Everything in Plus",
+                  "AI analysis on every company",
+                  "Bull, base, and bear scenario modelling",
+                  "Multi-select connection views",
+                  "Saved focus lists",
+                  "Portfolio tracking and export",
+                ]}
+                cta="Start Pro"
+                ctaHref="/sign-up?plan=pro"
+                highlight
+              />
+            </RevealOnScroll>
           </div>
         </section>
 
         {/* ── Footer ──────────────────────────────────────────────────────── */}
+        <RevealOnScroll direction="up">
         <footer style={{
           borderTop: "1px solid rgba(255,255,255,0.06)",
           padding: "32px 24px",
@@ -454,6 +486,7 @@ export default function Home() {
             ))}
           </div>
         </footer>
+        </RevealOnScroll>
 
       </main>
     </>
