@@ -34,14 +34,14 @@ const EL_B  = 1.20;
 
 // Subsector radius 30 world-px. For 16 subs in 50°, no overlap needs RADIUS_SUB > 0.75.
 // Using 1.00. MAX_SUB_ARC capped at 50° (0.87 rad) to prevent cross-sector overlap at EL_A=1.60.
-const RADIUS_SUB    = 1.00;
-const RADIUS_SUBSUB = 0.65;
-const STOCK_RADIUS  = 0.80;
+const RADIUS_SUB    = 1.30;
+const RADIUS_SUBSUB = 0.85;
+const STOCK_RADIUS  = 1.00;
 
 const ANGLE_PER_SUB    = 0.20;
-const MAX_SUB_ARC      = 0.87;   // ~50° — guaranteed no cross-sector overlap at EL_A=1.60
+const MAX_SUB_ARC      = 0.72;   // ~41° — no cross-sector overlap at EL_A=1.60, RADIUS_SUB=1.30
 const ANGLE_PER_SUBSUB = 0.22;
-const MAX_SUBSUB_ARC   = 0.65;   // ~37°
+const MAX_SUBSUB_ARC   = 0.55;
 
 // Stocks sit on one curved arc.
 const ANGLE_PER_STOCK = 0.06;
