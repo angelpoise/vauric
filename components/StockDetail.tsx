@@ -823,6 +823,7 @@ interface FundamentalsEntry {
   sector:                       string | null;
   industry:                     string | null;
   website:                      string | null;
+  country:                      string | null;
   fullTimeEmployees:            number | null;
 }
 
@@ -1249,8 +1250,24 @@ export default function StockDetail({ ticker }: { ticker: string }) {
               >
                 {ticker}
               </div>
-              <div style={{ fontSize: 16, color: "#475569", fontWeight: 300 }}>
-                {data.name}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <div style={{ fontSize: 16, color: "#475569", fontWeight: 300 }}>
+                  {graphStock?.company_name ?? data.name}
+                </div>
+                {fundamentals?.country && fundamentals.country !== "United States" && (
+                  <span style={{
+                    fontSize: 10, fontWeight: 600,
+                    padding: "2px 7px",
+                    borderRadius: 4,
+                    background: "rgba(245,158,11,0.12)",
+                    border: "1px solid rgba(245,158,11,0.3)",
+                    color: "#f59e0b",
+                    letterSpacing: "0.04em",
+                    whiteSpace: "nowrap",
+                  }}>
+                    {fundamentals.country}
+                  </span>
+                )}
               </div>
               {(() => {
                 function earningsLabel(data: NextEarningsData | null): string | null {

@@ -24,6 +24,7 @@ export interface FundamentalsEntry {
   sector:                       string | null;
   industry:                     string | null;
   website:                      string | null;
+  country:                      string | null;
   fullTimeEmployees:            number | null;
   // ETF-specific fields (null for stocks)
   totalAssets:                  number | null;
@@ -133,6 +134,7 @@ export async function fetchFundamentalsForTicker(
       sector:              typeof ap?.sector             === "string" ? ap.sector             : null,
       industry:            typeof ap?.industry           === "string" ? ap.industry           : null,
       website:             typeof ap?.website            === "string" ? ap.website            : null,
+      country:             typeof ap?.country            === "string" ? ap.country            : null,
       fullTimeEmployees:   typeof ap?.fullTimeEmployees  === "number" ? ap.fullTimeEmployees  : null,
       // ETF-specific (populated for ETF tickers, null for stocks)
       totalAssets:       num(sd, "totalAssets"),
