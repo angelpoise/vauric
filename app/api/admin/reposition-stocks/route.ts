@@ -29,17 +29,17 @@ const EL_CY = 0.45;
 // readable size (160px spokes) rather than microscopic dots on 480px needles.
 // With EL_A=1.20 the inter-sector chord is ~0.68, and a 91° subsector fan
 // has half-width 0.20 — no cross-sector overlap.
-const EL_A  = 1.20;
-const EL_B  = 0.90;
+const EL_A  = 1.60;
+const EL_B  = 1.20;
 
-const RADIUS_SUB    = 0.30;   // 160px spoke at scale 0.35 — clearly visible
-const RADIUS_SUBSUB = 0.20;   // subsubsectors beyond subsectors
-const STOCK_RADIUS  = 0.25;   // stocks clearly beyond subsubsectors
+const RADIUS_SUB    = 0.32;
+const RADIUS_SUBSUB = 0.22;
+const STOCK_RADIUS  = 0.28;
 
-const ANGLE_PER_SUB    = 0.22;   // ~12.6° per subsector
-const MAX_SUB_ARC      = 1.60;   // 91° cap — wide fan, no overlap at EL_A=1.20
-const ANGLE_PER_SUBSUB = 0.25;   // ~14.3° per subsubsector
-const MAX_SUBSUB_ARC   = 1.20;   // 69° cap
+const ANGLE_PER_SUB    = 0.20;
+const MAX_SUB_ARC      = 1.30;   // ~74° — wide enough to see, tight enough for no cross-sector overlap
+const ANGLE_PER_SUBSUB = 0.23;
+const MAX_SUBSUB_ARC   = 1.00;   // ~57°
 
 // Stocks sit on one curved arc.
 const ANGLE_PER_STOCK = 0.06;
