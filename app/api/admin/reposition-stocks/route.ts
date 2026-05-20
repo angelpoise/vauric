@@ -30,9 +30,9 @@ async function isAuthorised(req: NextRequest): Promise<boolean> {
 // and the graph has pan/zoom so nodes can legitimately sit outside 0-1.
 // DO NOT clamp to 0-1 — that was collapsing off-canvas sectors onto the boundary.
 
-const RADIUS_SUB        = 0.28;          // subsector spread from sector hub
-const RADIUS_SUBSUB     = 0.16;          // subsubsector spread from subsector
-const MAX_SUBSUB_SPREAD = Math.PI * 0.7; // cap subsubsector arc at 126°
+const RADIUS_SUB        = 0.38;          // subsector spread from sector hub
+const RADIUS_SUBSUB     = 0.26;          // subsubsector spread from subsector
+const MAX_SUBSUB_SPREAD = Math.PI * 0.9; // cap subsubsector arc at 162°
 
 // ── Stock scatter rings ───────────────────────────────────────────────────────
 
@@ -46,7 +46,7 @@ function scatterOffset(idx: number, total: number): { dx: number; dy: number } {
     ring++;
     ringCapacity = (ring + 1) * 10;
   }
-  const radius = 0.10 + ring * 0.07;
+  const radius = 0.15 + ring * 0.11;
   const angle  = (remaining / ringCapacity) * 2 * Math.PI;
   return { dx: Math.cos(angle) * radius, dy: Math.sin(angle) * radius };
 }
@@ -126,7 +126,7 @@ function layoutHierarchy(
     // Sectors sit on the outer ring; subsectors must spread INWARD toward the
     // canvas interior, not outward (which would go off-screen). Flip 180°.
     const inward = zoneCenter + Math.PI;
-    const arc    = zoneWidth * 0.80;
+    const arc    = zoneWidth * 0.88;
 
     subs.forEach((sub, i) => {
       const angle = N === 1
@@ -145,7 +145,9 @@ function layoutHierarchy(
       const M       = subsubs.length;
       if (M === 0) return;
 
-      const subArc = Math.min((arc / N) * 0.9, MAX_SUBSUB_SPREAD);
+      // Each subsector gets its own arc slice proportional to how many
+      // subsubsectors it has — use the full arc width, not arc/N.
+      const subArc = Math.min(arc * 0.85, MAX_SUBSUB_SPREAD);
 
       subsubs.forEach((subsub, j) => {
         const subAngle = M === 1
