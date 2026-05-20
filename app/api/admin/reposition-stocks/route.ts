@@ -25,26 +25,24 @@ async function isAuthorised(req: NextRequest): Promise<boolean> {
 // Ellipse on which sector hubs sit — uniform spacing (equal arc per sector).
 const EL_CX = 1.2;
 const EL_CY = 0.45;
-const EL_A  = 2.20;  // sector ring radius (horizontal)
-const EL_B  = 1.65;  // sector ring radius (vertical)
+const EL_A  = 3.20;  // sector ring radius (horizontal) — larger → more room for children
+const EL_B  = 2.40;  // sector ring radius (vertical)
 
 // Each child level progressively further out.
-const RADIUS_SUB    = 0.90;
-const RADIUS_SUBSUB = 0.62;
-const STOCK_RADIUS  = 0.85;
+const RADIUS_SUB    = 1.60;  // subsectors well away from sector hub
+const RADIUS_SUBSUB = 1.10;  // subsubsectors well away from subsector
+const STOCK_RADIUS  = 1.30;  // stocks clearly beyond subsubsectors
 
-// Subsectors and subsubsectors are CAPPED at their sector's zone width so
-// children of one sector never overlap with children of adjacent sectors.
-// Fractions below 1.0 leave a small gap between adjacent zones.
-const ZONE_CAP_SUB    = 0.87; // subsectors use ≤ 87 % of the zone arc
-const ZONE_CAP_SUBSUB = 0.80; // subsubsectors use ≤ 80 % of the zone arc
+// Zone caps — with a larger ellipse the chord between sectors is wide enough
+// to allow near-full zone usage without cross-sector overlap.
+const ZONE_CAP_SUB    = 0.96;
+const ZONE_CAP_SUBSUB = 0.90;
 
-// Used for proportional spread when sector has few children (so small sectors
-// don't needlessly fill their whole zone).
-const ANGLE_PER_SUB    = 0.09;  // ~5° per subsector
-const ANGLE_PER_SUBSUB = 0.11;  // ~6° per subsubsector
+// Per-node spread angle — controls how wide sectors with few children fan out.
+const ANGLE_PER_SUB    = 0.12;  // ~7° per subsector
+const ANGLE_PER_SUBSUB = 0.13;  // ~7.5° per subsubsector
 
-// Stocks can spread wider — they sit on an outer arc beyond the industry ring.
+// Stocks sit on one curved arc.
 const ANGLE_PER_STOCK = 0.055;
 const MAX_STOCK_ARC   = Math.PI * 1.2;
 
