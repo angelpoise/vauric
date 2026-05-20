@@ -33,19 +33,26 @@ export default function StatsCounter() {
     return () => obs.disconnect();
   }, []);
 
-  // Smooth RAF count-up with ease-out cubic over a given duration (ms)
+  // Smooth RAF count-up with ease-out cubic.
+  // onHalfway fires at 50% elapsed time so the next counter can start overlapping.
   function countUp(
     target: number,
     duration: number,
     setter: (v: number) => void,
     onDone: () => void,
+    onHalfway?: () => void,
   ): () => void {
     const start = performance.now();
     let raf = 0;
+    let halfwayFired = false;
     function tick(now: number) {
       const progress = Math.min((now - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
       setter(Math.round(target * eased));
+      if (!halfwayFired && progress >= 0.5) {
+        halfwayFired = true;
+        onHalfway?.();
+      }
       if (progress < 1) {
         raf = requestAnimationFrame(tick);
       } else {
@@ -57,22 +64,22 @@ export default function StatsCounter() {
     return () => cancelAnimationFrame(raf);
   }
 
-  // 1. Connections starts immediately on scroll-in
+  // 1. Connections — starts on scroll-in, triggers stocks at halfway
   useEffect(() => {
     if (!started || targets.connections === 0) return;
-    return countUp(targets.connections, 2200, setConnections, () => setConnDone(true));
+    return countUp(targets.connections, 1600, setConnections, () => {}, () => setConnDone(true));
   }, [started, targets]); // eslint-disable-line
 
-  // 2. Stocks starts only after connections finishes
+  // 2. Stocks — starts halfway through connections, triggers industries at its halfway
   useEffect(() => {
     if (!connDone || targets.stocks === 0) return;
-    return countUp(targets.stocks, 1800, setStocks, () => setStocksDone(true));
+    return countUp(targets.stocks, 1400, setStocks, () => {}, () => setStocksDone(true));
   }, [connDone, targets]); // eslint-disable-line
 
-  // 3. Industries starts only after stocks finishes
+  // 3. Industries — starts halfway through stocks
   useEffect(() => {
     if (!stocksDone || targets.industries === 0) return;
-    return countUp(targets.industries, 1200, setIndustries, () => {});
+    return countUp(targets.industries, 1000, setIndustries, () => {});
   }, [stocksDone, targets]); // eslint-disable-line
 
   const fmt = (n: number) => n === 0 ? "0" : n.toLocaleString();
