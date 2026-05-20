@@ -39,9 +39,9 @@ const RADIUS_SUBSUB = 0.85;
 const STOCK_RADIUS  = 1.00;
 
 const ANGLE_PER_SUB    = 0.20;
-const MAX_SUB_ARC      = 0.72;   // ~41° — no cross-sector overlap at EL_A=1.60, RADIUS_SUB=1.30
+const MAX_SUB_ARC      = 0.88;   // ~50°
 const ANGLE_PER_SUBSUB = 0.22;
-const MAX_SUBSUB_ARC   = 0.55;
+const MAX_SUBSUB_ARC   = 0.68;
 
 // Stocks sit on one curved arc.
 const ANGLE_PER_STOCK = 0.06;
