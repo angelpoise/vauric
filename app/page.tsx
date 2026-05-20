@@ -83,7 +83,7 @@ function Feature({ title, body }: { title: string; body: string }) {
 // ─── Pricing card ────────────────────────────────────────────────────────────
 
 function PricingCard({
-  tier, price, sub, items, cta, ctaHref, highlight,
+  tier, price, sub, items, cta, ctaHref, highlight, accent,
 }: {
   tier: string;
   price: string;
@@ -92,27 +92,39 @@ function PricingCard({
   cta: string;
   ctaHref: string;
   highlight?: boolean;
+  accent?: boolean;
 }) {
+  const borderColor = highlight
+    ? "rgba(59,130,246,0.4)"
+    : accent
+    ? "rgba(255,255,255,0.14)"
+    : "rgba(255,255,255,0.07)";
+  const bg = highlight
+    ? "rgba(59,130,246,0.05)"
+    : accent
+    ? "rgba(255,255,255,0.025)"
+    : "var(--bg2)";
+
   return (
     <div style={{
-      flex: "1 1 280px", maxWidth: 420,
-      border: highlight
-        ? "1px solid rgba(59,130,246,0.4)"
-        : "1px solid rgba(255,255,255,0.07)",
+      border: `1px solid ${borderColor}`,
       borderRadius: 14,
-      background: highlight ? "rgba(59,130,246,0.05)" : "var(--bg2)",
+      background: bg,
       padding: "32px 30px",
       display: "flex", flexDirection: "column",
     }}>
+      {/* Tier label */}
       <p style={{
         fontFamily: DM, fontSize: 11, fontWeight: 600,
         letterSpacing: "0.1em", textTransform: "uppercase",
-        color: highlight ? "var(--blue)" : "var(--text-muted)",
+        color: highlight ? "var(--blue)" : accent ? "var(--text-dim)" : "var(--text-muted)",
         marginBottom: 16,
       }}>
         {tier}
       </p>
-      <div style={{ marginBottom: 6 }}>
+
+      {/* Price — fixed height so items line up across cards */}
+      <div style={{ minHeight: 52, marginBottom: 6 }}>
         <span style={{
           fontFamily: SERIF, fontSize: 38, fontWeight: 400, color: "var(--text)",
         }}>
@@ -124,23 +136,29 @@ function PricingCard({
           </span>
         )}
       </div>
+
+      {/* Sub — fixed height so items line up across cards */}
       <p style={{
-        fontFamily: DM, fontSize: 13, color: "var(--text-muted)",
-        fontWeight: 300, marginBottom: 28,
+        fontFamily: DM, fontSize: 13,
+        color: accent ? "var(--text-dim)" : "var(--text-muted)",
+        fontWeight: 300, minHeight: 40, marginBottom: 24,
       }}>
         {sub}
       </p>
-      <ul style={{ listStyle: "none", padding: 0, margin: "0 0 32px", display: "flex", flexDirection: "column", gap: 10 }}>
+
+      <ul style={{ listStyle: "none", padding: 0, margin: "0 0 32px", display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
         {items.map((item) => (
           <li key={item} style={{
-            fontFamily: DM, fontSize: 14, color: "var(--text-dim)",
+            fontFamily: DM, fontSize: 13,
+            color: accent ? "var(--text-dim)" : "var(--text-muted)",
             fontWeight: 300, display: "flex", alignItems: "flex-start", gap: 10,
           }}>
-            <span style={{ color: "var(--blue)", flexShrink: 0, marginTop: 1 }}>✓</span>
+            <span style={{ color: highlight ? "var(--blue)" : accent ? "#94a3b8" : "#475569", flexShrink: 0, marginTop: 1 }}>✓</span>
             {item}
           </li>
         ))}
       </ul>
+
       <Link
         href={ctaHref}
         className={highlight ? "hp-cta-primary" : "hp-cta-secondary"}
@@ -148,10 +166,10 @@ function PricingCard({
           display: "block", textAlign: "center",
           fontFamily: DM, fontSize: 14, fontWeight: 500,
           textDecoration: "none", padding: "12px",
-          borderRadius: 8, marginTop: "auto",
+          borderRadius: 8,
           background: highlight ? "var(--blue)" : "transparent",
-          border: highlight ? "none" : "1px solid rgba(255,255,255,0.12)",
-          color: highlight ? "#fff" : "var(--text-dim)",
+          border: highlight ? "none" : `1px solid ${accent ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.1)"}`,
+          color: highlight ? "#fff" : accent ? "var(--text-dim)" : "#475569",
         }}
       >
         {cta}
@@ -352,22 +370,25 @@ export default function Home() {
             fontWeight: 400, color: "var(--text)",
             textAlign: "center", marginBottom: 48, lineHeight: 1.15,
           }}>
-            Straightforward pricing
+            Simple pricing
           </h2>
 
           <div style={{
-            display: "flex", gap: 16, flexWrap: "wrap", justifyContent: "center",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+            gap: 16,
+            alignItems: "stretch",
           }}>
             <PricingCard
               tier="Free"
               price="Free"
-              sub="Full graph access, no credit card required."
+              sub="Full graph access. No credit card needed."
               items={[
                 "Full knowledge graph — all 1,300+ stocks",
-                "Real-time prices, daily moves, and sector data",
+                "Real-time prices and daily moves",
                 "Personal watchlist with live tracking",
                 "Stock pages with company analysis",
-                "Sector, exposure, peer, and impact connection views",
+                "Sector, exposure, peer, and impact views",
               ]}
               cta="Get started free"
               ctaHref="/sign-up"
@@ -375,20 +396,22 @@ export default function Home() {
             <PricingCard
               tier="Plus"
               price="$9"
-              sub="Alerts and a bigger watchlist."
+              sub="Alerts on the stocks you're watching."
               items={[
                 "Everything in Free",
                 "Price and earnings alerts",
+                "Analyst upgrade and downgrade notifications",
+                "Corporate action alerts",
                 "Extended watchlist",
-                "Analyst action notifications",
               ]}
               cta="Start Plus"
               ctaHref="/sign-up?plan=plus"
+              accent
             />
             <PricingCard
               tier="Pro"
               price="$15"
-              sub="The full picture — alerts, AI, and scenarios."
+              sub="The complete toolkit for serious investors."
               items={[
                 "Everything in Plus",
                 "AI analysis on every company",
