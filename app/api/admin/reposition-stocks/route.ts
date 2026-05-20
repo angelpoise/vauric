@@ -3,16 +3,18 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminRequest } from "@/lib/adminSecret";
 
 function scatterOffset(idx: number, total: number): { dx: number; dy: number } {
-  if (total === 1) return { dx: 0, dy: 0 };
+  if (total === 1) return { dx: 0.09, dy: 0 }; // single stock: push right rather than sitting on the label
   let ring = 0;
   let remaining = idx;
-  let ringCapacity = 8;
+  let ringCapacity = 10;
   while (remaining >= ringCapacity) {
     remaining -= ringCapacity;
     ring++;
-    ringCapacity = (ring + 1) * 8;
+    ringCapacity = (ring + 1) * 10;
   }
-  const radius = 0.04 + ring * 0.04;
+  // Ring 0 at 0.10 normalized = 160px from parent — enough breathing room.
+  // Each subsequent ring adds 0.07 (112px), keeping stocks readable.
+  const radius = 0.10 + ring * 0.07;
   const angle  = (remaining / ringCapacity) * 2 * Math.PI;
   return { dx: Math.cos(angle) * radius, dy: Math.sin(angle) * radius };
 }
@@ -285,7 +287,11 @@ export async function POST(req: NextRequest) {
       const stock = stockByTick.get(ticker);
       if (!stock) return;
       const { dx, dy } = scatterOffset(idx, tickers.length);
-      updates.push({ id: stock.id, x_position: target.x_position + dx, y_position: target.y_position + dy });
+      updates.push({
+        id: stock.id,
+        x_position: Math.max(0.01, Math.min(0.99, target.x_position + dx)),
+        y_position: Math.max(0.01, Math.min(0.99, target.y_position + dy)),
+      });
     });
   });
 
