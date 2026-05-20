@@ -409,11 +409,11 @@ export default function Home() {
               price="Free"
               sub="Full graph access, no credit card required."
               items={[
-                "Explore the full knowledge graph",
-                "Real-time prices and daily moves",
-                "Watchlist — up to 10 stocks",
-                "Basic stock pages",
-                "Connection view: single mode",
+                "Full knowledge graph — all 1,300+ stocks",
+                "Real-time prices, daily moves, and sector data",
+                "Personal watchlist with live tracking",
+                "Stock pages with company analysis",
+                "Sector, exposure, peer, and impact connection views",
               ]}
               cta="Get started free"
               ctaHref="/sign-up"
