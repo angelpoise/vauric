@@ -100,17 +100,17 @@ function PricingCard({
     ? "rgba(59,130,246,0.4)"
     : accent
     ? "rgba(255,255,255,0.24)"
-    : "rgba(255,255,255,0.07)";
+    : "rgba(148,163,184,0.12)";
   const bgCol = highlight
     ? "rgba(59,130,246,0.06)"
     : accent
     ? "rgba(255,255,255,0.05)"
-    : "var(--bg2)";
+    : "rgba(148,163,184,0.03)";
   const tierCol  = highlight ? "var(--blue)"    : accent ? "#94a3b8"  : "#475569";
-  const priceCol = highlight ? "var(--text)"    : accent ? "var(--text)" : "#64748b";
-  const subCol   = highlight ? "var(--text-dim)": accent ? "var(--text-dim)" : "#475569";
-  const itemCol  = highlight ? "var(--text-dim)": accent ? "#94a3b8"  : "#475569";
-  const checkCol = highlight ? "var(--blue)"    : accent ? "#64748b"  : "#334155";
+  const priceCol = highlight ? "var(--text)"    : accent ? "var(--text)" : "#475569";
+  const subCol   = highlight ? "var(--text-dim)": accent ? "var(--text-dim)" : "#334155";
+  const itemCol  = highlight ? "var(--text-dim)": accent ? "#94a3b8"  : "#3f4f61";
+  const checkCol = highlight ? "var(--blue)"    : accent ? "#64748b"  : "#2d3d4d";
 
   return (
     <div style={{
@@ -180,8 +180,8 @@ function PricingCard({
             ? "none"
             : accent
             ? "1px solid rgba(255,255,255,0.16)"
-            : "1px solid rgba(255,255,255,0.08)",
-          color: highlight ? "#fff" : accent ? "#94a3b8" : "#475569",
+            : "1px solid rgba(148,163,184,0.14)",
+          color: highlight ? "#fff" : accent ? "#94a3b8" : "#3f4f61",
         }}
       >
         {cta}
