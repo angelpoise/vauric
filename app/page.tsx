@@ -94,82 +94,98 @@ function PricingCard({
   highlight?: boolean;
   accent?: boolean;
 }) {
-  const borderColor = highlight
-    ? "rgba(59,130,246,0.4)"
-    : accent
-    ? "rgba(255,255,255,0.14)"
-    : "rgba(255,255,255,0.07)";
-  const bg = highlight
-    ? "rgba(59,130,246,0.05)"
-    : accent
-    ? "rgba(255,255,255,0.025)"
-    : "var(--bg2)";
-
   return (
     <div style={{
-      border: `1px solid ${borderColor}`,
+      border: `1px solid ${highlight ? "rgba(59,130,246,0.38)" : accent ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.07)"}`,
       borderRadius: 14,
-      background: bg,
-      padding: "32px 30px",
+      background: highlight ? "rgba(59,130,246,0.05)" : accent ? "rgba(255,255,255,0.03)" : "var(--bg2)",
+      padding: "30px 28px",
       display: "flex", flexDirection: "column",
     }}>
-      {/* Tier label */}
-      <p style={{
-        fontFamily: DM, fontSize: 11, fontWeight: 600,
-        letterSpacing: "0.1em", textTransform: "uppercase",
-        color: highlight ? "var(--blue)" : accent ? "var(--text-dim)" : "var(--text-muted)",
-        marginBottom: 16,
-      }}>
-        {tier}
-      </p>
 
-      {/* Price — fixed height so items line up across cards */}
-      <div style={{ minHeight: 52, marginBottom: 6 }}>
+      {/* Tier + optional badge */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <p style={{
+          fontFamily: DM, fontSize: 11, fontWeight: 700,
+          letterSpacing: "0.12em", textTransform: "uppercase",
+          color: highlight ? "var(--blue)" : accent ? "#94a3b8" : "#475569",
+          margin: 0,
+        }}>
+          {tier}
+        </p>
+        {highlight && (
+          <span style={{
+            fontFamily: DM, fontSize: 10, fontWeight: 600,
+            letterSpacing: "0.06em", textTransform: "uppercase",
+            color: "var(--blue)", background: "rgba(59,130,246,0.12)",
+            border: "1px solid rgba(59,130,246,0.25)",
+            borderRadius: 20, padding: "2px 9px",
+          }}>
+            Best value
+          </span>
+        )}
+      </div>
+
+      {/* Price */}
+      <div style={{ minHeight: 52, marginBottom: 8 }}>
         <span style={{
-          fontFamily: SERIF, fontSize: 38, fontWeight: 400, color: "var(--text)",
+          fontFamily: SERIF, fontSize: 40, fontWeight: 400,
+          color: highlight ? "var(--text)" : accent ? "#cbd5e1" : "#64748b",
         }}>
           {price}
         </span>
         {price !== "Free" && (
-          <span style={{ fontFamily: DM, fontSize: 14, color: "var(--text-muted)", marginLeft: 4 }}>
+          <span style={{ fontFamily: DM, fontSize: 13, color: "var(--text-muted)", marginLeft: 4 }}>
             / month
           </span>
         )}
       </div>
 
-      {/* Sub — fixed height so items line up across cards */}
+      {/* Sub */}
       <p style={{
         fontFamily: DM, fontSize: 13,
-        color: accent ? "var(--text-dim)" : "var(--text-muted)",
-        fontWeight: 300, minHeight: 40, marginBottom: 24,
+        color: highlight ? "var(--text-dim)" : accent ? "#94a3b8" : "#475569",
+        fontWeight: 300, minHeight: 44, marginBottom: 24, lineHeight: 1.6,
       }}>
         {sub}
       </p>
 
-      <ul style={{ listStyle: "none", padding: 0, margin: "0 0 32px", display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
+      {/* Feature list */}
+      <ul style={{ listStyle: "none", padding: 0, margin: "0 0 28px", display: "flex", flexDirection: "column", gap: 11, flex: 1 }}>
         {items.map((item) => (
           <li key={item} style={{
             fontFamily: DM, fontSize: 13,
-            color: accent ? "var(--text-dim)" : "var(--text-muted)",
+            color: highlight ? "var(--text-dim)" : accent ? "#94a3b8" : "#475569",
             fontWeight: 300, display: "flex", alignItems: "flex-start", gap: 10,
           }}>
-            <span style={{ color: highlight ? "var(--blue)" : accent ? "#94a3b8" : "#475569", flexShrink: 0, marginTop: 1 }}>✓</span>
+            <span style={{
+              flexShrink: 0, marginTop: 1,
+              color: highlight ? "var(--blue)" : accent ? "#64748b" : "#334155",
+            }}>✓</span>
             {item}
           </li>
         ))}
       </ul>
 
+      {/* CTA */}
       <Link
         href={ctaHref}
         className={highlight ? "hp-cta-primary" : "hp-cta-secondary"}
         style={{
           display: "block", textAlign: "center",
           fontFamily: DM, fontSize: 14, fontWeight: 500,
-          textDecoration: "none", padding: "12px",
-          borderRadius: 8,
-          background: highlight ? "var(--blue)" : "transparent",
-          border: highlight ? "none" : `1px solid ${accent ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.1)"}`,
-          color: highlight ? "#fff" : accent ? "var(--text-dim)" : "#475569",
+          textDecoration: "none", padding: "12px", borderRadius: 8,
+          background: highlight
+            ? "var(--blue)"
+            : accent
+            ? "rgba(255,255,255,0.07)"
+            : "transparent",
+          border: highlight
+            ? "none"
+            : accent
+            ? "1px solid rgba(255,255,255,0.16)"
+            : "1px solid rgba(255,255,255,0.08)",
+          color: highlight ? "#fff" : accent ? "#94a3b8" : "#475569",
         }}
       >
         {cta}
@@ -327,14 +343,6 @@ export default function Home() {
           }}>
             Find the stocks others overlook
           </h2>
-          <p style={{
-            fontFamily: DM, fontSize: 16, fontWeight: 300,
-            color: "var(--text-muted)", textAlign: "center",
-            maxWidth: 480, margin: "0 auto 48px", lineHeight: 1.65,
-          }}>
-            Most platforms show you the same 30 names. Vauric is built to surface the others.
-          </p>
-
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
@@ -396,7 +404,7 @@ export default function Home() {
             <PricingCard
               tier="Plus"
               price="$9"
-              sub="Alerts on the stocks you're watching."
+              sub="An upgraded version of the app with real-time alerts built in."
               items={[
                 "Everything in Free",
                 "Price and earnings alerts",
