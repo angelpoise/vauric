@@ -32,14 +32,16 @@ const EL_CY = 0.45;
 const EL_A  = 1.60;
 const EL_B  = 1.20;
 
-const RADIUS_SUB    = 0.32;
-const RADIUS_SUBSUB = 0.22;
-const STOCK_RADIUS  = 0.28;
+// Subsector circles are now 30 world-px radius (down from 66).
+// For 14 subs in 74° to not overlap: need RADIUS_SUB > 0.43 — using 0.50.
+const RADIUS_SUB    = 0.50;
+const RADIUS_SUBSUB = 0.36;
+const STOCK_RADIUS  = 0.45;
 
 const ANGLE_PER_SUB    = 0.20;
-const MAX_SUB_ARC      = 1.30;   // ~74° — wide enough to see, tight enough for no cross-sector overlap
+const MAX_SUB_ARC      = 1.30;   // ~74° — no cross-sector overlap at EL_A=1.60
 const ANGLE_PER_SUBSUB = 0.23;
-const MAX_SUBSUB_ARC   = 1.00;   // ~57°
+const MAX_SUBSUB_ARC   = 1.00;
 
 // Stocks sit on one curved arc.
 const ANGLE_PER_STOCK = 0.06;
