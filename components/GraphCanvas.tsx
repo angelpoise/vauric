@@ -663,7 +663,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
           if (hn.length > 0) {
             let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
             for (const n of hn) {
-              const r = n.kind === "sector" ? 132 : n.kind === "subsector" ? 30 : 22;
+              const r = n.kind === "sector" ? 200 : n.kind === "subsector" ? 60 : 40;
               minX = Math.min(minX, n.x - r);
               maxX = Math.max(maxX, n.x + r);
               minY = Math.min(minY, n.y - r);
@@ -877,9 +877,9 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
     // ── Node radius ──────────────────────────────────────────────────────────
 
     function nodeRadius(n: GNode): number {
-      if (n.kind === "sector")       return 132;
-      if (n.kind === "subsector")    return 30;
-      if (n.kind === "subsubsector") return 22;
+      if (n.kind === "sector")       return 200;
+      if (n.kind === "subsector")    return 60;
+      if (n.kind === "subsubsector") return 40;
       const conns = graphDataRef.current.adjacency.get(n.id)?.size ?? 0;
       return Math.min(28, 12 + conns * 2.2);
     }
@@ -979,9 +979,9 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
     }
 
     function effectiveRadius(node: GNode): number {
-      if (node.kind === "sector")       return 132;
-      if (node.kind === "subsector")    return 30;
-      if (node.kind === "subsubsector") return 22;
+      if (node.kind === "sector")       return 200;
+      if (node.kind === "subsector")    return 60;
+      if (node.kind === "subsubsector") return 40;
       // Use graphSettingsRef (not activeFiltersRef) for nodeSize so that filter
       // presets — which spread DEFAULT_FILTERS — cannot accidentally resize nodes.
       // Opacity-only filtering must never affect the radius calculation.
