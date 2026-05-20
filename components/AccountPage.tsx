@@ -12,7 +12,6 @@ type Tab = "profile" | "notifications" | "alerts" | "theses" | "danger";
 interface Prefs {
   email_news: boolean;
   email_analyst: boolean;
-  email_squeeze: boolean;
   email_delisting: boolean;
   email_split: boolean;
   email_earnings: boolean;
@@ -23,7 +22,6 @@ interface Prefs {
 const DEFAULT_PREFS: Prefs = {
   email_news: true,
   email_analyst: true,
-  email_squeeze: true,
   email_delisting: true,
   email_split: true,
   email_earnings: true,
@@ -34,7 +32,6 @@ const DEFAULT_PREFS: Prefs = {
 const NOTIF_FIELDS: { field: keyof Omit<Prefs, "daily_digest">; label: string; color: string }[] = [
   { field: "email_news",      label: "News",                   color: "#facc15" },
   { field: "email_analyst",   label: "Analyst action",         color: "#f97316" },
-  { field: "email_squeeze",   label: "Short squeeze",          color: "#ef4444" },
   { field: "email_delisting", label: "Delisting / Acquisition",color: "#a855f7" },
   { field: "email_split",     label: "Split / Offering",       color: "#3b82f6" },
   { field: "email_earnings",  label: "Earnings",               color: "#ffffff" },

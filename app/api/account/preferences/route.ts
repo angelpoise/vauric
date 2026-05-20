@@ -5,7 +5,6 @@ import { verifyClerkToken } from "@/lib/verifyClerkToken";
 interface Prefs {
   email_news: boolean;
   email_analyst: boolean;
-  email_squeeze: boolean;
   email_delisting: boolean;
   email_split: boolean;
   email_earnings: boolean;
@@ -16,7 +15,6 @@ interface Prefs {
 const DEFAULTS: Prefs = {
   email_news: true,
   email_analyst: true,
-  email_squeeze: true,
   email_delisting: true,
   email_split: true,
   email_earnings: true,
@@ -43,7 +41,7 @@ export async function GET(req: NextRequest) {
   const { data } = await supabaseAdmin
     .from("user_preferences")
     .select(
-      "email_news,email_analyst,email_squeeze,email_delisting,email_split,email_earnings,email_ipo,daily_digest"
+      "email_news,email_analyst,email_delisting,email_split,email_earnings,email_ipo,daily_digest"
     )
     .eq("clerk_user_id", userId)
     .single();

@@ -326,7 +326,7 @@ export default function Home() {
             <RevealOnScroll direction="left" delay={0} style={{ display: "flex", flexDirection: "column" }}>
               <Feature
                 title="Catalyst alerts that matter"
-                body="Earnings, analyst upgrades and downgrades, short squeeze conditions, insider filings. Alerts are tied to your watchlist — so you only hear about what you actually care about."
+                body="Earnings, analyst upgrades and downgrades, corporate actions, and IPOs. Alerts are tied to your watchlist — so you only hear about what you actually care about."
               />
             </RevealOnScroll>
             <RevealOnScroll direction="up" delay={100} style={{ display: "flex", flexDirection: "column" }}>
