@@ -32,7 +32,7 @@ async function isAuthorised(req: NextRequest): Promise<boolean> {
 
 // Compress sector hubs toward the centroid so there is room for children
 // to spread outward without going off-screen.
-const SECTOR_SCALE  = 0.45;
+const SECTOR_SCALE  = 0.22; // tighter inner ring so outward children stay in view
 
 // Each child level is progressively further from its parent.
 const RADIUS_SUB        = 0.65;           // subsectors from sector hub
@@ -131,9 +131,8 @@ function layoutHierarchy(
   for (const { s: sector, weight } of sorted) {
     const zoneWidth  = (weight / totalWeight) * 2 * Math.PI;
     const zoneCenter = zoneStart + zoneWidth / 2;
-    // Children spread INWARD (flip 180°) — sector hubs are on the outer ring.
-    const inward = zoneCenter + Math.PI;
-    // Allow a wider arc than the strict zone so subsectors are well spread.
+    // Children spread OUTWARD from the sector hub (away from centroid).
+    const outward = zoneCenter; // zone centre already points away from centroid
     const arc = Math.min(zoneWidth * ARC_MULTIPLIER, MAX_SUB_ARC);
 
     const subs = subsectorsByParent.get(sector.id) ?? [];
@@ -141,8 +140,8 @@ function layoutHierarchy(
 
     subs.forEach((sub, i) => {
       const angle = N === 1
-        ? inward
-        : inward - arc / 2 + (i / (N - 1)) * arc;
+        ? outward
+        : outward - arc / 2 + (i / (N - 1)) * arc;
 
       const newX = sector.x_position + Math.cos(angle) * RADIUS_SUB;
       const newY = sector.y_position + Math.sin(angle) * RADIUS_SUB;
