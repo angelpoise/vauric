@@ -1,202 +1,181 @@
+import Link from "next/link";
 import Logo from "@/components/Logo";
 import KnowledgeGraph from "@/components/KnowledgeGraph";
-import WaitlistForm from "@/components/WaitlistForm";
 
-const DM     = 'var(--font-dm-sans), "DM Sans", sans-serif';
-const SERIF  = 'var(--font-dm-serif), serif';
+const DM    = 'var(--font-dm-sans), "DM Sans", sans-serif';
+const SERIF = 'var(--font-dm-serif), serif';
 
-// ─── Icon components ──────────────────────────────────────────────────────────
+// ─── Nav ─────────────────────────────────────────────────────────────────────
 
-function IconDiscover() {
+function Nav() {
   return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-      <circle cx="7.5" cy="7.5" r="5.5" stroke="#3b82f6" strokeWidth="1.5" />
-      <path d="M12 12l4 4" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M5.5 7.5h4M7.5 5.5v4" stroke="#3b82f6" strokeWidth="1.2" strokeLinecap="round" opacity="0.6" />
-    </svg>
-  );
-}
-
-function IconConnect() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-      <circle cx="9"   cy="9"   r="2.8"  stroke="#3b82f6" strokeWidth="1.5" />
-      <circle cx="2.5" cy="3"   r="1.8"  stroke="#3b82f6" strokeWidth="1.1" />
-      <circle cx="15.5" cy="3"  r="1.8"  stroke="#3b82f6" strokeWidth="1.1" />
-      <circle cx="2.5" cy="15"  r="1.8"  stroke="#3b82f6" strokeWidth="1.1" />
-      <circle cx="15.5" cy="15" r="1.8"  stroke="#3b82f6" strokeWidth="1.1" />
-      <line x1="6.4"  y1="7.2" x2="4.2"  y2="4.7" stroke="#3b82f6" strokeWidth="1" opacity="0.5" />
-      <line x1="11.6" y1="7.2" x2="13.8" y2="4.7" stroke="#3b82f6" strokeWidth="1" opacity="0.5" />
-      <line x1="6.4"  y1="10.8" x2="4.2" y2="13.3" stroke="#3b82f6" strokeWidth="1" opacity="0.5" />
-      <line x1="11.6" y1="10.8" x2="13.8" y2="13.3" stroke="#3b82f6" strokeWidth="1" opacity="0.5" />
-    </svg>
-  );
-}
-
-function IconBell() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-      <path
-        d="M9 2a5 5 0 00-5 5v2.5L2.5 12h13L14 9.5V7a5 5 0 00-5-5z"
-        stroke="#3b82f6" strokeWidth="1.5" strokeLinejoin="round"
-      />
-      <path d="M7 12v.5a2 2 0 004 0V12" stroke="#3b82f6" strokeWidth="1.4" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-// ─── Value prop card ──────────────────────────────────────────────────────────
-
-function ValueCard({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
-  return (
-    <div className="hp-card" style={{
-      background: "var(--bg2)",
-      border: "1px solid var(--border)",
-      borderRadius: 14,
-      padding: "28px 26px",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      textAlign: "center",
+    <header style={{
+      position: "sticky", top: 0, zIndex: 50,
+      borderBottom: "1px solid rgba(255,255,255,0.06)",
+      background: "rgba(8,11,18,0.92)",
+      backdropFilter: "blur(12px)",
     }}>
       <div style={{
-        width: 38, height: 38,
-        borderRadius: 10,
-        background: "var(--blue-glow)",
-        border: "1px solid var(--blue-border)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        marginBottom: 18,
+        maxWidth: 1100, margin: "0 auto",
+        padding: "0 24px",
+        height: 60,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
-        {icon}
+        <Logo variant="default" />
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Link
+            href="/sign-in"
+            className="hp-link"
+            style={{
+              fontFamily: DM, fontSize: 14, fontWeight: 400,
+              color: "var(--text-dim)", textDecoration: "none",
+              padding: "8px 14px", borderRadius: 7,
+            }}
+          >
+            Sign in
+          </Link>
+          <Link
+            href="/sign-up"
+            className="hp-cta-primary"
+            style={{
+              fontFamily: DM, fontSize: 14, fontWeight: 500,
+              color: "#fff", textDecoration: "none",
+              padding: "8px 18px", borderRadius: 7,
+              background: "var(--blue)",
+              display: "inline-block",
+            }}
+          >
+            Get started free
+          </Link>
+        </div>
       </div>
-      <p style={{ fontSize: 15, fontWeight: 600, color: "var(--text)", marginBottom: 8, fontFamily: DM }}>
+    </header>
+  );
+}
+
+// ─── Stats bar ────────────────────────────────────────────────────────────────
+
+function StatItem({ value, label }: { value: string; label: string }) {
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{
+        fontFamily: SERIF, fontSize: "clamp(24px, 3vw, 34px)",
+        fontWeight: 400, color: "var(--text)", lineHeight: 1.1, marginBottom: 4,
+      }}>
+        {value}
+      </div>
+      <div style={{
+        fontFamily: DM, fontSize: 13, color: "var(--text-muted)", fontWeight: 300,
+      }}>
+        {label}
+      </div>
+    </div>
+  );
+}
+
+// ─── Feature ─────────────────────────────────────────────────────────────────
+
+function Feature({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="hp-feature" style={{
+      padding: "28px 30px",
+      border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 12,
+      background: "var(--bg2)",
+    }}>
+      <p style={{
+        fontFamily: DM, fontSize: 15, fontWeight: 600,
+        color: "var(--text)", marginBottom: 10,
+      }}>
         {title}
       </p>
-      <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.68, fontWeight: 300, fontFamily: DM }}>
-        {desc}
+      <p style={{
+        fontFamily: DM, fontSize: 14, fontWeight: 300,
+        color: "var(--text-muted)", lineHeight: 1.72,
+      }}>
+        {body}
       </p>
     </div>
   );
 }
 
-// ─── How-it-works step ───────────────────────────────────────────────────────
+// ─── Pricing card ────────────────────────────────────────────────────────────
 
-function Step({ title, desc }: { title: string; desc: string }) {
+function PricingCard({
+  tier, price, sub, items, cta, ctaHref, highlight,
+}: {
+  tier: string;
+  price: string;
+  sub: string;
+  items: string[];
+  cta: string;
+  ctaHref: string;
+  highlight?: boolean;
+}) {
   return (
     <div style={{
-      background: "var(--bg2)",
-      border: "1px solid var(--border)",
+      flex: "1 1 280px", maxWidth: 420,
+      border: highlight
+        ? "1px solid rgba(59,130,246,0.4)"
+        : "1px solid rgba(255,255,255,0.07)",
       borderRadius: 14,
-      padding: "28px 26px",
+      background: highlight ? "rgba(59,130,246,0.05)" : "var(--bg2)",
+      padding: "32px 30px",
+      display: "flex", flexDirection: "column",
     }}>
-      <p style={{ fontSize: 15, fontWeight: 600, color: "var(--text)", marginBottom: 8, fontFamily: DM }}>
-        {title}
+      <p style={{
+        fontFamily: DM, fontSize: 11, fontWeight: 600,
+        letterSpacing: "0.1em", textTransform: "uppercase",
+        color: highlight ? "var(--blue)" : "var(--text-muted)",
+        marginBottom: 16,
+      }}>
+        {tier}
       </p>
-      <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.68, fontWeight: 300, fontFamily: DM }}>
-        {desc}
+      <div style={{ marginBottom: 6 }}>
+        <span style={{
+          fontFamily: SERIF, fontSize: 38, fontWeight: 400, color: "var(--text)",
+        }}>
+          {price}
+        </span>
+        {price !== "Free" && (
+          <span style={{ fontFamily: DM, fontSize: 14, color: "var(--text-muted)", marginLeft: 4 }}>
+            / month
+          </span>
+        )}
+      </div>
+      <p style={{
+        fontFamily: DM, fontSize: 13, color: "var(--text-muted)",
+        fontWeight: 300, marginBottom: 28,
+      }}>
+        {sub}
       </p>
-    </div>
-  );
-}
-
-// ─── Single downward arrow between sections ───────────────────────────────────
-
-function SectionArrow() {
-  return (
-    <div style={{ display: "flex", justifyContent: "center", padding: "40px 0" }}>
-      <svg
-        width="14" height="60" viewBox="0 0 14 60"
-        style={{ display: "block", overflow: "visible" }}
-        aria-hidden="true"
+      <ul style={{ listStyle: "none", padding: 0, margin: "0 0 32px", display: "flex", flexDirection: "column", gap: 10 }}>
+        {items.map((item) => (
+          <li key={item} style={{
+            fontFamily: DM, fontSize: 14, color: "var(--text-dim)",
+            fontWeight: 300, display: "flex", alignItems: "flex-start", gap: 10,
+          }}>
+            <span style={{ color: "var(--blue)", flexShrink: 0, marginTop: 1 }}>✓</span>
+            {item}
+          </li>
+        ))}
+      </ul>
+      <Link
+        href={ctaHref}
+        className={highlight ? "hp-cta-primary" : "hp-cta-secondary"}
+        style={{
+          display: "block", textAlign: "center",
+          fontFamily: DM, fontSize: 14, fontWeight: 500,
+          textDecoration: "none", padding: "12px",
+          borderRadius: 8, marginTop: "auto",
+          background: highlight ? "var(--blue)" : "transparent",
+          border: highlight ? "none" : "1px solid rgba(255,255,255,0.12)",
+          color: highlight ? "#fff" : "var(--text-dim)",
+        }}
       >
-        <line x1="7" y1="0" x2="7" y2="50"
-          stroke="rgba(59,130,246,0.28)" strokeWidth="1.5" />
-        <polyline points="2,44 7,52 12,44"
-          fill="none" stroke="rgba(59,130,246,0.5)" strokeWidth="1.5"
-          strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
+        {cta}
+      </Link>
     </div>
-  );
-}
-
-// ─── Converging connector (3 cards → 1 section) ───────────────────────────────
-
-function MergeConnector() {
-  const stroke = "rgba(59,130,246,0.28)";
-  const tip    = "rgba(59,130,246,0.5)";
-  const sw     = 1.5;
-  const [l, c, r] = [137, 426, 715];
-  const jY = 30, dY = 56;
-  return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 24px" }}>
-      <svg
-        width="100%" height="64" viewBox="0 0 852 64"
-        preserveAspectRatio="none"
-        style={{ display: "block", overflow: "visible" }}
-        aria-hidden="true"
-      >
-        <line x1={l} y1={0}  x2={l} y2={jY} stroke={stroke} strokeWidth={sw} />
-        <line x1={c} y1={0}  x2={c} y2={jY} stroke={stroke} strokeWidth={sw} />
-        <line x1={r} y1={0}  x2={r} y2={jY} stroke={stroke} strokeWidth={sw} />
-        <line x1={l} y1={jY} x2={r} y2={jY} stroke={stroke} strokeWidth={sw} />
-        <line x1={c} y1={jY} x2={c} y2={dY} stroke={stroke} strokeWidth={sw} />
-        <polyline
-          points={`${c - 5},${dY - 7} ${c},${dY} ${c + 5},${dY - 7}`}
-          fill="none" stroke={tip} strokeWidth={sw}
-          strokeLinecap="round" strokeLinejoin="round"
-        />
-      </svg>
-    </div>
-  );
-}
-
-// ─── Flowchart connector ──────────────────────────────────────────────────────
-// viewBox matches the 852px content width (900px max − 48px padding).
-// preserveAspectRatio="none" scales the X axis proportionally with the
-// container while keeping the 64px height fixed, so the branch tips stay
-// aligned with the three grid columns at any width.
-
-function FlowConnector() {
-  const stroke = "rgba(59,130,246,0.28)";
-  const tip    = "rgba(59,130,246,0.5)";
-  const sw     = 1.5;
-  // column centres in a 852px container with 3 equal cols + 16px gaps
-  const [l, c, r] = [137, 426, 715];
-  const jY = 28; // y of horizontal crossbar
-  const dY = 58; // y where branch meets card top
-
-  return (
-    <svg
-      width="100%"
-      height="64"
-      viewBox="0 0 852 64"
-      preserveAspectRatio="none"
-      style={{ display: "block", overflow: "visible" }}
-      aria-hidden="true"
-    >
-      {/* Vertical stem from "How it works" label */}
-      <line x1={c} y1={0}  x2={c} y2={jY} stroke={stroke} strokeWidth={sw} />
-      {/* Horizontal crossbar */}
-      <line x1={l} y1={jY} x2={r} y2={jY} stroke={stroke} strokeWidth={sw} />
-      {/* Three vertical drops */}
-      <line x1={l} y1={jY} x2={l} y2={dY} stroke={stroke} strokeWidth={sw} />
-      <line x1={c} y1={jY} x2={c} y2={dY} stroke={stroke} strokeWidth={sw} />
-      <line x1={r} y1={jY} x2={r} y2={dY} stroke={stroke} strokeWidth={sw} />
-      {/* Arrowhead chevrons */}
-      {[l, c, r].map((x) => (
-        <polyline
-          key={x}
-          points={`${x - 5},${dY - 7} ${x},${dY} ${x + 5},${dY - 7}`}
-          fill="none"
-          stroke={tip}
-          strokeWidth={sw}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      ))}
-    </svg>
   );
 }
 
@@ -205,325 +184,323 @@ function FlowConnector() {
 export default function Home() {
   return (
     <>
-      {/* Page-scoped styles for hover effects and the scroll-indicator animation */}
       <style>{`
-        .hp-cta {
-          transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
-          box-shadow: 0 0 0 0 rgba(59,130,246,0);
-        }
-        .hp-cta:hover {
-          background: var(--blue-dim) !important;
-          box-shadow: 0 0 0 4px rgba(59,130,246,0.18);
-        }
-        .hp-cta:active { transform: scale(0.98); }
-        .hp-card { transition: border-color 0.2s; }
-        .hp-card:hover { border-color: rgba(59,130,246,0.28) !important; }
-        @keyframes scrollBounce {
-          0%,100% { transform: translateX(-50%) translateY(0);  opacity: 0.45; }
-          50%      { transform: translateX(-50%) translateY(7px); opacity: 0.9; }
-        }
-        .hp-scroll { animation: scrollBounce 2s ease-in-out infinite; }
+        .hp-link:hover { color: var(--text) !important; }
+        .hp-cta-primary { transition: background 0.15s, transform 0.1s; }
+        .hp-cta-primary:hover { background: #1d4ed8 !important; }
+        .hp-cta-primary:active { transform: scale(0.98); }
+        .hp-cta-secondary { transition: background 0.15s, border-color 0.15s; }
+        .hp-cta-secondary:hover { background: rgba(255,255,255,0.04) !important; border-color: rgba(255,255,255,0.2) !important; }
+        .hp-feature { transition: border-color 0.2s; }
+        .hp-feature:hover { border-color: rgba(255,255,255,0.14) !important; }
       `}</style>
 
-      <div className="glow-orb glow-orb-1" />
-      <div className="glow-orb glow-orb-2" />
+      <Nav />
 
-      <main style={{ position: "relative", zIndex: 1 }}>
+      <main>
 
-        {/* ══════════════════════════════════════════════════
-            Section 1 — Hero
-        ══════════════════════════════════════════════════ */}
+        {/* ── Hero ────────────────────────────────────────────────────────── */}
         <section style={{
-          minHeight: "100vh",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
+          maxWidth: 780, margin: "0 auto",
+          padding: "96px 24px 80px",
           textAlign: "center",
-          padding: "72px 24px 0",
-          position: "relative",
-          overflow: "hidden",
         }}>
-          {/* Logo */}
-          <div style={{
-            marginBottom: 64,
-            transform: "scale(2.4)",
-            transformOrigin: "center center",
-          }}>
-            <Logo variant="default" />
-          </div>
-
-          {/* Headline */}
           <h1 style={{
             fontFamily: SERIF,
-            fontSize: "clamp(36px, 5.8vw, 70px)",
+            fontSize: "clamp(38px, 5.5vw, 68px)",
             fontWeight: 400,
-            lineHeight: 1.1,
+            lineHeight: 1.08,
             letterSpacing: "-0.015em",
             color: "var(--text)",
-            margin: "0 0 22px",
-            maxWidth: 800,
+            margin: "0 0 24px",
           }}>
             The market is bigger than{" "}
             <em style={{ fontStyle: "italic", color: "var(--blue)" }}>30 tickers.</em>
           </h1>
 
-          {/* Subheadline */}
           <p style={{
             fontFamily: DM,
-            fontSize: "clamp(15px, 2vw, 18px)",
+            fontSize: "clamp(16px, 2vw, 19px)",
             fontWeight: 300,
             color: "var(--text-dim)",
-            lineHeight: 1.72,
-            maxWidth: 510,
-            margin: "0 0 30px",
+            lineHeight: 1.68,
+            maxWidth: 520,
+            margin: "0 auto 40px",
           }}>
-            Vauric is a living knowledge graph of the market. Discover stocks
-            before the move is over — not after.
+            Vauric is a living knowledge graph of the stock market. Navigate
+            1,300&thinsp;+ companies by sector, industry, and relationship —
+            and discover opportunities before the crowd does.
           </p>
 
-          {/* Launch badge */}
-          <div style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            background: "rgba(59,130,246,0.08)",
-            border: "1px solid rgba(59,130,246,0.22)",
-            borderRadius: 100,
-            padding: "6px 16px",
-            fontSize: 12,
-            fontWeight: 400,
-            fontFamily: DM,
-            color: "var(--blue)",
-            letterSpacing: "0.05em",
-            marginBottom: 38,
-          }}>
-            <span className="eyebrow-dot" />
-            Expected launch: mid June 2026
+          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+            <Link
+              href="/sign-up"
+              className="hp-cta-primary"
+              style={{
+                fontFamily: DM, fontWeight: 500, fontSize: 16,
+                color: "#fff", textDecoration: "none",
+                padding: "14px 36px", borderRadius: 9,
+                background: "var(--blue)", display: "inline-block",
+              }}
+            >
+              Start exploring free
+            </Link>
+            <Link
+              href="/sign-in"
+              className="hp-cta-secondary"
+              style={{
+                fontFamily: DM, fontWeight: 400, fontSize: 16,
+                color: "var(--text-dim)", textDecoration: "none",
+                padding: "14px 36px", borderRadius: 9,
+                background: "transparent",
+                border: "1px solid rgba(255,255,255,0.12)",
+                display: "inline-block",
+              }}
+            >
+              Sign in
+            </Link>
           </div>
+        </section>
 
-          {/* CTA */}
-          <a
-            href="#waitlist"
-            className="hp-cta"
-            style={{
-              display: "inline-block",
-              background: "var(--blue)",
-              color: "#fff",
-              fontFamily: DM,
-              fontWeight: 500,
-              fontSize: 16,
-              letterSpacing: "0.01em",
-              padding: "14px 44px",
-              borderRadius: 10,
-              textDecoration: "none",
-              marginBottom: 64,
-            }}
-          >
-            Join the waitlist
-          </a>
-
-          {/* Graph preview */}
+        {/* ── Stats ───────────────────────────────────────────────────────── */}
+        <section style={{
+          maxWidth: 860, margin: "0 auto",
+          padding: "0 24px 80px",
+        }}>
           <div style={{
-            width: "100%",
-            maxWidth: 900,
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+            gap: 1,
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            borderRadius: 12, overflow: "hidden",
+          }}>
+            {[
+              { value: "1,300+",  label: "Listed stocks" },
+              { value: "11",      label: "Market sectors" },
+              { value: "200+",    label: "Industry nodes" },
+              { value: "18,000+", label: "Connections mapped" },
+            ].map(({ value, label }) => (
+              <div key={label} style={{
+                background: "var(--bg2)",
+                padding: "28px 20px",
+                textAlign: "center",
+              }}>
+                <StatItem value={value} label={label} />
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── Graph preview ───────────────────────────────────────────────── */}
+        <section style={{
+          maxWidth: 1060, margin: "0 auto",
+          padding: "0 24px 96px",
+        }}>
+          <p style={{
+            fontFamily: DM, fontSize: 11,
+            letterSpacing: "0.14em", textTransform: "uppercase",
+            color: "var(--text-muted)", textAlign: "center",
+            marginBottom: 20,
+          }}>
+            Live market knowledge graph
+          </p>
+          <div style={{
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: 14, overflow: "hidden",
             background: "var(--bg2)",
-            border: "1px solid var(--border)",
-            borderRadius: "16px 16px 0 0",
-            overflow: "hidden",
             position: "relative",
           }}>
+            {/* Browser chrome strip */}
             <div style={{
-              position: "absolute", top: 0, left: 0, right: 0, height: 60,
-              background: "linear-gradient(to bottom, var(--bg2), transparent)",
-              zIndex: 2, pointerEvents: "none",
-            }} />
+              height: 36, background: "var(--bg3)",
+              borderBottom: "1px solid rgba(255,255,255,0.06)",
+              display: "flex", alignItems: "center", gap: 7, padding: "0 14px",
+            }}>
+              {["#ef4444","#f59e0b","#22c55e"].map((c) => (
+                <div key={c} style={{ width: 10, height: 10, borderRadius: "50%", background: c, opacity: 0.7 }} />
+              ))}
+              <div style={{
+                flex: 1, marginLeft: 12, height: 22,
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                borderRadius: 5,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <span style={{ fontFamily: DM, fontSize: 11, color: "var(--text-muted)" }}>
+                  vauric.io/graph
+                </span>
+              </div>
+            </div>
+            {/* Fade overlays */}
             <div style={{
-              position: "absolute", bottom: 0, left: 0, right: 0, height: 90,
+              position: "absolute", bottom: 0, left: 0, right: 0, height: 100,
               background: "linear-gradient(to top, var(--bg2), transparent)",
               zIndex: 2, pointerEvents: "none",
             }} />
-            <p style={{
-              position: "absolute",
-              top: 16, left: "50%", transform: "translateX(-50%)",
-              fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase",
-              color: "var(--text-muted)", fontFamily: DM,
-              zIndex: 3, whiteSpace: "nowrap",
-            }}>
-              Live market knowledge graph — preview
-            </p>
             <KnowledgeGraph />
           </div>
-
-          {/* Scroll indicator */}
-          <div className="hp-scroll" style={{
-            position: "absolute",
-            bottom: 22,
-            left: "50%",
-            transform: "translateX(-50%)",
-            pointerEvents: "none",
-          }}>
-            <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-              <path
-                d="M5 8l6 6 6-6"
-                stroke="rgba(148,163,184,0.45)"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
         </section>
 
-        {/* ══════════════════════════════════════════════════
-            Section 2 — Three value props
-        ══════════════════════════════════════════════════ */}
-        <SectionArrow />
+        {/* ── Features ────────────────────────────────────────────────────── */}
         <section style={{
-          maxWidth: 900,
-          margin: "0 auto",
-          padding: "0 24px 0",
+          maxWidth: 920, margin: "0 auto",
+          padding: "0 24px 96px",
         }}>
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-            gap: 16,
-          }}>
-            <ValueCard
-              icon={<IconDiscover />}
-              title="Discover"
-              desc="Find stocks beyond the 30 everyone talks about. Spot sector trends and capital rotations earlier — while the opportunity is still forming."
-            />
-            <ValueCard
-              icon={<IconConnect />}
-              title="Connect"
-              desc="Every stock linked to its sector, rivals, and partners. See the relationships others miss."
-            />
-            <ValueCard
-              icon={<IconBell />}
-              title="Stay ahead"
-              desc="AI-powered notifications for earnings, analyst actions, short squeezes, and more — delivered to your watchlist."
-            />
-          </div>
-        </section>
-
-        {/* ══════════════════════════════════════════════════
-            Section 3 — How it works
-        ══════════════════════════════════════════════════ */}
-        <SectionArrow />
-        <section style={{
-          maxWidth: 900,
-          margin: "0 auto",
-          padding: "0 24px 0",
-        }}>
-          {/* Section label */}
-          <div style={{ textAlign: "center", marginBottom: 0 }}>
-            <h2 style={{
-              fontFamily: SERIF,
-              fontSize: "clamp(26px, 4vw, 42px)",
-              fontWeight: 400,
-              color: "var(--text)",
-              lineHeight: 1.2,
-              marginBottom: 14,
-            }}>
-              Built for the way <u>you</u> actually trade
-            </h2>
-            <p style={{
-              fontFamily: DM,
-              fontSize: 14,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-              color: "var(--blue)",
-              fontWeight: 500,
-              marginBottom: 0,
-            }}>
-              How it works
-            </p>
-          </div>
-
-          {/* Flowchart connector */}
-          <FlowConnector />
-
-          {/* Steps */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-            gap: 16,
-          }}>
-            <Step
-              title="Explore the graph"
-              desc="Navigate the live knowledge graph, hover nodes to see real-time data, and discover stocks you hadn't considered."
-            />
-            <Step
-              title="Build your watchlist"
-              desc="Save stocks you're tracking, set notification preferences for what matters to you."
-            />
-            <Step
-              title="Never miss a move"
-              desc="Get alerted when something significant happens to your stocks — before the crowd reacts."
-            />
-          </div>
-        </section>
-
-        {/* ══════════════════════════════════════════════════
-            Section 4 — Waitlist
-        ══════════════════════════════════════════════════ */}
-        <MergeConnector />
-        <section
-          id="waitlist"
-          style={{
-            padding: "48px 24px 96px",
-            textAlign: "center",
-          }}
-        >
           <h2 style={{
             fontFamily: SERIF,
-            fontSize: "clamp(28px, 4vw, 46px)",
-            fontWeight: 400,
-            color: "var(--text)",
-            marginBottom: 14,
+            fontSize: "clamp(28px, 4vw, 44px)",
+            fontWeight: 400, color: "var(--text)",
+            textAlign: "center", marginBottom: 14, lineHeight: 1.15,
           }}>
-            Get early access
+            Find the stocks others overlook
           </h2>
           <p style={{
-            fontFamily: DM,
-            fontSize: "clamp(14px, 2vw, 16px)",
-            color: "var(--text-dim)",
-            fontWeight: 300,
-            lineHeight: 1.72,
-            maxWidth: 420,
-            margin: "0 auto 36px",
+            fontFamily: DM, fontSize: 16, fontWeight: 300,
+            color: "var(--text-muted)", textAlign: "center",
+            maxWidth: 480, margin: "0 auto 48px", lineHeight: 1.65,
           }}>
-            Join the waitlist for launch in mid June 2026. Early members receive
-            a lifetime discount on Pro.
+            Most platforms show you the same 30 names. Vauric is built to surface the other 1,270.
           </p>
 
-          <WaitlistForm />
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            gap: 14,
+          }}>
+            <Feature
+              title="Navigate by connection, not just ticker"
+              body="Every stock is linked to its sector, sub-sector, industry node, direct peers, and indirect relationships. Spot capital rotation as it happens — not after the chart already moved."
+            />
+            <Feature
+              title="Instant AI company analysis"
+              body="Click any node to get a breakdown of business segments, margins, guidance, and key relationships — generated on demand and updated automatically. No research rabbit hole required."
+            />
+            <Feature
+              title="Scenario modelling"
+              body="Bull, base, and bear case price targets with 6-month, 1-year, and 2-year horizons. Understand the conditions that need to be true for each outcome before you size a position."
+            />
+            <Feature
+              title="Catalyst alerts that matter"
+              body="Earnings, analyst upgrades and downgrades, short squeeze conditions, insider filings. Alerts are tied to your watchlist — so you only hear about what you actually care about."
+            />
+          </div>
         </section>
 
-        {/* ══════════════════════════════════════════════════
-            Section 5 — Footer
-        ══════════════════════════════════════════════════ */}
-        <footer style={{
-          borderTop: "1px solid var(--border)",
-          padding: "28px 24px",
-          textAlign: "center",
-          fontFamily: DM,
-          fontSize: 12,
-          color: "var(--text-muted)",
+        {/* ── Pricing ─────────────────────────────────────────────────────── */}
+        <section style={{
+          maxWidth: 920, margin: "0 auto",
+          padding: "0 24px 96px",
         }}>
-          <p>
-            © 2026 Vauric &nbsp;·&nbsp;{" "}
-            <a href="/privacy" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
-              Privacy policy
-            </a>
-            &nbsp;·&nbsp;{" "}
-            <a href="/terms" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
-              Terms
-            </a>
+          <h2 style={{
+            fontFamily: SERIF,
+            fontSize: "clamp(28px, 4vw, 44px)",
+            fontWeight: 400, color: "var(--text)",
+            textAlign: "center", marginBottom: 48, lineHeight: 1.15,
+          }}>
+            Straightforward pricing
+          </h2>
+
+          <div style={{
+            display: "flex", gap: 16, flexWrap: "wrap", justifyContent: "center",
+          }}>
+            <PricingCard
+              tier="Free"
+              price="Free"
+              sub="Full graph access, no credit card required."
+              items={[
+                "Explore the full knowledge graph",
+                "Real-time prices and daily moves",
+                "Watchlist — up to 10 stocks",
+                "Basic stock pages",
+                "Connection view: single mode",
+              ]}
+              cta="Get started free"
+              ctaHref="/sign-up"
+            />
+            <PricingCard
+              tier="Pro"
+              price="$15"
+              sub="For investors who want the full picture."
+              items={[
+                "Everything in Free",
+                "Unlimited watchlist",
+                "All connection views and multi-select",
+                "AI analysis and scenario modelling",
+                "Price, analyst, and earnings alerts",
+                "Saved focus lists",
+                "Export and portfolio tracking",
+              ]}
+              cta="Start Pro"
+              ctaHref="/sign-up?plan=pro"
+              highlight
+            />
+          </div>
+        </section>
+
+        {/* ── Final CTA ───────────────────────────────────────────────────── */}
+        <section style={{
+          textAlign: "center",
+          padding: "0 24px 120px",
+        }}>
+          <h2 style={{
+            fontFamily: SERIF,
+            fontSize: "clamp(26px, 4vw, 42px)",
+            fontWeight: 400, color: "var(--text)",
+            marginBottom: 20, lineHeight: 1.15,
+          }}>
+            Start with the full graph — free.
+          </h2>
+          <p style={{
+            fontFamily: DM, fontSize: 16, fontWeight: 300,
+            color: "var(--text-muted)", marginBottom: 36,
+          }}>
+            No credit card needed.
           </p>
-          <p style={{ marginTop: 6 }}>
-            Nothing on this site constitutes financial advice.
+          <Link
+            href="/sign-up"
+            className="hp-cta-primary"
+            style={{
+              fontFamily: DM, fontWeight: 500, fontSize: 16,
+              color: "#fff", textDecoration: "none",
+              padding: "15px 44px", borderRadius: 9,
+              background: "var(--blue)", display: "inline-block",
+            }}
+          >
+            Create free account
+          </Link>
+        </section>
+
+        {/* ── Footer ──────────────────────────────────────────────────────── */}
+        <footer style={{
+          borderTop: "1px solid rgba(255,255,255,0.06)",
+          padding: "32px 24px",
+          maxWidth: 920, margin: "0 auto",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 12,
+        }}>
+          <p style={{ fontFamily: DM, fontSize: 12, color: "var(--text-muted)" }}>
+            © 2026 Vauric · Nothing on this site constitutes financial advice.
           </p>
+          <div style={{ display: "flex", gap: 20 }}>
+            {[
+              { label: "Privacy", href: "/privacy" },
+              { label: "Terms",   href: "/terms"   },
+              { label: "Sign in", href: "/sign-in" },
+            ].map(({ label, href }) => (
+              <Link
+                key={label}
+                href={href}
+                style={{ fontFamily: DM, fontSize: 12, color: "var(--text-muted)", textDecoration: "none" }}
+                className="hp-link"
+              >
+                {label}
+              </Link>
+            ))}
+          </div>
         </footer>
 
       </main>
