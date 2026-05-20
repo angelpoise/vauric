@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminRequest } from "@/lib/adminSecret";
 
+// Accepts either a Clerk admin session OR the pipeline secret so the route
+// can be triggered from the CLI as well as from the browser admin panel.
+async function isAuthorised(req: NextRequest): Promise<boolean> {
+  const secret = process.env.PIPELINE_SECRET;
+  if (secret && req.headers.get("x-pipeline-secret") === secret) return true;
+  return isAdminRequest(req);
+}
+
 // ── Layout constants ──────────────────────────────────────────────────────────
 //
 // Hierarchy layout uses proportional angular allocation:
@@ -54,10 +62,6 @@ type AdminNode = {
 };
 
 // ── Hierarchy layout ──────────────────────────────────────────────────────────
-//
-// Mutates x_position / y_position on each node in allNodes so that the
-// subsequent stock scatter sees the updated positions.
-// Returns DB update records for every hierarchy node that was moved.
 
 function layoutHierarchy(
   allNodes: AdminNode[],
@@ -66,8 +70,6 @@ function layoutHierarchy(
 
   const sectors = allNodes.filter((n) => n.node_type === "sector");
 
-  // Compute canvas centroid from actual sector positions so the "outward"
-  // direction is grounded in the real layout, not an assumed (0.5, 0.5).
   const centroid = sectors.length
     ? {
         x: sectors.reduce((s, n) => s + n.x_position, 0) / sectors.length,
@@ -75,7 +77,6 @@ function layoutHierarchy(
       }
     : { x: 0.5, y: 0.5 };
 
-  // Build parent → children maps for hierarchy nodes.
   const subsectorsByParent    = new Map<string, AdminNode[]>();
   const subsubsectorsByParent = new Map<string, AdminNode[]>();
 
@@ -94,7 +95,6 @@ function layoutHierarchy(
   }
 
   for (const sector of sectors) {
-    // "Outward" direction: from centroid towards sector hub.
     const baseAngle = Math.atan2(
       sector.y_position - centroid.y,
       sector.x_position - centroid.x,
@@ -104,7 +104,6 @@ function layoutHierarchy(
     const N = subs.length;
     if (N === 0) continue;
 
-    // Proportional angular spread — more subsectors = wider arc, capped at 270°.
     const subSpread = N === 1 ? 0 : Math.min(N * ANGLE_PER_SUB, MAX_SUB_SPREAD);
 
     subs.forEach((sub, i) => {
@@ -116,12 +115,10 @@ function layoutHierarchy(
       const newX = clamp(sector.x_position + Math.cos(angle) * RADIUS_SUB);
       const newY = clamp(sector.y_position + Math.sin(angle) * RADIUS_SUB);
 
-      // Mutate in-place so child nodes reference updated positions below.
       sub.x_position = newX;
       sub.y_position = newY;
       updates.push({ id: sub.id, x_position: newX, y_position: newY });
 
-      // Subsubsectors fan from this subsector in the same outward direction.
       const subsubs = subsubsectorsByParent.get(sub.id) ?? [];
       const M = subsubs.length;
       if (M === 0) return;
@@ -287,7 +284,7 @@ async function buildAssignments(
 // ── GET: dry-run diagnostic ───────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
-  if (!await isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!await isAuthorised(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { data: allNodes, error: nodesErr } = await supabaseAdmin
     .from("admin_nodes")
@@ -346,7 +343,7 @@ export async function GET(req: NextRequest) {
 // ── POST: apply full layout ───────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  if (!await isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!await isAuthorised(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { data: allNodes, error: nodesErr } = await supabaseAdmin
     .from("admin_nodes")
@@ -362,8 +359,8 @@ export async function POST(req: NextRequest) {
 
   const nodes = allNodes as AdminNode[];
 
-  // 1. Layout hierarchy nodes (subsectors + subsubsectors).
-  //    Mutates positions in `nodes` so stock scatter uses updated coordinates.
+  // 1. Layout hierarchy nodes — mutates positions in `nodes` so stock scatter
+  //    references the updated coordinates.
   const hierUpdates = layoutHierarchy(nodes);
 
   // 2. Assign each stock to its best hierarchy target and scatter into rings.
@@ -408,9 +405,9 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({
-    ok:              true,
+    ok:               true,
     hierRepositioned: hierUpdates.length,
     stockRepositioned: stockUpdates.length,
-    total:           updated,
+    total:            updated,
   });
 }
