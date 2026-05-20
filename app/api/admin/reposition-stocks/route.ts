@@ -25,8 +25,8 @@ async function isAuthorised(req: NextRequest): Promise<boolean> {
 // Ellipse on which sector hubs sit — uniform spacing (equal arc per sector).
 const EL_CX = 1.2;
 const EL_CY = 0.45;
-const EL_A  = 1.15;  // larger ellipse → more physical distance between sectors
-const EL_B  = 0.92;
+const EL_A  = 2.20;  // sector ring radius (horizontal)
+const EL_B  = 1.65;  // sector ring radius (vertical)
 
 // Each child level progressively further out.
 const RADIUS_SUB    = 0.90;
@@ -107,13 +107,11 @@ function layoutHierarchy(
   const cx = sectors.reduce((s, n) => s + n.x_position, 0) / (sectors.length || 1);
   const cy = sectors.reduce((s, n) => s + n.y_position, 0) / (sectors.length || 1);
 
+  // Sort by name — stable regardless of current DB positions (which may have
+  // degenerated to a single point after prior scaling runs).
   const sorted = sectors
-    .map((s) => ({
-      s,
-      angle:  Math.atan2(s.y_position - cy, s.x_position - cx),
-      nSubs:  subsectorsByParent.get(s.id)?.length ?? 0,
-    }))
-    .sort((a, b) => a.angle - b.angle);
+    .map((s) => ({ s, nSubs: subsectorsByParent.get(s.id)?.length ?? 0 }))
+    .sort((a, b) => (a.s.company_name ?? "").localeCompare(b.s.company_name ?? ""));
 
   // ── Step 1: Place sectors on the ellipse — UNIFORM spacing ─────────────────
   // Equal arc per sector regardless of subsector count → uniform gaps in the ring.
