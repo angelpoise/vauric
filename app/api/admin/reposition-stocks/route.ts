@@ -23,23 +23,24 @@ async function isAuthorised(req: NextRequest): Promise<boolean> {
 // Graph has pan/zoom so nodes may legitimately sit outside 0-1.
 
 // Ellipse on which sector hubs sit — uniform spacing (equal arc per sector).
+// EL_A/EL_B ≈ 1600/1100 so the ring looks circular in world-space.
 const EL_CX = 1.2;
 const EL_CY = 0.45;
-const EL_A  = 0.68;  // horizontal semi-axis
-const EL_B  = 0.48;  // vertical semi-axis
+const EL_A  = 0.72;  // horizontal semi-axis
+const EL_B  = 0.62;  // vertical semi-axis  (more circular → uniform visual gaps)
 
 // Each child level progressively further out.
-const RADIUS_SUB    = 0.72;   // subsector from sector hub
-const RADIUS_SUBSUB = 0.50;   // subsubsector from subsector
-const STOCK_RADIUS  = 0.62;   // stocks placed in one curved arc from their parent
+const RADIUS_SUB    = 1.00;   // subsectors further from sector hub
+const RADIUS_SUBSUB = 0.72;   // subsubsectors further from subsector
+const STOCK_RADIUS  = 0.95;   // stocks clearly beyond subsubsectors
 
 // Angular spread per node at each level.
-const ANGLE_PER_SUB    = 0.40;          // radians — ~23° per subsector
-const ANGLE_PER_SUBSUB = 0.45;          // radians — ~26° per subsubsector
-const ANGLE_PER_STOCK  = 0.065;         // radians — ~3.7° per stock
+const ANGLE_PER_SUB    = 0.48;          // radians — ~27° per subsector
+const ANGLE_PER_SUBSUB = 0.52;          // radians — ~30° per subsubsector
+const ANGLE_PER_STOCK  = 0.055;         // radians — ~3.2° per stock
 const MAX_SUB_ARC      = Math.PI * 1.1; // 198° cap
-const MAX_SUBSUB_ARC   = Math.PI * 0.9; // 162° cap
-const MAX_STOCK_ARC    = Math.PI * 1.1; // 198° cap
+const MAX_SUBSUB_ARC   = Math.PI * 1.0; // 180° cap
+const MAX_STOCK_ARC    = Math.PI * 1.2; // 216° cap
 
 // ── Stock curved-row placement ────────────────────────────────────────────────
 // All stocks for a given parent sit on a single arc at STOCK_RADIUS,
