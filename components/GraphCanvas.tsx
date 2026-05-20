@@ -471,6 +471,10 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
   // Connection view ref
   const connectionViewRef = useRef<ConnectionView>(DEFAULT_CONNECTION_VIEW);
 
+  // Lazily-computed market cap range for dynamic node sizing.
+  // Null = needs recompute (invalidated when fundamentals load).
+  const marketCapRangeRef = useRef<{ logMin: number; logMax: number } | null>(null);
+
   // Incremented each time graph structure data arrives so the dirty key changes
   const graphDataVersionRef = useRef(0);
 
@@ -699,7 +703,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
   useEffect(() => {
     fetch("/api/fundamentals")
       .then((r) => r.ok ? r.json() : null)
-      .then((data) => { if (data) fundamentalsRef.current = data; })
+      .then((data) => { if (data) { fundamentalsRef.current = data; marketCapRangeRef.current = null; } })
       .catch(() => {});
   }, []);
 
@@ -984,9 +988,25 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       if (graphSettingsRef.current.nodeSize === "marketcap") {
         const cap = fundamentalsRef.current[node.ticker]?.marketCap ?? null;
         if (cap !== null && cap > 0) {
-          const minR = 9, maxR = 28, logMin = 8, logMax = 13;
-          const t = Math.max(0, Math.min(1, (Math.log10(cap) - logMin) / (logMax - logMin)));
-          return Math.round(minR + t * (maxR - minR));
+          // Lazily compute p5–p95 log range from actual loaded data
+          if (!marketCapRangeRef.current) {
+            const logCaps: number[] = [];
+            Object.values(fundamentalsRef.current).forEach((f) => {
+              if (f.marketCap != null && f.marketCap > 0) logCaps.push(Math.log10(f.marketCap));
+            });
+            logCaps.sort((a, b) => a - b);
+            if (logCaps.length >= 10) {
+              const p5  = logCaps[Math.floor(logCaps.length * 0.05)];
+              const p95 = logCaps[Math.floor(logCaps.length * 0.95)];
+              marketCapRangeRef.current = { logMin: p5, logMax: Math.max(p5 + 0.5, p95) };
+            }
+          }
+          const range = marketCapRangeRef.current;
+          if (range) {
+            const minR = 6, maxR = 38;
+            const t = Math.max(0, Math.min(1, (Math.log10(cap) - range.logMin) / (range.logMax - range.logMin)));
+            return Math.round(minR + t * (maxR - minR));
+          }
         }
       }
       return nodeRadius(node);
