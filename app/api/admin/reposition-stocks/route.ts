@@ -123,13 +123,15 @@ function layoutHierarchy(
     const subs = subsectorsByParent.get(sector.id) ?? [];
     const N    = subs.length;
 
-    // Use 80 % of the zone width so there is a gap between adjacent sectors.
-    const arc = zoneWidth * 0.80;
+    // Sectors sit on the outer ring; subsectors must spread INWARD toward the
+    // canvas interior, not outward (which would go off-screen). Flip 180°.
+    const inward = zoneCenter + Math.PI;
+    const arc    = zoneWidth * 0.80;
 
     subs.forEach((sub, i) => {
       const angle = N === 1
-        ? zoneCenter
-        : zoneCenter - arc / 2 + (i / (N - 1)) * arc;
+        ? inward
+        : inward - arc / 2 + (i / (N - 1)) * arc;
 
       const newX = sector.x_position + Math.cos(angle) * RADIUS_SUB;
       const newY = sector.y_position + Math.sin(angle) * RADIUS_SUB;
