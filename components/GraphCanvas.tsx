@@ -1652,7 +1652,7 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas({
       const my        = e.clientY - rect.top;
       const factor    = e.deltaY < 0 ? 1.032 : 0.968;
       const cam       = cameraRef.current;
-      const newScale  = Math.max(0.10, Math.min(5, cam.scale * factor));
+      const newScale  = Math.max(0.02, Math.min(5, cam.scale * factor));
       const ratio     = newScale / cam.scale;
       cameraRef.current = clampCamera({
         scale: newScale,
