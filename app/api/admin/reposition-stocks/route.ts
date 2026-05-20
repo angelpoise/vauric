@@ -23,24 +23,30 @@ async function isAuthorised(req: NextRequest): Promise<boolean> {
 // Graph has pan/zoom so nodes may legitimately sit outside 0-1.
 
 // Ellipse on which sector hubs sit — uniform spacing (equal arc per sector).
-// EL_A/EL_B ≈ 1600/1100 so the ring looks circular in world-space.
 const EL_CX = 1.2;
 const EL_CY = 0.45;
-const EL_A  = 0.72;  // horizontal semi-axis
-const EL_B  = 0.62;  // vertical semi-axis  (more circular → uniform visual gaps)
+const EL_A  = 1.15;  // larger ellipse → more physical distance between sectors
+const EL_B  = 0.92;
 
 // Each child level progressively further out.
-const RADIUS_SUB    = 1.00;   // subsectors further from sector hub
-const RADIUS_SUBSUB = 0.72;   // subsubsectors further from subsector
-const STOCK_RADIUS  = 0.95;   // stocks clearly beyond subsubsectors
+const RADIUS_SUB    = 0.90;
+const RADIUS_SUBSUB = 0.62;
+const STOCK_RADIUS  = 0.85;
 
-// Angular spread per node at each level.
-const ANGLE_PER_SUB    = 0.48;          // radians — ~27° per subsector
-const ANGLE_PER_SUBSUB = 0.52;          // radians — ~30° per subsubsector
-const ANGLE_PER_STOCK  = 0.055;         // radians — ~3.2° per stock
-const MAX_SUB_ARC      = Math.PI * 1.1; // 198° cap
-const MAX_SUBSUB_ARC   = Math.PI * 1.0; // 180° cap
-const MAX_STOCK_ARC    = Math.PI * 1.2; // 216° cap
+// Subsectors and subsubsectors are CAPPED at their sector's zone width so
+// children of one sector never overlap with children of adjacent sectors.
+// Fractions below 1.0 leave a small gap between adjacent zones.
+const ZONE_CAP_SUB    = 0.87; // subsectors use ≤ 87 % of the zone arc
+const ZONE_CAP_SUBSUB = 0.80; // subsubsectors use ≤ 80 % of the zone arc
+
+// Used for proportional spread when sector has few children (so small sectors
+// don't needlessly fill their whole zone).
+const ANGLE_PER_SUB    = 0.09;  // ~5° per subsector
+const ANGLE_PER_SUBSUB = 0.11;  // ~6° per subsubsector
+
+// Stocks can spread wider — they sit on an outer arc beyond the industry ring.
+const ANGLE_PER_STOCK = 0.055;
+const MAX_STOCK_ARC   = Math.PI * 1.2;
 
 // ── Stock curved-row placement ────────────────────────────────────────────────
 // All stocks for a given parent sit on a single arc at STOCK_RADIUS,
@@ -123,15 +129,16 @@ function layoutHierarchy(
   }
 
   // ── Step 2: Fan children outward ─────────────────────────────────────────────
-  // Outward = ellipse centre → sector hub (unambiguous, always points away).
-  // Arc width scales with the node count at each level so larger clusters
-  // get proportionally more spread.
+  // Outward = ellipse centre → sector hub (always unambiguous).
+  // Arc is capped at ZONE_CAP * uniformArc so children never cross into
+  // an adjacent sector's territory.
 
   ellipseAngle = -Math.PI;
 
   for (const { s: sector, nSubs } of sorted) {
-    const outward = Math.atan2(sector.y_position - EL_CY, sector.x_position - EL_CX);
-    const subArc  = Math.min(nSubs * ANGLE_PER_SUB, MAX_SUB_ARC);
+    const outward  = Math.atan2(sector.y_position - EL_CY, sector.x_position - EL_CX);
+    const maxSubArc = uniformArc * ZONE_CAP_SUB;
+    const subArc   = Math.min(nSubs * ANGLE_PER_SUB, maxSubArc);
 
     const subs = subsectorsByParent.get(sector.id) ?? [];
     const N    = subs.length;
@@ -147,11 +154,12 @@ function layoutHierarchy(
       sub.y_position = newY;
       updates.push({ id: sub.id, x_position: newX, y_position: newY });
 
-      const subsubs = subsubsectorsByParent.get(sub.id) ?? [];
-      const M       = subsubs.length;
+      const subsubs   = subsubsectorsByParent.get(sub.id) ?? [];
+      const M         = subsubs.length;
       if (M === 0) return;
 
-      const ssArc = Math.min(M * ANGLE_PER_SUBSUB, MAX_SUBSUB_ARC);
+      const maxSsArc = uniformArc * ZONE_CAP_SUBSUB;
+      const ssArc    = Math.min(M * ANGLE_PER_SUBSUB, maxSsArc);
 
       subsubs.forEach((subsub, j) => {
         const sa   = M === 1 ? angle : angle - ssArc / 2 + (j / (M - 1)) * ssArc;
