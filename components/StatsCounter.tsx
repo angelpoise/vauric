@@ -33,43 +33,47 @@ export default function StatsCounter() {
     return () => obs.disconnect();
   }, []);
 
-  const INTERVAL = 28;
+  // Smooth RAF count-up with ease-out cubic over a given duration (ms)
+  function countUp(
+    target: number,
+    duration: number,
+    setter: (v: number) => void,
+    onDone: () => void,
+  ): () => void {
+    const start = performance.now();
+    let raf = 0;
+    function tick(now: number) {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+      setter(Math.round(target * eased));
+      if (progress < 1) {
+        raf = requestAnimationFrame(tick);
+      } else {
+        setter(target);
+        onDone();
+      }
+    }
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }
 
   // 1. Connections starts immediately on scroll-in
   useEffect(() => {
-    if (!started) return;
-    let c = 0;
-    const t = setInterval(() => {
-      c = Math.min(c + 1000, targets.connections);
-      setConnections(c);
-      if (c >= targets.connections) { clearInterval(t); setConnDone(true); }
-    }, INTERVAL);
-    return () => clearInterval(t);
-  }, [started, targets]);
+    if (!started || targets.connections === 0) return;
+    return countUp(targets.connections, 2200, setConnections, () => setConnDone(true));
+  }, [started, targets]); // eslint-disable-line
 
   // 2. Stocks starts only after connections finishes
   useEffect(() => {
-    if (!connDone) return;
-    let s = 0;
-    const t = setInterval(() => {
-      s = Math.min(s + 100, targets.stocks);
-      setStocks(s);
-      if (s >= targets.stocks) { clearInterval(t); setStocksDone(true); }
-    }, INTERVAL);
-    return () => clearInterval(t);
-  }, [connDone, targets]);
+    if (!connDone || targets.stocks === 0) return;
+    return countUp(targets.stocks, 1800, setStocks, () => setStocksDone(true));
+  }, [connDone, targets]); // eslint-disable-line
 
   // 3. Industries starts only after stocks finishes
   useEffect(() => {
-    if (!stocksDone) return;
-    let i = 0;
-    const t = setInterval(() => {
-      i = Math.min(i + 10, targets.industries);
-      setIndustries(i);
-      if (i >= targets.industries) clearInterval(t);
-    }, INTERVAL);
-    return () => clearInterval(t);
-  }, [stocksDone, targets]);
+    if (!stocksDone || targets.industries === 0) return;
+    return countUp(targets.industries, 1200, setIndustries, () => {});
+  }, [stocksDone, targets]); // eslint-disable-line
 
   const fmt = (n: number) => n === 0 ? "0" : n.toLocaleString();
 
