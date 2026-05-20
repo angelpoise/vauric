@@ -172,13 +172,13 @@ export default function Home() {
 
           {/* Brand mark */}
           <div style={{
-            display: "flex", flexDirection: "column", alignItems: "center",
-            gap: 14, marginBottom: 56,
+            display: "flex", flexDirection: "row", alignItems: "center",
+            justifyContent: "center", gap: 20, marginBottom: 56,
           }}>
-            <RadarIcon size={58} />
+            <RadarIcon size={72} />
             <span style={{
-              fontFamily: DM, fontSize: 13, fontWeight: 700,
-              letterSpacing: "0.28em", color: "#fff",
+              fontFamily: DM, fontSize: 28, fontWeight: 700,
+              letterSpacing: "0.22em", color: "#fff",
               lineHeight: 1,
             }}>
               VAURIC
