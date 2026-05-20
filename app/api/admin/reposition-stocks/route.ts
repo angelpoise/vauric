@@ -29,18 +29,18 @@ const EL_A  = 3.20;  // sector ring radius (horizontal) — larger → more room
 const EL_B  = 2.40;  // sector ring radius (vertical)
 
 // Each child level progressively further out.
-const RADIUS_SUB    = 1.60;  // subsectors well away from sector hub
-const RADIUS_SUBSUB = 1.10;  // subsubsectors well away from subsector
-const STOCK_RADIUS  = 1.30;  // stocks clearly beyond subsubsectors
+const RADIUS_SUB    = 1.60;
+const RADIUS_SUBSUB = 1.10;
+const STOCK_RADIUS  = 1.30;
 
-// Zone caps — with a larger ellipse the chord between sectors is wide enough
-// to allow near-full zone usage without cross-sector overlap.
-const ZONE_CAP_SUB    = 0.96;
-const ZONE_CAP_SUBSUB = 0.90;
-
-// Per-node spread angle — controls how wide sectors with few children fan out.
-const ANGLE_PER_SUB    = 0.12;  // ~7° per subsector
-const ANGLE_PER_SUBSUB = 0.13;  // ~7.5° per subsubsector
+// Per-node spread angle — no zone cap, just a fixed maximum arc so large sectors
+// fan wide and small sectors scale proportionally.
+// With EL_A=3.20 the inter-sector chord is ~1.80; subsectors overlap at >68°.
+// We accept that tradeoff so the fans are actually visible.
+const ANGLE_PER_SUB    = 0.20;   // ~11.5° per subsector
+const MAX_SUB_ARC      = 1.20;   // ~69° hard cap for subsectors
+const ANGLE_PER_SUBSUB = 0.22;   // ~12.6° per subsubsector
+const MAX_SUBSUB_ARC   = 0.90;   // ~52° hard cap for subsubsectors
 
 // Stocks sit on one curved arc.
 const ANGLE_PER_STOCK = 0.055;
@@ -129,8 +129,7 @@ function layoutHierarchy(
 
   for (const { s: sector, nSubs } of sorted) {
     const outward  = Math.atan2(sector.y_position - EL_CY, sector.x_position - EL_CX);
-    const maxSubArc = uniformArc * ZONE_CAP_SUB;
-    const subArc   = Math.min(nSubs * ANGLE_PER_SUB, maxSubArc);
+    const subArc   = Math.min(nSubs * ANGLE_PER_SUB, MAX_SUB_ARC);
 
     const subs = subsectorsByParent.get(sector.id) ?? [];
     const N    = subs.length;
@@ -150,8 +149,7 @@ function layoutHierarchy(
       const M         = subsubs.length;
       if (M === 0) return;
 
-      const maxSsArc = uniformArc * ZONE_CAP_SUBSUB;
-      const ssArc    = Math.min(M * ANGLE_PER_SUBSUB, maxSsArc);
+      const ssArc    = Math.min(M * ANGLE_PER_SUBSUB, MAX_SUBSUB_ARC);
 
       subsubs.forEach((subsub, j) => {
         const sa   = M === 1 ? angle : angle - ssArc / 2 + (j / (M - 1)) * ssArc;
