@@ -27,27 +27,31 @@ export async function verifyClerkToken(
  */
 export async function verifyClerkTokenWithTier(
   authHeader: string | null,
-): Promise<{ userId: string | null; isPro: boolean }> {
-  if (!authHeader?.startsWith("Bearer ")) return { userId: null, isPro: false };
+): Promise<{ userId: string | null; isPro: boolean; isPlus: boolean }> {
+  if (!authHeader?.startsWith("Bearer ")) return { userId: null, isPro: false, isPlus: false };
   const token = authHeader.slice(7);
   try {
     const payload = await verifyToken(token, {
       secretKey: process.env.CLERK_SECRET_KEY!,
     });
     const userId = payload.sub ?? null;
-    if (!userId) return { userId: null, isPro: false };
+    if (!userId) return { userId: null, isPro: false, isPlus: false };
 
     // Fast path: Clerk JWT template may include publicMetadata as "metadata"
     const meta = (payload as Record<string, unknown>)?.metadata as Record<string, unknown> | undefined;
-    if (typeof meta?.isPro === "boolean") {
-      return { userId, isPro: meta.isPro };
+    if (typeof meta?.isPro === "boolean" || typeof meta?.isPlus === "boolean") {
+      return { userId, isPro: meta.isPro === true, isPlus: meta.isPlus === true };
     }
 
     // Fallback: fetch publicMetadata via Clerk Admin API
     const client = await clerkClient();
     const user = await client.users.getUser(userId);
-    return { userId, isPro: user.publicMetadata?.isPro === true };
+    return {
+      userId,
+      isPro:  user.publicMetadata?.isPro  === true,
+      isPlus: user.publicMetadata?.isPlus === true,
+    };
   } catch {
-    return { userId: null, isPro: false };
+    return { userId: null, isPro: false, isPlus: false };
   }
 }

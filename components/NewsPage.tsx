@@ -21,7 +21,8 @@ interface NewsItem {
   url: string;
 }
 
-type Tab = "all" | "watchlist" | "sector" | "search";
+type Tab    = "all" | "watchlist" | "sector" | "search";
+type AiMode = "general" | "watchlist" | "custom";
 
 // ─── Static helpers ───────────────────────────────────────────────────────────
 
@@ -227,20 +228,79 @@ export default function NewsPage() {
   const router = useRouter();
   const { getToken } = useAuth();
   const { user, isLoaded } = useUser();
-  // Do not treat isPro as true until Clerk has confirmed the user's status.
-  // isLoaded=false means Clerk is still initialising — default to free tier.
-  const isPro = isLoaded ? user?.publicMetadata?.isPro === true : false;
+  // Do not treat tier as elevated until Clerk has confirmed the user's status.
+  const isPro  = isLoaded ? user?.publicMetadata?.isPro  === true : false;
+  const isPlus = isLoaded ? user?.publicMetadata?.isPlus === true : false;
+  const isPaid = isPro || isPlus;
+
   const [activeTab, setActiveTab]           = useState<Tab>("all");
   const [selectedSector, setSelectedSector] = useState("tech");
   const [searchQuery, setSearchQuery]       = useState("");
   const [watchlist, setWatchlist]           = useState<string[]>([]);
-  const [showAiPop, setShowAiPop]           = useState(false);
   const [newsItems, setNewsItems]           = useState<NewsItem[]>([]);
   const [newsLoading, setNewsLoading]       = useState(true);
 
+  // ── AI summary state ────────────────────────────────────────────────────────
+  const [showAiPanel, setShowAiPanel]       = useState(false);
+  const [aiMode, setAiMode]                 = useState<AiMode>("general");
+  const [aiSummary, setAiSummary]           = useState<string | null>(null);
+  const [aiLoading, setAiLoading]           = useState(false);
+  const [aiError, setAiError]               = useState<string | null>(null);
+  const [customTickers, setCustomTickers]   = useState<string[]>([]);
+  const [tickerInput, setTickerInput]       = useState("");
+
   useEffect(() => {
-    console.log(`[NewsPage] isLoaded=${isLoaded} isPro=${isPro} articles=${newsItems.length}`);
-  }, [isLoaded, isPro, newsItems.length]);
+    console.log(`[NewsPage] isLoaded=${isLoaded} isPro=${isPro} isPlus=${isPlus} articles=${newsItems.length}`);
+  }, [isLoaded, isPro, isPlus, newsItems.length]);
+
+  async function fetchAiSummary(mode: AiMode, tickers: string[]) {
+    setAiLoading(true);
+    setAiError(null);
+    setAiSummary(null);
+    try {
+      const token = await getToken();
+      const params = new URLSearchParams({ mode });
+      if ((mode === "watchlist" || mode === "custom") && tickers.length > 0) {
+        params.set("tickers", tickers.join(","));
+      }
+      const r = await fetch(`/api/news/ai-summary?${params}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        setAiError((err as { error?: string }).error ?? "Failed to generate summary.");
+      } else {
+        const { summary } = await r.json() as { summary: string };
+        setAiSummary(summary);
+      }
+    } catch {
+      setAiError("Network error — please try again.");
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  // Auto-fetch when panel opens or mode changes (not for custom — user must press Generate)
+  useEffect(() => {
+    if (!showAiPanel || !isPaid) return;
+    if (aiMode === "custom") return;
+    const tickers = aiMode === "watchlist" ? watchlist : [];
+    fetchAiSummary(aiMode, tickers); // eslint-disable-line @typescript-eslint/no-floating-promises
+  }, [showAiPanel, aiMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleAiModeChange(mode: AiMode) {
+    setAiMode(mode);
+    setAiSummary(null);
+    setAiError(null);
+  }
+
+  function addCustomTicker() {
+    const t = tickerInput.trim().toUpperCase();
+    if (t && !customTickers.includes(t) && customTickers.length < 5) {
+      setCustomTickers((prev) => [...prev, t]);
+    }
+    setTickerInput("");
+  }
 
   useEffect(() => {
     setWatchlist(getWatchlist());
@@ -338,41 +398,152 @@ export default function NewsPage() {
           </div>
 
           {/* AI Summary button */}
-          <div style={{ position: "relative", flexShrink: 0 }}>
-            <button
-              onClick={() => setShowAiPop((v) => !v)}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 7,
-                padding: "8px 14px",
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                borderRadius: 8, cursor: "pointer", color: "#475569",
-                fontSize: 13, fontFamily: "inherit",
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z" />
-                <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z" />
-              </svg>
-            </button>
-
-            {showAiPop && (
-              <div style={{
-                position: "absolute", top: "calc(100% + 8px)", right: 0, width: 280, zIndex: 10,
-                background: "#111827", border: "1px solid rgba(255,255,255,0.09)",
-                borderRadius: 10, padding: 16, boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
-              }}>
-                <div style={{ fontSize: 12, fontWeight: 500, color: "#f1f5f9", marginBottom: 6 }}>
-                  AI Market Summary
-                </div>
-                <div style={{ fontSize: 11, color: "#475569", lineHeight: 1.6, marginBottom: 14, fontWeight: 300 }}>
-                  AI-generated summaries of top stories, sentiment signals, and cross-stock themes are a Pro feature.
-                </div>
-                <UpgradeButton label="Upgrade to Pro" variant="banner" />
-              </div>
-            )}
-          </div>
+          <button
+            onClick={() => setShowAiPanel((v) => !v)}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 7,
+              padding: "8px 14px",
+              background: showAiPanel ? "rgba(59,130,246,0.1)" : "rgba(255,255,255,0.03)",
+              border: showAiPanel ? "1px solid rgba(59,130,246,0.3)" : "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 8, cursor: "pointer",
+              color: showAiPanel ? "#3b82f6" : "#475569",
+              fontSize: 13, fontFamily: "inherit", flexShrink: 0,
+              transition: "all 0.15s",
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z" />
+              <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z" />
+            </svg>
+            AI Summary
+          </button>
         </div>
+
+        {/* ── AI Summary panel ─────────────────────────────────────────────── */}
+        {showAiPanel && (
+          <div style={{
+            marginBottom: 28,
+            background: "rgba(59,130,246,0.04)",
+            border: "1px solid rgba(59,130,246,0.14)",
+            borderRadius: 12, overflow: "hidden",
+          }}>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: "#94a3b8", marginBottom: isPaid && isPro ? 14 : 0 }}>
+                AI Market Summary
+              </div>
+
+              {/* Pro mode selector */}
+              {isPro && (
+                <div style={{ display: "flex", gap: 6 }}>
+                  {(["general", "watchlist", "custom"] as AiMode[]).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => handleAiModeChange(m)}
+                      style={{
+                        padding: "5px 12px", borderRadius: 6, cursor: "pointer",
+                        fontSize: 12, fontFamily: "inherit", fontWeight: aiMode === m ? 500 : 400,
+                        background: aiMode === m ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.04)",
+                        border: aiMode === m ? "1px solid rgba(59,130,246,0.35)" : "1px solid rgba(255,255,255,0.08)",
+                        color: aiMode === m ? "#3b82f6" : "#475569",
+                        textTransform: "capitalize", transition: "all 0.12s",
+                      }}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ padding: "18px 20px" }}>
+              {/* Free / not logged in */}
+              {!isPaid && (
+                <div style={{ textAlign: "center", padding: "8px 0 4px" }}>
+                  <div style={{ fontSize: 13, color: "#475569", marginBottom: 14, fontWeight: 300 }}>
+                    AI market summaries are available on Plus and Pro.
+                  </div>
+                  <UpgradeButton label="Upgrade to Plus" variant="banner" />
+                </div>
+              )}
+
+              {/* Custom ticker selector (Pro) */}
+              {isPro && aiMode === "custom" && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                    {customTickers.map((t) => (
+                      <span key={t} style={{
+                        display: "inline-flex", alignItems: "center", gap: 5,
+                        background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.2)",
+                        borderRadius: 5, padding: "3px 8px", fontSize: 11, fontWeight: 700, color: "#3b82f6",
+                      }}>
+                        {t}
+                        <button
+                          onClick={() => setCustomTickers((prev) => prev.filter((x) => x !== t))}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "#475569", padding: 0, lineHeight: 1, fontSize: 13 }}
+                        >×</button>
+                      </span>
+                    ))}
+                    {customTickers.length < 5 && (
+                      <input
+                        value={tickerInput}
+                        onChange={(e) => setTickerInput(e.target.value.toUpperCase())}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addCustomTicker(); } }}
+                        placeholder="Add ticker…"
+                        style={{
+                          background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)",
+                          borderRadius: 5, padding: "3px 10px", fontSize: 12, color: "#f1f5f9",
+                          fontFamily: "inherit", outline: "none", width: 110,
+                        }}
+                      />
+                    )}
+                  </div>
+                  <button
+                    onClick={() => { if (customTickers.length > 0) fetchAiSummary("custom", customTickers); }} // eslint-disable-line @typescript-eslint/no-floating-promises
+                    disabled={customTickers.length === 0 || aiLoading}
+                    style={{
+                      padding: "7px 16px", borderRadius: 7, cursor: customTickers.length === 0 ? "not-allowed" : "pointer",
+                      background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.3)",
+                      color: "#3b82f6", fontSize: 12, fontFamily: "inherit", fontWeight: 500,
+                      opacity: customTickers.length === 0 ? 0.5 : 1,
+                    }}
+                  >
+                    {aiLoading ? "Generating…" : "Generate summary"}
+                  </button>
+                </div>
+              )}
+
+              {/* Summary content */}
+              {isPaid && aiMode !== "custom" && (
+                <>
+                  {aiLoading && (
+                    <div style={{ fontSize: 13, color: "#475569", fontWeight: 300 }}>Generating summary…</div>
+                  )}
+                  {aiError && (
+                    <div style={{ fontSize: 13, color: "#ef4444" }}>{aiError}</div>
+                  )}
+                  {aiSummary && (
+                    <div style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.75, fontWeight: 300, whiteSpace: "pre-wrap" }}>
+                      {aiSummary}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Custom mode summary result */}
+              {isPro && aiMode === "custom" && (aiSummary || aiLoading || aiError) && (
+                <div style={{ marginTop: 16 }}>
+                  {aiLoading && <div style={{ fontSize: 13, color: "#475569", fontWeight: 300 }}>Generating…</div>}
+                  {aiError  && <div style={{ fontSize: 13, color: "#ef4444" }}>{aiError}</div>}
+                  {aiSummary && (
+                    <div style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.75, fontWeight: 300, whiteSpace: "pre-wrap" }}>
+                      {aiSummary}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ── Tab bar ─────────────────────────────────────────────────────── */}
         <div style={{
@@ -410,10 +581,10 @@ export default function NewsPage() {
             : newsItems.length === 0
               ? <EmptyState message="No news available yet. The pipeline fetches stories hourly." />
               : <>
-                  <NewsList items={newsItems} onTickerClick={handleTickerClick} isPro={isPro} />
-                  {!isPro && (
+                  <NewsList items={newsItems} onTickerClick={handleTickerClick} isPro={isPaid} />
+                  {!isPaid && (
                     <div style={{ textAlign: "center", padding: "16px 0 4px", fontSize: 11, color: "#334155", fontFamily: 'var(--font-dm-sans), "DM Sans", sans-serif' }}>
-                      Showing last 48 hours — upgrade to Pro for 30 days of news history
+                      Showing last 48 hours — upgrade to Plus or Pro for full history
                     </div>
                   )}
                 </>
@@ -425,7 +596,7 @@ export default function NewsPage() {
             ? <EmptyState message="Loading news…" />
             : watchlistNews.length === 0
               ? <EmptyState message="Add stocks to your watchlist to see their news here." />
-              : <NewsList items={watchlistNews} onTickerClick={handleTickerClick} isPro={isPro} />
+              : <NewsList items={watchlistNews} onTickerClick={handleTickerClick} isPro={isPaid} />
         )}
 
         {/* By Sector */}
@@ -457,7 +628,7 @@ export default function NewsPage() {
               ? <EmptyState message="Loading news…" />
               : sectorNews.length === 0
                 ? <EmptyState message={`No news for ${SECTOR_LABELS[selectedSector]} yet.`} />
-                : <NewsList items={sectorNews} onTickerClick={handleTickerClick} isPro={isPro} />
+                : <NewsList items={sectorNews} onTickerClick={handleTickerClick} isPro={isPaid} />
             }
           </>
         )}
@@ -492,19 +663,12 @@ export default function NewsPage() {
                 ? <EmptyState message="Type to search headlines, tickers, or sources." />
                 : searchNews.length === 0
                   ? <EmptyState message={`No results for "${searchQuery.trim()}".`} />
-                  : <NewsList items={searchNews} onTickerClick={handleTickerClick} isPro={isPro} />
+                  : <NewsList items={searchNews} onTickerClick={handleTickerClick} isPro={isPaid} />
             }
           </>
         )}
       </div>
 
-      {/* Close AI pop when clicking outside */}
-      {showAiPop && (
-        <div
-          onClick={() => setShowAiPop(false)}
-          style={{ position: "fixed", inset: 0, zIndex: 9 }}
-        />
-      )}
     </div>
   );
 }

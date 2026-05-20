@@ -124,14 +124,15 @@ export async function GET(req: NextRequest) {
   const sectorNews = searchParams.get("sectorNews") === "1";
 
   const authHeader = req.headers.get("authorization");
-  const [{ isPro }, rows, manuals] = await Promise.all([
+  const [{ isPro, isPlus }, rows, manuals] = await Promise.all([
     verifyClerkTokenWithTier(authHeader).then((r) => {
-      console.log(`[news] auth header=${!!authHeader} userId=${r.userId ?? "none"} isPro=${r.isPro}`);
+      console.log(`[news] auth header=${!!authHeader} userId=${r.userId ?? "none"} isPro=${r.isPro} isPlus=${r.isPlus}`);
       return r;
     }),
     fetchAll(nocache),
     fetchManual(nocache),
   ]);
+  const isPaid = isPro || isPlus;
 
   const manualRows = manuals.map(manualToNewsRow);
 
@@ -209,8 +210,8 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Apply date window: free tier = last 48 h, Pro = last 30 days (full cache)
-  const cutoff = isPro ? null : Date.now() - FORTY_EIGHT_H_MS;
+  // Apply date window: free = 48h, Plus/Pro = 30 days
+  const cutoff = isPaid ? null : Date.now() - FORTY_EIGHT_H_MS;
   const windowedRows = cutoff
     ? rows.filter((r) => new Date(r.published_at).getTime() > cutoff)
     : rows;
@@ -226,8 +227,8 @@ export async function GET(req: NextRequest) {
     filtered = [...manualForTicker, ...newsForTicker];
   } else {
     const balancedNews = balanced(windowedRows, 15);
-    // Pro users get the full balanced feed; free users are capped at FREE_NEWS_LIMIT
-    filtered = [...manualRows, ...(isPro ? balancedNews : balancedNews.slice(0, FREE_NEWS_LIMIT))];
+    // Paid (Plus/Pro) get the full balanced feed; free capped at FREE_NEWS_LIMIT
+    filtered = [...manualRows, ...(isPaid ? balancedNews : balancedNews.slice(0, FREE_NEWS_LIMIT))];
   }
 
   if (type) filtered = filtered.filter((r) => r.notification_type === type);
