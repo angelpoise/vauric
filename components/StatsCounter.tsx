@@ -8,6 +8,8 @@ const SERIF = 'var(--font-dm-serif), serif';
 export default function StatsCounter() {
   const ref = useRef<HTMLDivElement>(null);
   const [started,     setStarted]     = useState(false);
+  const [connDone,    setConnDone]    = useState(false);
+  const [stocksDone,  setStocksDone]  = useState(false);
   const [stocks,      setStocks]      = useState(0);
   const [connections, setConnections] = useState(0);
   const [industries,  setIndustries]  = useState(0);
@@ -31,17 +33,43 @@ export default function StatsCounter() {
     return () => obs.disconnect();
   }, []);
 
+  const INTERVAL = 28;
+
+  // 1. Connections starts immediately on scroll-in
   useEffect(() => {
     if (!started) return;
-    const INTERVAL = 28;
-    let s = 0;
-    const t1 = setInterval(() => { s = Math.min(s + 100, targets.stocks);      setStocks(s);      if (s >= targets.stocks)      clearInterval(t1); }, INTERVAL);
     let c = 0;
-    const t2 = setInterval(() => { c = Math.min(c + 1000, targets.connections); setConnections(c); if (c >= targets.connections) clearInterval(t2); }, INTERVAL);
-    let i = 0;
-    const t3 = setInterval(() => { i = Math.min(i + 10, targets.industries);   setIndustries(i);  if (i >= targets.industries)  clearInterval(t3); }, INTERVAL);
-    return () => { clearInterval(t1); clearInterval(t2); clearInterval(t3); };
+    const t = setInterval(() => {
+      c = Math.min(c + 1000, targets.connections);
+      setConnections(c);
+      if (c >= targets.connections) { clearInterval(t); setConnDone(true); }
+    }, INTERVAL);
+    return () => clearInterval(t);
   }, [started, targets]);
+
+  // 2. Stocks starts only after connections finishes
+  useEffect(() => {
+    if (!connDone) return;
+    let s = 0;
+    const t = setInterval(() => {
+      s = Math.min(s + 100, targets.stocks);
+      setStocks(s);
+      if (s >= targets.stocks) { clearInterval(t); setStocksDone(true); }
+    }, INTERVAL);
+    return () => clearInterval(t);
+  }, [connDone, targets]);
+
+  // 3. Industries starts only after stocks finishes
+  useEffect(() => {
+    if (!stocksDone) return;
+    let i = 0;
+    const t = setInterval(() => {
+      i = Math.min(i + 10, targets.industries);
+      setIndustries(i);
+      if (i >= targets.industries) clearInterval(t);
+    }, INTERVAL);
+    return () => clearInterval(t);
+  }, [stocksDone, targets]);
 
   const fmt = (n: number) => n === 0 ? "0" : n.toLocaleString();
 

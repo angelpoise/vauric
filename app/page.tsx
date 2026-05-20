@@ -353,7 +353,7 @@ export default function Home() {
               body="Every stock is linked to its sector, sub-sector, industry node, direct peers, and indirect relationships. Spot capital rotation as it happens — not after the chart already moved."
             />
             <Feature
-              title="Instant AI company analysis"
+              title="Instant company analysis"
               body="Click any node to get a breakdown of business segments, margins, guidance, and key relationships — generated on demand and updated automatically. No research rabbit hole required."
             />
             <Feature
