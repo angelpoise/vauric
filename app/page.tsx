@@ -247,34 +247,18 @@ export default function Home() {
             and discover opportunities before the crowd does.
           </p>
 
-          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-            <Link
-              href="/sign-up"
-              className="hp-cta-primary"
-              style={{
-                fontFamily: DM, fontWeight: 500, fontSize: 16,
-                color: "#fff", textDecoration: "none",
-                padding: "14px 36px", borderRadius: 9,
-                background: "var(--blue)", display: "inline-block",
-              }}
-            >
-              Start exploring free
-            </Link>
-            <Link
-              href="/sign-in"
-              className="hp-cta-secondary"
-              style={{
-                fontFamily: DM, fontWeight: 400, fontSize: 16,
-                color: "var(--text-dim)", textDecoration: "none",
-                padding: "14px 36px", borderRadius: 9,
-                background: "transparent",
-                border: "1px solid rgba(255,255,255,0.12)",
-                display: "inline-block",
-              }}
-            >
-              Sign in
-            </Link>
-          </div>
+          <Link
+            href="/sign-up"
+            className="hp-cta-primary"
+            style={{
+              fontFamily: DM, fontWeight: 500, fontSize: 16,
+              color: "#fff", textDecoration: "none",
+              padding: "14px 40px", borderRadius: 9,
+              background: "var(--blue)", display: "inline-block",
+            }}
+          >
+            Start exploring free
+          </Link>
         </section>
 
         {/* ── Stats ───────────────────────────────────────────────────────── */}
@@ -441,39 +425,6 @@ export default function Home() {
               highlight
             />
           </div>
-        </section>
-
-        {/* ── Final CTA ───────────────────────────────────────────────────── */}
-        <section style={{
-          textAlign: "center",
-          padding: "0 24px 120px",
-        }}>
-          <h2 style={{
-            fontFamily: SERIF,
-            fontSize: "clamp(26px, 4vw, 42px)",
-            fontWeight: 400, color: "var(--text)",
-            marginBottom: 20, lineHeight: 1.15,
-          }}>
-            Start with the full graph — free.
-          </h2>
-          <p style={{
-            fontFamily: DM, fontSize: 16, fontWeight: 300,
-            color: "var(--text-muted)", marginBottom: 36,
-          }}>
-            No credit card needed.
-          </p>
-          <Link
-            href="/sign-up"
-            className="hp-cta-primary"
-            style={{
-              fontFamily: DM, fontWeight: 500, fontSize: 16,
-              color: "#fff", textDecoration: "none",
-              padding: "15px 44px", borderRadius: 9,
-              background: "var(--blue)", display: "inline-block",
-            }}
-          >
-            Create free account
-          </Link>
         </section>
 
         {/* ── Footer ──────────────────────────────────────────────────────── */}
