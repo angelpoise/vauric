@@ -22,37 +22,39 @@ async function isAuthorised(req: NextRequest): Promise<boolean> {
 // All positions are in world-space units; canvas renders x*1600, y*1100.
 // Graph has pan/zoom so nodes may legitimately sit outside 0-1.
 
-// Ellipse on which sector hubs sit.
-const EL_CX = 1.2;   // horizontal centre of ellipse
-const EL_CY = 0.45;  // vertical centre
-const EL_A  = 0.62;  // horizontal semi-axis  → sectors span x ≈ 0.58 – 1.82
-const EL_B  = 0.44;  // vertical semi-axis    → sectors span y ≈ 0.01 – 0.89
+// Ellipse on which sector hubs sit — uniform spacing (equal arc per sector).
+const EL_CX = 1.2;
+const EL_CY = 0.45;
+const EL_A  = 0.68;  // horizontal semi-axis
+const EL_B  = 0.48;  // vertical semi-axis
 
-// Child level radii (each ring further from parent than the last).
-const RADIUS_SUB        = 0.52;          // subsector distance from sector hub
-const RADIUS_SUBSUB     = 0.34;          // subsubsector distance from subsector
+// Each child level progressively further out.
+const RADIUS_SUB    = 0.72;   // subsector from sector hub
+const RADIUS_SUBSUB = 0.50;   // subsubsector from subsector
+const STOCK_RADIUS  = 0.62;   // stocks placed in one curved arc from their parent
 
-// Arc spread — each sector fans its children through this fraction of its
-// proportional zone, capped so they don't wrap into adjacent sectors.
-const ARC_FRACTION      = 1.3;
-const MAX_SUB_ARC       = Math.PI * 1.0; // 180° hard cap for subsectors
-const MAX_SUBSUB_SPREAD = Math.PI * 0.8; // 144° hard cap for subsubsectors
+// Angular spread per node at each level.
+const ANGLE_PER_SUB    = 0.40;          // radians — ~23° per subsector
+const ANGLE_PER_SUBSUB = 0.45;          // radians — ~26° per subsubsector
+const ANGLE_PER_STOCK  = 0.065;         // radians — ~3.7° per stock
+const MAX_SUB_ARC      = Math.PI * 1.1; // 198° cap
+const MAX_SUBSUB_ARC   = Math.PI * 0.9; // 162° cap
+const MAX_STOCK_ARC    = Math.PI * 1.1; // 198° cap
 
-// ── Stock scatter rings ───────────────────────────────────────────────────────
+// ── Stock curved-row placement ────────────────────────────────────────────────
+// All stocks for a given parent sit on a single arc at STOCK_RADIUS,
+// centred on the outward direction from the ellipse centre through the parent.
 
-function scatterOffset(idx: number, total: number): { dx: number; dy: number } {
-  if (total === 1) return { dx: 0.20, dy: 0 };
-  let ring = 0;
-  let remaining = idx;
-  let ringCapacity = 12;
-  while (remaining >= ringCapacity) {
-    remaining -= ringCapacity;
-    ring++;
-    ringCapacity = (ring + 1) * 12;
-  }
-  const radius = 0.20 + ring * 0.16;
-  const angle  = (remaining / ringCapacity) * 2 * Math.PI;
-  return { dx: Math.cos(angle) * radius, dy: Math.sin(angle) * radius };
+function stockArcOffset(
+  idx: number,
+  total: number,
+  outwardAngle: number,
+): { dx: number; dy: number } {
+  const arc   = Math.min(total * ANGLE_PER_STOCK, MAX_STOCK_ARC);
+  const angle = total === 1
+    ? outwardAngle
+    : outwardAngle - arc / 2 + (idx / (total - 1)) * arc;
+  return { dx: Math.cos(angle) * STOCK_RADIUS, dy: Math.sin(angle) * STOCK_RADIUS };
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -94,8 +96,7 @@ function layoutHierarchy(
     }
   }
 
-  // Sort sectors by their current angle from the current centroid so the
-  // visual order (Industrials left → IT right) is preserved on the ellipse.
+  // Sort sectors by their current angle from centroid to preserve visual order.
   const cx = sectors.reduce((s, n) => s + n.x_position, 0) / (sectors.length || 1);
   const cy = sectors.reduce((s, n) => s + n.y_position, 0) / (sectors.length || 1);
 
@@ -103,37 +104,33 @@ function layoutHierarchy(
     .map((s) => ({
       s,
       angle:  Math.atan2(s.y_position - cy, s.x_position - cx),
-      weight: Math.max(subsectorsByParent.get(s.id)?.length ?? 0, 1),
+      nSubs:  subsectorsByParent.get(s.id)?.length ?? 0,
     }))
     .sort((a, b) => a.angle - b.angle);
 
-  const totalWeight = sorted.reduce((sum, e) => sum + e.weight, 0);
+  // ── Step 1: Place sectors on the ellipse — UNIFORM spacing ─────────────────
+  // Equal arc per sector regardless of subsector count → uniform gaps in the ring.
+  const uniformArc = (2 * Math.PI) / sorted.length;
+  let ellipseAngle = -Math.PI;
 
-  // ── Step 1: Place sectors on the ellipse ────────────────────────────────────
-  // Position is proportional to subsector count so large sectors get more arc.
-  let ellipseAngle = -Math.PI; // start from left
-
-  for (const { s: sector, weight } of sorted) {
-    const arc          = (weight / totalWeight) * 2 * Math.PI;
-    const midAngle     = ellipseAngle + arc / 2;
-    sector.x_position  = EL_CX + Math.cos(midAngle) * EL_A;
-    sector.y_position  = EL_CY + Math.sin(midAngle) * EL_B;
+  for (const { s: sector } of sorted) {
+    const mid         = ellipseAngle + uniformArc / 2;
+    sector.x_position = EL_CX + Math.cos(mid) * EL_A;
+    sector.y_position = EL_CY + Math.sin(mid) * EL_B;
     updates.push({ id: sector.id, x_position: sector.x_position, y_position: sector.y_position });
-    ellipseAngle      += arc;
+    ellipseAngle     += uniformArc;
   }
 
-  // ── Step 2: Fan children outward from each sector hub ──────────────────────
-  // "Outward" = the direction from the ellipse centre to the sector hub.
-  // This is always a clean, unambiguous outward direction.
+  // ── Step 2: Fan children outward ─────────────────────────────────────────────
+  // Outward = ellipse centre → sector hub (unambiguous, always points away).
+  // Arc width scales with the node count at each level so larger clusters
+  // get proportionally more spread.
 
   ellipseAngle = -Math.PI;
 
-  for (const { s: sector, weight } of sorted) {
-    const arc         = (weight / totalWeight) * 2 * Math.PI;
-    // True outward direction: ellipse centre → sector hub.
-    const outward     = Math.atan2(sector.y_position - EL_CY, sector.x_position - EL_CX);
-    // Fan arc — wider than the proportional zone so subsectors spread well apart.
-    const subArc      = Math.min(arc * ARC_FRACTION, MAX_SUB_ARC);
+  for (const { s: sector, nSubs } of sorted) {
+    const outward = Math.atan2(sector.y_position - EL_CY, sector.x_position - EL_CX);
+    const subArc  = Math.min(nSubs * ANGLE_PER_SUB, MAX_SUB_ARC);
 
     const subs = subsectorsByParent.get(sector.id) ?? [];
     const N    = subs.length;
@@ -145,7 +142,6 @@ function layoutHierarchy(
 
       const newX = sector.x_position + Math.cos(angle) * RADIUS_SUB;
       const newY = sector.y_position + Math.sin(angle) * RADIUS_SUB;
-
       sub.x_position = newX;
       sub.y_position = newY;
       updates.push({ id: sub.id, x_position: newX, y_position: newY });
@@ -154,23 +150,19 @@ function layoutHierarchy(
       const M       = subsubs.length;
       if (M === 0) return;
 
-      const ssArc = Math.min(subArc * 0.85, MAX_SUBSUB_SPREAD);
+      const ssArc = Math.min(M * ANGLE_PER_SUBSUB, MAX_SUBSUB_ARC);
 
       subsubs.forEach((subsub, j) => {
-        const subAngle = M === 1
-          ? angle
-          : angle - ssArc / 2 + (j / (M - 1)) * ssArc;
-
-        const subX = newX + Math.cos(subAngle) * RADIUS_SUBSUB;
-        const subY = newY + Math.sin(subAngle) * RADIUS_SUBSUB;
-
+        const sa   = M === 1 ? angle : angle - ssArc / 2 + (j / (M - 1)) * ssArc;
+        const subX = newX + Math.cos(sa) * RADIUS_SUBSUB;
+        const subY = newY + Math.sin(sa) * RADIUS_SUBSUB;
         subsub.x_position = subX;
         subsub.y_position = subY;
         updates.push({ id: subsub.id, x_position: subX, y_position: subY });
       });
     });
 
-    ellipseAngle += arc;
+    ellipseAngle += uniformArc;
   }
 
   return updates;
@@ -412,10 +404,12 @@ export async function POST(req: NextRequest) {
   groups.forEach((tickers, targetId) => {
     const target = nodes.find((n) => n.id === targetId);
     if (!target) return;
+    // Outward direction for this cluster: from ellipse centre through the parent node.
+    const outwardAngle = Math.atan2(target.y_position - EL_CY, target.x_position - EL_CX);
     tickers.forEach((ticker, idx) => {
       const stock = stockByTick.get(ticker);
       if (!stock) return;
-      const { dx, dy } = scatterOffset(idx, tickers.length);
+      const { dx, dy } = stockArcOffset(idx, tickers.length, outwardAngle);
       stockUpdates.push({
         id:         stock.id,
         x_position: target.x_position + dx,
