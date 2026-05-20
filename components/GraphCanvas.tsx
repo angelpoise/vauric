@@ -35,12 +35,9 @@ const NO_ETF_COLOR = "rgb(168, 130, 52)";
 
 // ─── LOD (Level of Detail) zoom thresholds ───────────────────────────────────
 // cam.scale at which each tier fades in. Below = hidden, above+LOD_FADE = fully shown.
-// Thresholds tuned for EL_A=1.60 compact layout where all sectors are visible
-// at scale ≈ 0.22. Subsectors appear when zoomed into ~1 sector (scale 0.45),
-// stocks appear when zoomed to subsector level (scale 0.80).
-const LOD_SUBSECTOR    = 0.45; // subsectors + their edges fade in at this scale
-const LOD_SUBSUBSECTOR = 0.80; // subsubsectors + stocks + their edges fade in
-const LOD_FADE         = 0.08; // crossfade band width
+const LOD_SUBSECTOR    = 0.18; // subsectors visible at low zoom
+const LOD_SUBSUBSECTOR = 0.32; // subsubsectors visible at moderate zoom
+const LOD_FADE         = 0.07;
 
 // ─── Module-level position seed ──────────────────────────────────────────────
 // Read sessionStorage synchronously at module evaluation time so positions are
@@ -363,16 +360,12 @@ function drawLabel(
   }
 }
 
-// Controls whether the node circle (and its edges) are drawn.
-// Sector hubs are always visible. Subsectors appear when zoomed to sector level.
-// Subsubsectors and stocks appear when zoomed to subsector level.
-// edgeLodA = min(nodeLodAlpha(src), nodeLodAlpha(tgt)) so edges hide automatically.
+// Sector and hierarchy nodes are always visible. Only stock circles fade out at low zoom.
 function nodeLodAlpha(node: GNode, camScale: number): number {
-  if (node.kind === "sector") return 1;
-  const threshold = node.kind === "subsector" ? LOD_SUBSECTOR : LOD_SUBSUBSECTOR;
-  if (camScale >= threshold + LOD_FADE) return 1;
-  if (camScale <  threshold)            return 0;
-  return (camScale - threshold) / LOD_FADE;
+  if (node.kind !== "stock") return 1;
+  if (camScale >= LOD_SUBSUBSECTOR + LOD_FADE) return 1;
+  if (camScale <  LOD_SUBSUBSECTOR)            return 0;
+  return (camScale - LOD_SUBSUBSECTOR) / LOD_FADE;
 }
 
 // Controls label opacity for hierarchy nodes. Circles are always visible; names fade in.
