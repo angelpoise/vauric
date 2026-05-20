@@ -25,23 +25,25 @@ async function isAuthorised(req: NextRequest): Promise<boolean> {
 // Ellipse on which sector hubs sit — uniform spacing (equal arc per sector).
 const EL_CX = 1.2;
 const EL_CY = 0.45;
-const EL_A  = 3.20;  // sector ring radius (horizontal) — larger → more room for children
-const EL_B  = 2.40;  // sector ring radius (vertical)
+// Compact layout — sectors visible at scale ~0.35 so subsectors appear at
+// readable size (160px spokes) rather than microscopic dots on 480px needles.
+// With EL_A=1.20 the inter-sector chord is ~0.68, and a 91° subsector fan
+// has half-width 0.20 — no cross-sector overlap.
+const EL_A  = 1.20;
+const EL_B  = 0.90;
 
-// Each child level progressively further out.
-const RADIUS_SUB    = 2.20;  // longer spokes — subsectors further from hub
-const RADIUS_SUBSUB = 1.50;  // subsubsectors further from subsector
-const STOCK_RADIUS  = 1.60;  // stocks clearly beyond
+const RADIUS_SUB    = 0.30;   // 160px spoke at scale 0.35 — clearly visible
+const RADIUS_SUBSUB = 0.20;   // subsubsectors beyond subsectors
+const STOCK_RADIUS  = 0.25;   // stocks clearly beyond subsubsectors
 
-// Per-node spread angle — fixed maximum arc, no zone cap.
 const ANGLE_PER_SUB    = 0.22;   // ~12.6° per subsector
-const MAX_SUB_ARC      = 1.60;   // ~91° hard cap
+const MAX_SUB_ARC      = 1.60;   // 91° cap — wide fan, no overlap at EL_A=1.20
 const ANGLE_PER_SUBSUB = 0.25;   // ~14.3° per subsubsector
-const MAX_SUBSUB_ARC   = 1.20;   // ~69° hard cap
+const MAX_SUBSUB_ARC   = 1.20;   // 69° cap
 
 // Stocks sit on one curved arc.
-const ANGLE_PER_STOCK = 0.055;
-const MAX_STOCK_ARC   = Math.PI * 1.2;
+const ANGLE_PER_STOCK = 0.06;
+const MAX_STOCK_ARC   = Math.PI * 1.3;
 
 // ── Stock curved-row placement ────────────────────────────────────────────────
 // All stocks for a given parent sit on a single arc at STOCK_RADIUS,
