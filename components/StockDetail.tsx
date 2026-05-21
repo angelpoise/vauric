@@ -1144,21 +1144,30 @@ export default function StockDetail({ ticker }: { ticker: string }) {
     setScenarioLoading(true);
     setScenarioVisible(false);
     try {
-      const [data] = await Promise.all([
-        fetch(`/api/scenarios?ticker=${ticker}`)
+      // Peek at cache first — readonly never generates
+      const peek = await fetch(`/api/scenarios?ticker=${ticker}&readonly=true`)
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null) as (ScenarioData & { cached?: boolean }) | null;
+
+      if (peek?.bull) {
+        // Fresh cache — fake loading then reveal
+        await new Promise<void>(res => setTimeout(res, 1800));
+        setScenarioData(peek);
+      } else {
+        // Missing or stale — trigger real generation (scheduler should have pre-warmed this)
+        const data = await fetch(`/api/scenarios?ticker=${ticker}`)
           .then(r => r.ok ? r.json() : null)
-          .catch(() => null) as Promise<(ScenarioData & { cached?: boolean }) | null>,
-        new Promise<void>(res => setTimeout(res, 2500)),
-      ]);
-      if (data && data.cached === false) {
-        // Not yet generated — show "being prepared" state using placeholder data
-        const placeholder = { "6m": BEING_PREPARED, "1y": "", "2y": "", target6m: { low: 0, high: 0 }, target1y: { low: 0, high: 0 }, target2y: { low: 0, high: 0 } };
-        setScenarioData({ bull: placeholder, base: placeholder, bear: placeholder, generated_at: "" });
-        requestAnimationFrame(() => requestAnimationFrame(() => setScenarioVisible(true)));
-      } else if (data?.bull) {
-        setScenarioData(data);
-        requestAnimationFrame(() => requestAnimationFrame(() => setScenarioVisible(true)));
+          .catch(() => null) as (ScenarioData & { cached?: boolean }) | null;
+
+        if (data?.bull) {
+          setScenarioData(data);
+        } else {
+          // Generation in progress or failed — show "being prepared"
+          const placeholder = { "6m": BEING_PREPARED, "1y": "", "2y": "", target6m: { low: 0, high: 0 }, target1y: { low: 0, high: 0 }, target2y: { low: 0, high: 0 } };
+          setScenarioData({ bull: placeholder, base: placeholder, bear: placeholder, generated_at: "" });
+        }
       }
+      requestAnimationFrame(() => requestAnimationFrame(() => setScenarioVisible(true)));
     } finally {
       setScenarioLoading(false);
     }
