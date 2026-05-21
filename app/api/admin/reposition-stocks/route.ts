@@ -36,7 +36,7 @@ const EL_B  = 1.20;
 // Using 1.00. MAX_SUB_ARC capped at 50° (0.87 rad) to prevent cross-sector overlap at EL_A=1.60.
 const RADIUS_SUB    = 1.30;
 const RADIUS_SUBSUB = 0.85;
-const STOCK_RADIUS  = 1.00;
+const STOCK_RADIUS  = 0.45;
 
 const ANGLE_PER_SUB    = 0.20;
 const MAX_SUB_ARC      = 1.15;   // ~66° — wider to match larger node sizes
@@ -44,8 +44,8 @@ const ANGLE_PER_SUBSUB = 0.24;
 const MAX_SUBSUB_ARC   = 0.88;
 
 // Stocks sit on one curved arc.
-const ANGLE_PER_STOCK = 0.06;
-const MAX_STOCK_ARC   = Math.PI * 1.3;
+const ANGLE_PER_STOCK = 0.03;
+const MAX_STOCK_ARC   = Math.PI * 0.8;
 
 // ── Stock curved-row placement ────────────────────────────────────────────────
 // All stocks for a given parent sit on a single arc at STOCK_RADIUS,
