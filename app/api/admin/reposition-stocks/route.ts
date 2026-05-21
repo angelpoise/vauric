@@ -36,31 +36,51 @@ const EL_B  = 1.20;
 // Using 1.00. MAX_SUB_ARC capped at 50° (0.87 rad) to prevent cross-sector overlap at EL_A=1.60.
 const RADIUS_SUB    = 1.30;
 const RADIUS_SUBSUB = 0.85;
-const STOCK_RADIUS  = 0.45;
-
 const ANGLE_PER_SUB    = 0.20;
-const MAX_SUB_ARC      = 1.15;   // ~66° — wider to match larger node sizes
+const MAX_SUB_ARC      = 1.15;
 const ANGLE_PER_SUBSUB = 0.24;
 const MAX_SUBSUB_ARC   = 0.88;
 
-// Stocks sit on one curved arc.
-const ANGLE_PER_STOCK = 0.03;
-const MAX_STOCK_ARC   = Math.PI * 0.8;
+// Stocks are placed in concentric waves radiating outward from their parent.
+const STOCK_R0        = 0.30;   // inner wave radius
+const STOCK_R_STEP    = 0.20;   // radius increment per wave
+const STOCK_DIAM      = 0.07;   // effective diameter for spacing (world units, includes padding)
+const MAX_STOCK_ARC   = Math.PI * 0.8;  // max arc per wave (~144°)
 
-// ── Stock curved-row placement ────────────────────────────────────────────────
-// All stocks for a given parent sit on a single arc at STOCK_RADIUS,
-// centred on the outward direction from the ellipse centre through the parent.
+// How many stocks fit in wave w without overlap.
+function waveCapacity(wave: number): number {
+  const r = STOCK_R0 + wave * STOCK_R_STEP;
+  return Math.max(1, Math.floor(r * MAX_STOCK_ARC / STOCK_DIAM));
+}
+
+// ── Stock multi-wave placement ────────────────────────────────────────────────
+// Stocks fill the inner wave first, then overflow to the next ring outward.
+// Each wave arc is sized to exactly fit its stock count without overlap.
 
 function stockArcOffset(
   idx: number,
   total: number,
   outwardAngle: number,
 ): { dx: number; dy: number } {
-  const arc   = Math.min(total * ANGLE_PER_STOCK, MAX_STOCK_ARC);
-  const angle = total === 1
+  // Find which wave idx belongs to
+  let wave = 0;
+  let waveStart = 0;
+  let cap = waveCapacity(0);
+  while (waveStart + cap <= idx) {
+    waveStart += cap;
+    wave++;
+    cap = waveCapacity(wave);
+  }
+
+  const r           = STOCK_R0 + wave * STOCK_R_STEP;
+  const idxInWave   = idx - waveStart;
+  const countInWave = Math.min(cap, total - waveStart);
+  const arc         = Math.min(countInWave * STOCK_DIAM / r, MAX_STOCK_ARC);
+  const angle       = countInWave === 1
     ? outwardAngle
-    : outwardAngle - arc / 2 + (idx / (total - 1)) * arc;
-  return { dx: Math.cos(angle) * STOCK_RADIUS, dy: Math.sin(angle) * STOCK_RADIUS };
+    : outwardAngle - arc / 2 + (idxInWave / (countInWave - 1)) * arc;
+
+  return { dx: Math.cos(angle) * r, dy: Math.sin(angle) * r };
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
