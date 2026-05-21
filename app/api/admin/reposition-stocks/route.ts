@@ -42,40 +42,87 @@ const ANGLE_PER_SUBSUB = 0.24;
 const MAX_SUBSUB_ARC   = 0.88;
 
 // Stocks are placed in concentric waves radiating outward from their parent.
-const STOCK_R0        = 0.30;   // inner wave radius
-const STOCK_R_STEP    = 0.20;   // radius increment per wave
-const STOCK_DIAM      = 0.07;   // effective diameter for spacing (world units, includes padding)
-const MAX_STOCK_ARC   = Math.PI * 0.8;  // max arc per wave (~144°)
+const STOCK_R0      = 0.30;  // inner wave radius
+const STOCK_R_STEP  = 0.20;  // radius increment per wave
+const STOCK_DIAM    = 0.05;  // effective diameter per stock (world units, includes padding)
+const MAX_STOCK_ARC = Math.PI * 0.8;  // hard ceiling per wave (~144°)
+const MIN_STOCK_ARC = 0.40;           // floor so tiny territories still get usable space
 
-// How many stocks fit in wave w without overlap.
-function waveCapacity(wave: number): number {
+// How many stocks fit in wave w given the available arc.
+function waveCapacity(wave: number, arcCap: number): number {
   const r = STOCK_R0 + wave * STOCK_R_STEP;
-  return Math.max(1, Math.floor(r * MAX_STOCK_ARC / STOCK_DIAM));
+  return Math.max(1, Math.floor(r * arcCap / STOCK_DIAM));
+}
+
+// ── Angular territory per target node ────────────────────────────────────────
+// Measures the angle from the node's parent to each sibling, finds the nearest
+// neighbour on each side, and returns half the smallest gap × 2 as the safe arc.
+// Prevents stocks from one cluster from bleeding into an adjacent cluster's space.
+
+function safeStockArc(target: AdminNode, allNodes: AdminNode[]): number {
+  // Reference point: the target's parent node (ellipse centre for sectors).
+  let refX: number, refY: number;
+  if (target.node_type === "sector" || !target.parent_node_id) {
+    refX = EL_CX; refY = EL_CY;
+  } else {
+    const parent = allNodes.find((n) => n.id === target.parent_node_id);
+    if (!parent) return MAX_STOCK_ARC;
+    refX = parent.x_position; refY = parent.y_position;
+  }
+
+  const targetAngle = Math.atan2(target.y_position - refY, target.x_position - refX);
+
+  const siblings = allNodes.filter(
+    (n) => n.id !== target.id &&
+           n.node_type === target.node_type &&
+           n.parent_node_id === target.parent_node_id,
+  );
+  if (siblings.length === 0) return MAX_STOCK_ARC;
+
+  function normalise(a: number): number {
+    while (a >  Math.PI) a -= 2 * Math.PI;
+    while (a <= -Math.PI) a += 2 * Math.PI;
+    return a;
+  }
+
+  let minPos = Math.PI; // nearest sibling CCW
+  let minNeg = Math.PI; // nearest sibling CW
+
+  for (const s of siblings) {
+    const sAngle = Math.atan2(s.y_position - refY, s.x_position - refX);
+    const diff   = normalise(sAngle - targetAngle);
+    if (diff > 0 && diff < minPos) minPos = diff;
+    if (diff < 0 && -diff < minNeg) minNeg = -diff;
+  }
+
+  const safeHalf = Math.min(minPos / 2, minNeg / 2, MAX_STOCK_ARC / 2);
+  return Math.max(MIN_STOCK_ARC, safeHalf * 2);
 }
 
 // ── Stock multi-wave placement ────────────────────────────────────────────────
-// Stocks fill the inner wave first, then overflow to the next ring outward.
-// Each wave arc is sized to exactly fit its stock count without overlap.
+// Stocks fill the inner wave first, overflow to the next ring outward.
+// Each wave's arc is the smaller of the geometry-based safe arc and the
+// arc needed to space the stocks at STOCK_DIAM apart.
 
 function stockArcOffset(
   idx: number,
   total: number,
   outwardAngle: number,
+  arcCap: number,
 ): { dx: number; dy: number } {
-  // Find which wave idx belongs to
   let wave = 0;
   let waveStart = 0;
-  let cap = waveCapacity(0);
+  let cap = waveCapacity(0, arcCap);
   while (waveStart + cap <= idx) {
     waveStart += cap;
     wave++;
-    cap = waveCapacity(wave);
+    cap = waveCapacity(wave, arcCap);
   }
 
   const r           = STOCK_R0 + wave * STOCK_R_STEP;
   const idxInWave   = idx - waveStart;
   const countInWave = Math.min(cap, total - waveStart);
-  const arc         = Math.min(countInWave * STOCK_DIAM / r, MAX_STOCK_ARC);
+  const arc         = Math.min(countInWave * STOCK_DIAM / r, arcCap);
   const angle       = countInWave === 1
     ? outwardAngle
     : outwardAngle - arc / 2 + (idxInWave / (countInWave - 1)) * arc;
@@ -414,10 +461,11 @@ export async function POST(req: NextRequest) {
     const target = nodes.find((n) => n.id === targetId);
     if (!target) return;
     const outwardAngle = Math.atan2(target.y_position - EL_CY, target.x_position - EL_CX);
+    const arcCap = safeStockArc(target, nodes);
     tickers.forEach((ticker, idx) => {
       const stock = stockByTick.get(ticker);
       if (!stock) return;
-      const { dx, dy } = stockArcOffset(idx, tickers.length, outwardAngle);
+      const { dx, dy } = stockArcOffset(idx, tickers.length, outwardAngle, arcCap);
       stockUpdates.push({
         id:         stock.id,
         x_position: target.x_position + dx,
