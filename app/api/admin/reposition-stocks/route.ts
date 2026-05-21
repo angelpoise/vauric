@@ -237,10 +237,11 @@ function layoutHierarchy(
 
 // ── Stock assignment ──────────────────────────────────────────────────────────
 
+const SPECIFICITY: Record<string, number> = { subsubsector: 2, subsector: 1, sector: 0 };
 
 async function buildAssignments(
   allNodes: AdminNode[],
-  t1Conns: { ticker_a: string; ticker_b: string }[],
+  t1Conns: { ticker_a: string; ticker_b: string; created_at: string }[],
   t2Conns: { ticker_a: string; ticker_b: string }[],
 ) {
   const stockByTick  = new Map<string, AdminNode>();
@@ -299,10 +300,10 @@ async function buildAssignments(
     peerMap.get(ticker_b)!.add(ticker_a);
   }
 
-  const stockT1Targets = new Map<string, AdminNode[]>();
+  const stockT1Targets = new Map<string, { node: AdminNode; createdAt: string }[]>();
   const unresolvedT1: { ticker: string; hierRef: string }[] = [];
 
-  for (const { ticker_a, ticker_b } of t1Conns) {
+  for (const { ticker_a, ticker_b, created_at } of t1Conns) {
     const isAStock = stockByTick.has(ticker_a);
     const isBStock = stockByTick.has(ticker_b);
     if (!isAStock && !isBStock) continue;
@@ -311,14 +312,32 @@ async function buildAssignments(
     const hier = hierByName.get(hierRef) ?? hierById.get(hierRef);
     if (!hier) { unresolvedT1.push({ ticker: stockTicker, hierRef }); continue; }
     if (!stockT1Targets.has(stockTicker)) stockT1Targets.set(stockTicker, []);
-    stockT1Targets.get(stockTicker)!.push(hier);
+    stockT1Targets.get(stockTicker)!.push({ node: hier, createdAt: created_at });
   }
 
   const stockTarget = new Map<string, AdminNode>();
 
-  // Always use the earliest T1 connection (candidates sorted by created_at asc).
+  // Pick the best T1 target: specificity first, then earliest created_at,
+  // then peer overlap as final tiebreaker (handles same-batch auto-connections).
   stockT1Targets.forEach((candidates, ticker) => {
-    if (candidates.length > 0) stockTarget.set(ticker, candidates[0]);
+    if (candidates.length === 0) return;
+    if (candidates.length === 1) { stockTarget.set(ticker, candidates[0].node); return; }
+    const peers = peerMap.get(ticker) ?? new Set<string>();
+    const scored = candidates.map(({ node, createdAt }) => {
+      let peerOverlap = 0;
+      peers.forEach((p) => {
+        if (stockT1Targets.get(p)?.some((c) => c.node.id === node.id)) peerOverlap++;
+      });
+      return { node, createdAt, peerOverlap };
+    });
+    scored.sort((a, b) => {
+      const specDiff = (SPECIFICITY[b.node.node_type] ?? 0) - (SPECIFICITY[a.node.node_type] ?? 0);
+      if (specDiff !== 0) return specDiff;
+      if (a.createdAt < b.createdAt) return -1;
+      if (a.createdAt > b.createdAt) return  1;
+      return b.peerOverlap - a.peerOverlap;
+    });
+    stockTarget.set(ticker, scored[0].node);
   });
 
   stockByTick.forEach((stock) => {
@@ -341,8 +360,7 @@ async function buildAssignments(
     let best: AdminNode | null = null;
     let bestScore = -Infinity;
     tally.forEach(({ target, count }) => {
-      const specificity = target.node_type === "subsubsector" ? 2 : target.node_type === "subsector" ? 1 : 0;
-      const score = specificity * 1_000 + count;
+      const score = (SPECIFICITY[target.node_type] ?? 0) * 1_000 + count;
       if (score > bestScore) { bestScore = score; best = target; }
     });
     if (best) stockTarget.set(stock.ticker, best);
@@ -370,7 +388,7 @@ export async function GET(req: NextRequest) {
   if (nodesErr || !allNodes) return NextResponse.json({ error: nodesErr?.message }, { status: 500 });
 
   const [t1Res, t2Res] = await Promise.all([
-    supabaseAdmin.from("admin_connections").select("ticker_a, ticker_b").eq("tier", 1).order("created_at", { ascending: true }),
+    supabaseAdmin.from("admin_connections").select("ticker_a, ticker_b, created_at").eq("tier", 1).order("created_at", { ascending: true }),
     supabaseAdmin.from("admin_connections").select("ticker_a, ticker_b").eq("tier", 2),
   ]);
   if (t1Res.error) return NextResponse.json({ error: t1Res.error.message }, { status: 500 });
@@ -431,7 +449,7 @@ export async function POST(req: NextRequest) {
   if (nodesErr || !allNodes) return NextResponse.json({ error: nodesErr?.message ?? "Failed to load nodes" }, { status: 500 });
 
   const [t1Res, t2Res] = await Promise.all([
-    supabaseAdmin.from("admin_connections").select("ticker_a, ticker_b").eq("tier", 1).order("created_at", { ascending: true }),
+    supabaseAdmin.from("admin_connections").select("ticker_a, ticker_b, created_at").eq("tier", 1).order("created_at", { ascending: true }),
     supabaseAdmin.from("admin_connections").select("ticker_a, ticker_b").eq("tier", 2),
   ]);
   if (t1Res.error) return NextResponse.json({ error: t1Res.error.message }, { status: 500 });
