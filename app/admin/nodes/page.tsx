@@ -377,6 +377,7 @@ export default function NodesPage() {
   const [junkResult, setJunkResult]       = useState<string | null>(null);
   const [repositioning, setRepositioning] = useState(false);
   const [repositionResult, setRepositionResult] = useState<string | null>(null);
+  const [repoSince, setRepoSince] = useState(() => new Date().toISOString().slice(0, 10));
   const [repoChecking, setRepoChecking]   = useState(false);
   type RepoCheck = {
     total: number;
@@ -557,6 +558,25 @@ export default function NodesPage() {
           }} disabled={repositioning}
         >
           {repositioning ? "Repositioning…" : "Reposition stocks"}
+        </button>
+        <input
+          type="date"
+          value={repoSince}
+          onChange={(e) => setRepoSince(e.target.value)}
+          style={{ background: "#0d1117", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, color: "#94a3b8", fontSize: 12, padding: "4px 8px" }}
+        />
+        <button
+          style={{ ...BTN, background: "rgba(168,85,247,0.08)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.2)" }}
+          onClick={async () => {
+            if (!confirm(`Reposition stocks added on or after ${repoSince}? Existing positions are not affected.`)) return;
+            setRepositioning(true); setRepositionResult(null); setRepoCheck(null);
+            const r = await adminFetch(`/api/admin/reposition-stocks?stocks_only=true&since=${repoSince}`, { method: "POST" });
+            const d = await r.json();
+            setRepositionResult(r.ok ? `Repositioned ${d.stockRepositioned} new stocks` : d.error);
+            setRepositioning(false);
+          }} disabled={repositioning}
+        >
+          {repositioning ? "Repositioning…" : "Reposition new stocks"}
         </button>
         {repositionResult && <span style={{ fontSize: 12, color: "#64748b" }}>{repositionResult}</span>}
         {repoCheck && (

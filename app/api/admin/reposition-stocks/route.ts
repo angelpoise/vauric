@@ -141,6 +141,7 @@ type AdminNode = {
   parent_node_id: string | null;
   x_position: number;
   y_position: number;
+  created_at?: string;
 };
 
 // ── Hierarchy layout ──────────────────────────────────────────────────────────
@@ -441,11 +442,13 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   if (!await isAuthorised(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const stocksOnly = new URL(req.url).searchParams.get("stocks_only") === "true";
+  const params    = new URL(req.url).searchParams;
+  const stocksOnly = params.get("stocks_only") === "true";
+  const since      = params.get("since") ?? null; // ISO date string e.g. "2026-05-21"
 
   const { data: allNodes, error: nodesErr } = await supabaseAdmin
     .from("admin_nodes")
-    .select("id, ticker, company_name, node_type, sector, parent_node_id, x_position, y_position");
+    .select("id, ticker, company_name, node_type, sector, parent_node_id, x_position, y_position, created_at");
   if (nodesErr || !allNodes) return NextResponse.json({ error: nodesErr?.message ?? "Failed to load nodes" }, { status: 500 });
 
   const [t1Res, t2Res] = await Promise.all([
@@ -480,10 +483,17 @@ export async function POST(req: NextRequest) {
     if (!target) return;
     const outwardAngle = Math.atan2(target.y_position - EL_CY, target.x_position - EL_CX);
     const arcCap = safeStockArc(target, nodes);
-    tickers.forEach((ticker, idx) => {
+    // When `since` is set, only scatter stocks created on or after that date.
+    const filtered = since
+      ? tickers.filter((t) => {
+          const ca = stockByTick.get(t)?.created_at;
+          return ca ? ca >= since : false;
+        })
+      : tickers;
+    filtered.forEach((ticker, idx) => {
       const stock = stockByTick.get(ticker);
       if (!stock) return;
-      const { dx, dy } = stockArcOffset(idx, tickers.length, outwardAngle, arcCap);
+      const { dx, dy } = stockArcOffset(idx, filtered.length, outwardAngle, arcCap);
       stockUpdates.push({
         id:         stock.id,
         x_position: target.x_position + dx,
