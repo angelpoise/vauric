@@ -483,17 +483,21 @@ export async function POST(req: NextRequest) {
     if (!target) return;
     const outwardAngle = Math.atan2(target.y_position - EL_CY, target.x_position - EL_CX);
     const arcCap = safeStockArc(target, nodes);
-    // When `since` is set, only scatter stocks created on or after that date.
+    // When `since` is set, only scatter new stocks — but offset their wave
+    // indices by the number of existing stocks already at this target so new
+    // stocks continue the wave sequence rather than restarting from 0.
+    const existing = since
+      ? tickers.filter((t) => { const ca = stockByTick.get(t)?.created_at; return !ca || ca < since; })
+      : [];
     const filtered = since
-      ? tickers.filter((t) => {
-          const ca = stockByTick.get(t)?.created_at;
-          return ca ? ca >= since : false;
-        })
+      ? tickers.filter((t) => { const ca = stockByTick.get(t)?.created_at; return ca ? ca >= since : false; })
       : tickers;
+    const existingCount = existing.length;
+    const total = existingCount + filtered.length;
     filtered.forEach((ticker, idx) => {
       const stock = stockByTick.get(ticker);
       if (!stock) return;
-      const { dx, dy } = stockArcOffset(idx, filtered.length, outwardAngle, arcCap);
+      const { dx, dy } = stockArcOffset(existingCount + idx, total, outwardAngle, arcCap);
       stockUpdates.push({
         id:         stock.id,
         x_position: target.x_position + dx,
