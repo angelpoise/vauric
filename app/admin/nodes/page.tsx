@@ -548,11 +548,11 @@ export default function NodesPage() {
         <button
           style={{ ...BTN, background: "rgba(168,85,247,0.15)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.35)" }}
           onClick={async () => {
-            if (!confirm("Reposition all stocks? This will overwrite current positions.")) return;
+            if (!confirm("Reposition all stocks? This will overwrite current stock positions but will not move any structure nodes.")) return;
             setRepositioning(true); setRepositionResult(null); setRepoCheck(null);
-            const r = await adminFetch("/api/admin/reposition-stocks", { method: "POST" });
+            const r = await adminFetch("/api/admin/reposition-stocks?stocks_only=true", { method: "POST" });
             const d = await r.json();
-            setRepositionResult(r.ok ? `Repositioned ${d.repositioned} stocks (${d.withT1}/${d.total} had T1 connections)` : d.error);
+            setRepositionResult(r.ok ? `Repositioned ${d.stockRepositioned} stocks` : d.error);
             setRepositioning(false); load();
           }} disabled={repositioning}
         >

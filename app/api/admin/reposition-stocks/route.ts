@@ -170,7 +170,6 @@ function layoutHierarchy(
 
 // ── Stock assignment ──────────────────────────────────────────────────────────
 
-const SPECIFICITY: Record<string, number> = { subsubsector: 2, subsector: 1, sector: 0 };
 
 async function buildAssignments(
   allNodes: AdminNode[],
@@ -250,21 +249,9 @@ async function buildAssignments(
 
   const stockTarget = new Map<string, AdminNode>();
 
+  // Always use the earliest T1 connection (candidates sorted by created_at asc).
   stockT1Targets.forEach((candidates, ticker) => {
-    if (candidates.length === 0) return;
-    if (candidates.length === 1) { stockTarget.set(ticker, candidates[0]); return; }
-    const peers = peerMap.get(ticker) ?? new Set<string>();
-    let best = candidates[0];
-    let bestScore = -Infinity;
-    for (const candidate of candidates) {
-      let peerOverlap = 0;
-      peers.forEach((peer) => {
-        if (stockT1Targets.get(peer)?.some((t) => t.id === candidate.id)) peerOverlap++;
-      });
-      const score = (SPECIFICITY[candidate.node_type] ?? 0) * 1_000_000 + peerOverlap * 1_000;
-      if (score > bestScore) { bestScore = score; best = candidate; }
-    }
-    stockTarget.set(ticker, best);
+    if (candidates.length > 0) stockTarget.set(ticker, candidates[0]);
   });
 
   stockByTick.forEach((stock) => {
@@ -315,7 +302,7 @@ export async function GET(req: NextRequest) {
   if (nodesErr || !allNodes) return NextResponse.json({ error: nodesErr?.message }, { status: 500 });
 
   const [t1Res, t2Res] = await Promise.all([
-    supabaseAdmin.from("admin_connections").select("ticker_a, ticker_b").eq("tier", 1),
+    supabaseAdmin.from("admin_connections").select("ticker_a, ticker_b").eq("tier", 1).order("created_at", { ascending: true }),
     supabaseAdmin.from("admin_connections").select("ticker_a, ticker_b").eq("tier", 2),
   ]);
   if (t1Res.error) return NextResponse.json({ error: t1Res.error.message }, { status: 500 });
@@ -368,13 +355,15 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   if (!await isAuthorised(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const stocksOnly = new URL(req.url).searchParams.get("stocks_only") === "true";
+
   const { data: allNodes, error: nodesErr } = await supabaseAdmin
     .from("admin_nodes")
     .select("id, ticker, company_name, node_type, sector, parent_node_id, x_position, y_position");
   if (nodesErr || !allNodes) return NextResponse.json({ error: nodesErr?.message ?? "Failed to load nodes" }, { status: 500 });
 
   const [t1Res, t2Res] = await Promise.all([
-    supabaseAdmin.from("admin_connections").select("ticker_a, ticker_b").eq("tier", 1),
+    supabaseAdmin.from("admin_connections").select("ticker_a, ticker_b").eq("tier", 1).order("created_at", { ascending: true }),
     supabaseAdmin.from("admin_connections").select("ticker_a, ticker_b").eq("tier", 2),
   ]);
   if (t1Res.error) return NextResponse.json({ error: t1Res.error.message }, { status: 500 });
@@ -382,11 +371,10 @@ export async function POST(req: NextRequest) {
 
   const nodes = allNodes as AdminNode[];
 
-  // 1. Layout hierarchy nodes — mutates positions in `nodes` so stock scatter
-  //    references the updated coordinates.
-  const hierUpdates = layoutHierarchy(nodes);
+  // Layout hierarchy only when not in stocks-only mode.
+  const hierUpdates = stocksOnly ? [] : layoutHierarchy(nodes);
 
-  // 2. Assign each stock to its best hierarchy target and scatter into rings.
+  // Assign each stock to its best hierarchy target and scatter into rings.
   const { stockByTick, stockTarget, peerMap } =
     await buildAssignments(nodes, t1Res.data ?? [], t2Res.data ?? []);
 
@@ -404,7 +392,6 @@ export async function POST(req: NextRequest) {
   groups.forEach((tickers, targetId) => {
     const target = nodes.find((n) => n.id === targetId);
     if (!target) return;
-    // Outward direction for this cluster: from ellipse centre through the parent node.
     const outwardAngle = Math.atan2(target.y_position - EL_CY, target.x_position - EL_CX);
     tickers.forEach((ticker, idx) => {
       const stock = stockByTick.get(ticker);
@@ -418,7 +405,6 @@ export async function POST(req: NextRequest) {
     });
   });
 
-  // 3. Write hierarchy + stock updates together in chunks.
   const allUpdates = [...hierUpdates, ...stockUpdates];
   const CHUNK = 500;
   let updated = 0;
@@ -429,15 +415,11 @@ export async function POST(req: NextRequest) {
     updated += chunk.length;
   }
 
-  const sectorSample = hierUpdates.slice(0, 11).map(u => ({ id: u.id, x: u.x_position, y: u.y_position }));
-
   return NextResponse.json({
     ok:               true,
+    stocksOnly,
     hierRepositioned: hierUpdates.length,
     stockRepositioned: stockUpdates.length,
     total:            updated,
-    sectorSample,
-    elA: EL_A,
-    elB: EL_B,
   });
 }
