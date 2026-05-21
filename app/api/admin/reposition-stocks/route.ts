@@ -274,7 +274,8 @@ async function buildAssignments(
     let best: AdminNode | null = null;
     let bestScore = -Infinity;
     tally.forEach(({ target, count }) => {
-      const score = (SPECIFICITY[target.node_type] ?? 0) * 1_000 + count;
+      const specificity = target.node_type === "subsubsector" ? 2 : target.node_type === "subsector" ? 1 : 0;
+      const score = specificity * 1_000 + count;
       if (score > bestScore) { bestScore = score; best = target; }
     });
     if (best) stockTarget.set(stock.ticker, best);
