@@ -824,6 +824,7 @@ interface FundamentalsEntry {
   industry:                     string | null;
   website:                      string | null;
   country:                      string | null;
+  exchange:                     string | null;
   fullTimeEmployees:            number | null;
 }
 
