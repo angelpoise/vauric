@@ -3,6 +3,7 @@ import Image from "next/image";
 import { RadarIcon } from "@/components/Logo";
 import StatsCounter from "@/components/StatsCounter";
 import RevealOnScroll from "@/components/RevealOnScroll";
+import WaitlistForm from "@/components/WaitlistForm";
 
 const DM    = 'var(--font-dm-sans), "DM Sans", sans-serif';
 const SERIF = 'var(--font-dm-serif), serif';
@@ -180,7 +181,7 @@ export default function Home() {
       <main>
 
         {/* ── Hero ────────────────────────────────────────────────────────── */}
-        <section style={{
+        <section id="waitlist" style={{
           maxWidth: 780, margin: "0 auto",
           padding: "80px 24px 80px",
           textAlign: "center",
@@ -228,18 +229,7 @@ export default function Home() {
             and discover opportunities before the crowd does.
           </p>
 
-          <Link
-            href="/sign-up"
-            className="hp-cta-primary"
-            style={{
-              fontFamily: DM, fontWeight: 500, fontSize: 16,
-              color: "#fff", textDecoration: "none",
-              padding: "14px 40px", borderRadius: 9,
-              background: "var(--blue)", display: "inline-block",
-            }}
-          >
-            Start exploring for free
-          </Link>
+          <WaitlistForm />
         </section>
 
         {/* ── Stats ───────────────────────────────────────────────────────── */}
@@ -403,7 +393,7 @@ export default function Home() {
                   "General news feed",
                 ]}
                 cta="Get started free"
-                ctaHref="/sign-up"
+                ctaHref="#waitlist"
               />
             </RevealOnScroll>
             <RevealOnScroll direction="up" delay={120} style={{ display: "flex" }}>
@@ -421,8 +411,8 @@ export default function Home() {
                   "Trace connections across companies with multi-select views",
                 ]}
                 badge="Recommended"
-                cta="Start Pro"
-                ctaHref="/sign-up?plan=pro"
+                cta="Join waitlist"
+                ctaHref="#waitlist"
                 highlight
               />
             </RevealOnScroll>
@@ -438,8 +428,8 @@ export default function Home() {
                   "Analyst upgrade and downgrade notifications",
                   "Corporate action alerts",
                 ]}
-                cta="Start Plus"
-                ctaHref="/sign-up?plan=plus"
+                cta="Join waitlist"
+                ctaHref="#waitlist"
                 accent
               />
             </RevealOnScroll>
