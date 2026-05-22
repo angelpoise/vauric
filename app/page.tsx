@@ -408,23 +408,6 @@ export default function Home() {
             </RevealOnScroll>
             <RevealOnScroll direction="up" delay={120} style={{ display: "flex" }}>
               <PricingCard
-                tier="Plus"
-                price="$9"
-                sub="Automatic alerts and market context, without the analysis."
-                items={[
-                  "Everything in Free",
-                  "AI market summary — biggest stories each day",
-                  "Price and earnings alerts",
-                  "Analyst upgrade and downgrade notifications",
-                  "Corporate action alerts",
-                ]}
-                cta="Start Plus"
-                ctaHref="/sign-up?plan=plus"
-                accent
-              />
-            </RevealOnScroll>
-            <RevealOnScroll direction="right" delay={240} style={{ display: "flex" }}>
-              <PricingCard
                 tier="Pro"
                 price="$15"
                 sub="Build conviction, size positions, and stay ahead of your holdings."
@@ -441,6 +424,23 @@ export default function Home() {
                 cta="Start Pro"
                 ctaHref="/sign-up?plan=pro"
                 highlight
+              />
+            </RevealOnScroll>
+            <RevealOnScroll direction="right" delay={240} style={{ display: "flex" }}>
+              <PricingCard
+                tier="Plus"
+                price="$9"
+                sub="Automatic alerts and market context, without the analysis."
+                items={[
+                  "Everything in Free",
+                  "AI market summary — biggest stories each day",
+                  "Price and earnings alerts",
+                  "Analyst upgrade and downgrade notifications",
+                  "Corporate action alerts",
+                ]}
+                cta="Start Plus"
+                ctaHref="/sign-up?plan=plus"
+                accent
               />
             </RevealOnScroll>
           </div>
