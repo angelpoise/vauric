@@ -16,6 +16,7 @@ interface Overview {
   analysis: { withCache: number; total: number };
   users: { total: number; pro: number; plus: number; free: number };
   focusLists: number;
+  polygonConfigured: boolean;
 }
 
 function timeAgo(iso: string | null): string {
@@ -88,6 +89,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<string | null>(null);
+  const [togglingPipeline, setTogglingPipeline] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -134,16 +136,54 @@ export default function AdminDashboard() {
       {/* System status cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 20 }}>
 
-        <StatusCard
-          title="News Pipeline"
-          status={pipelineOk === null ? "Loading" : pipelineOk ? "Enabled" : "Disabled"}
-          ok={pipelineOk}
-          rows={[
-            { label: "Articles indexed", value: overview?.news.articles ?? "—" },
-            { label: "Last run", value: timeAgo(overview?.news.lastRunAt ?? null) },
-            { label: "Pipeline state", value: pipelineOk === null ? "—" : pipelineOk ? "Running" : "Stopped", highlight: pipelineOk ? "#22c55e" : "#ef4444" },
-          ]}
-        />
+        <div style={CARD}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "flex-start" }}>
+              <StatusDot ok={pipelineOk} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#cbd5e1" }}>News Pipeline</span>
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span style={{
+                fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 20,
+                background: pipelineOk === null ? "rgba(71,85,105,0.15)" : pipelineOk ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
+                color: pipelineOk === null ? "#475569" : pipelineOk ? "#22c55e" : "#ef4444",
+                border: `1px solid ${pipelineOk === null ? "rgba(71,85,105,0.2)" : pipelineOk ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`,
+              }}>{pipelineOk === null ? "Loading" : pipelineOk ? "Enabled" : "Disabled"}</span>
+              {overview !== null && (
+                <button
+                  style={{ ...BTN_SEC, fontSize: 11, padding: "3px 10px" }}
+                  disabled={togglingPipeline}
+                  onClick={async () => {
+                    setTogglingPipeline(true);
+                    await adminFetch("/api/admin/pipeline-config", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ news_pipeline_enabled: !overview.news.pipelineEnabled }),
+                    });
+                    await load();
+                    setTogglingPipeline(false);
+                  }}
+                >
+                  {togglingPipeline ? "…" : pipelineOk ? "Disable" : "Enable"}
+                </button>
+              )}
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {[
+              { label: "Articles indexed", value: overview?.news.articles ?? "—" },
+              { label: "Last run",         value: timeAgo(overview?.news.lastRunAt ?? null) },
+              { label: "Polygon API",      value: overview?.polygonConfigured ? "Configured" : "Missing key", highlight: overview?.polygonConfigured ? "#22c55e" : "#ef4444" },
+            ].map((r) => (
+              <div key={r.label} style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 11, color: "#475569" }}>{r.label}</span>
+                <span style={{ fontSize: 12, fontWeight: 500, color: (r as { highlight?: string }).highlight ?? "#94a3b8" }}>
+                  {typeof r.value === "number" ? r.value.toLocaleString() : r.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
 
         <StatusCard
           title="Connection Coverage"

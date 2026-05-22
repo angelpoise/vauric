@@ -4,6 +4,9 @@ export interface MarketDataEntry {
   dailyMoveDollar: number;
 }
 
+// 15-minute TTL — balances freshness against Yahoo Finance rate limits.
+// This is an in-memory client-side cache (browser tab scoped), so different
+// tabs and server instances each maintain their own independent cache.
 const TTL_MS = 15 * 60 * 1000;
 
 let cachedData: Record<string, MarketDataEntry> | null = null;

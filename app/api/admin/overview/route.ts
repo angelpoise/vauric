@@ -64,6 +64,7 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({
+    polygonConfigured: !!process.env.POLYGON_API_KEY,
     nodes: nodeCounts,
     connections: {
       t1: t1Res.count ?? 0,
