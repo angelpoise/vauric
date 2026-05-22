@@ -7,12 +7,13 @@ const SERIF = 'var(--font-dm-serif), serif';
 
 export default function StatsCounter() {
   const ref = useRef<HTMLDivElement>(null);
-  const [started,     setStarted]     = useState(false);
-  const [connDone,    setConnDone]    = useState(false);
-  const [stocksDone,  setStocksDone]  = useState(false);
-  const [stocks,      setStocks]      = useState(0);
-  const [connections, setConnections] = useState(0);
-  const [industries,  setIndustries]  = useState(0);
+  const [started,        setStarted]        = useState(false);
+  const [targetsLoaded,  setTargetsLoaded]  = useState(false);
+  const [connDone,       setConnDone]       = useState(false);
+  const [stocksDone,     setStocksDone]     = useState(false);
+  const [stocks,         setStocks]         = useState(0);
+  const [connections,    setConnections]    = useState(0);
+  const [industries,     setIndustries]     = useState(0);
   // Ref so updated values don't re-trigger count-up effects
   const targets = useRef({ stocks: 1300, connections: 18000, industries: 120 });
 
@@ -20,7 +21,8 @@ export default function StatsCounter() {
     fetch("/api/stats")
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (d) targets.current = d; })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setTargetsLoaded(true));
   }, []);
 
   useEffect(() => {
@@ -65,11 +67,11 @@ export default function StatsCounter() {
     return () => cancelAnimationFrame(raf);
   }
 
-  // 1. Connections — starts on scroll-in, triggers stocks at halfway
+  // 1. Connections — starts once scrolled into view AND real targets are loaded
   useEffect(() => {
-    if (!started) return;
+    if (!started || !targetsLoaded) return;
     return countUp(targets.current.connections, 1600, setConnections, () => {}, () => setConnDone(true));
-  }, [started]); // eslint-disable-line
+  }, [started, targetsLoaded]); // eslint-disable-line
 
   // 2. Stocks — starts halfway through connections, triggers industries at its halfway
   useEffect(() => {
