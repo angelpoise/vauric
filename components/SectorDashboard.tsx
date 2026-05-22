@@ -9,11 +9,17 @@ const DM = 'var(--font-dm-sans), "DM Sans", sans-serif';
 // ─── Sector definitions ───────────────────────────────────────────────────────
 
 const SECTORS = [
-  { id: "sec-tech",     name: "Information Technology", etf: "XLK", color: "#3b82f6" },
-  { id: "sec-energy",   name: "Energy",     etf: "XLE", color: "#f59e0b" },
-  { id: "sec-health",   name: "Healthcare", etf: "XLV", color: "#22c55e" },
-  { id: "sec-finance",  name: "Financials", etf: "XLF", color: "#a855f7" },
-  { id: "sec-consumer", name: "Consumer",   etf: "XLY", color: "#14b8a6" },
+  { id: "sec-tech",        name: "Information Technology",   etf: "XLK",  color: "#3b82f6" },
+  { id: "sec-comm",        name: "Communication Services",   etf: "XLC",  color: "#8b5cf6" },
+  { id: "sec-consumer",    name: "Consumer Discretionary",   etf: "XLY",  color: "#14b8a6" },
+  { id: "sec-staples",     name: "Consumer Staples",         etf: "XLP",  color: "#06b6d4" },
+  { id: "sec-health",      name: "Healthcare",               etf: "XLV",  color: "#22c55e" },
+  { id: "sec-finance",     name: "Financials",               etf: "XLF",  color: "#a855f7" },
+  { id: "sec-realestate",  name: "Real Estate",              etf: "XLRE", color: "#ec4899" },
+  { id: "sec-utilities",   name: "Utilities",                etf: "XLU",  color: "#6366f1" },
+  { id: "sec-energy",      name: "Energy",                   etf: "XLE",  color: "#f59e0b" },
+  { id: "sec-materials",   name: "Materials",                etf: "XLB",  color: "#84cc16" },
+  { id: "sec-industrials", name: "Industrials",              etf: "XLI",  color: "#f97316" },
 ];
 
 // Built from SECTORS so there's a single source of truth for the ETF mapping
@@ -22,23 +28,25 @@ const SECTOR_ETF_TICKER: Record<string, string> = Object.fromEntries(
 );
 
 const SECTOR_ID: Record<string, string> = {
-  "Information Technology": "sec-tech",
-  Technology:               "sec-tech",
-  Energy:     "sec-energy",
-  Healthcare: "sec-health",
-  Financials:          "sec-finance",
-  Finance:             "sec-finance",
-  "Financial Services":"sec-finance",
-  Consumer:   "sec-consumer",
+  "Information Technology":  "sec-tech",
+  Technology:                "sec-tech",
+  "Communication Services":  "sec-comm",
+  Communication:             "sec-comm",
+  "Consumer Discretionary":  "sec-consumer",
+  Consumer:                  "sec-consumer",
+  "Consumer Staples":        "sec-staples",
+  Healthcare:                "sec-health",
+  Financials:                "sec-finance",
+  Finance:                   "sec-finance",
+  "Financial Services":      "sec-finance",
+  "Real Estate":             "sec-realestate",
+  Utilities:                 "sec-utilities",
+  Energy:                    "sec-energy",
+  Materials:                 "sec-materials",
+  Industrials:               "sec-industrials",
 };
 
-const SECTOR_COLOR: Record<string, string> = {
-  "sec-tech":     "#3b82f6",
-  "sec-energy":   "#f59e0b",
-  "sec-health":   "#22c55e",
-  "sec-finance":  "#a855f7",
-  "sec-consumer": "#14b8a6",
-};
+const SECTOR_COLOR: Record<string, string> = Object.fromEntries(SECTORS.map((s) => [s.id, s.color]));
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

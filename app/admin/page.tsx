@@ -194,6 +194,11 @@ export default function AdminDashboard() {
           <button style={BTN_SEC} onClick={() => router.push("/admin/nodes")}>Manage nodes</button>
           <button style={BTN_SEC} onClick={() => router.push("/admin/connections")}>Manage connections</button>
           <button style={BTN_SEC} onClick={() => router.push("/admin/pipeline")}>Pipeline config</button>
+          <button style={BTN_SEC} onClick={async () => {
+            const r = await adminFetch("/api/admin/digest", { method: "POST" });
+            const d = await r.json();
+            setRunResult(r.ok ? `Digest sent to ${d.sent}/${d.total} subscribers` : d.error);
+          }}>Send digest now</button>
           <button style={BTN_SEC} onClick={() => router.push("/graph")}>Go to graph</button>
         </div>
         {runResult && <div style={{ fontSize: 12, color: "#22c55e", marginTop: 12 }}>{runResult}</div>}
