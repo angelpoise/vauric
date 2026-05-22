@@ -109,6 +109,12 @@ export default function WaitlistForm() {
           {submitting ? "Joining…" : "Join the waitlist"}
         </button>
         {serverError && <p className="form-error">{serverError}</p>}
+        <p style={{
+          margin: "12px 0 0", fontSize: 12, textAlign: "center",
+          color: "#f59e0b", fontFamily: "inherit",
+        }}>
+          Waitlist members get an exclusive launch discount.
+        </p>
         <p className="form-note">
           No spam. Unsubscribe anytime. Expected launch: mid June 2026.
         </p>
