@@ -106,11 +106,16 @@ export async function GET(req: NextRequest) {
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://vauric.com";
 
-  // 1. Get all users with daily_digest = true
-  const { data: prefs, error: prefsErr } = await supabaseAdmin
+  // Friday = day 5 in UTC (0=Sun … 6=Sat)
+  const isFriday = new Date().getUTCDay() === 5;
+
+  // 1. Get subscribers — daily gets every weekday, weekly gets Fridays only
+  const query = supabaseAdmin
     .from("user_preferences")
-    .select("clerk_user_id")
-    .eq("daily_digest", true);
+    .select("clerk_user_id, digest_frequency")
+    .in("digest_frequency", isFriday ? ["daily", "weekly"] : ["daily"]);
+
+  const { data: prefs, error: prefsErr } = await query;
 
   if (prefsErr || !prefs?.length) {
     return NextResponse.json({ sent: 0, reason: prefsErr?.message ?? "no subscribers" });

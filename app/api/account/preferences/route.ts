@@ -9,7 +9,7 @@ interface Prefs {
   email_split: boolean;
   email_earnings: boolean;
   email_ipo: boolean;
-  daily_digest: boolean;
+  digest_frequency: string;
 }
 
 const DEFAULTS: Prefs = {
@@ -19,7 +19,7 @@ const DEFAULTS: Prefs = {
   email_split: true,
   email_earnings: true,
   email_ipo: true,
-  daily_digest: false,
+  digest_frequency: "weekly",
 };
 
 export async function GET(req: NextRequest) {
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
   const { data } = await supabaseAdmin
     .from("user_preferences")
     .select(
-      "email_news,email_analyst,email_delisting,email_split,email_earnings,email_ipo,daily_digest"
+      "email_news,email_analyst,email_delisting,email_split,email_earnings,email_ipo,digest_frequency"
     )
     .eq("clerk_user_id", userId)
     .single();

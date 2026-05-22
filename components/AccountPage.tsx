@@ -16,7 +16,7 @@ interface Prefs {
   email_split: boolean;
   email_earnings: boolean;
   email_ipo: boolean;
-  daily_digest: boolean;
+  digest_frequency: "daily" | "weekly" | "none";
 }
 
 const DEFAULT_PREFS: Prefs = {
@@ -26,10 +26,10 @@ const DEFAULT_PREFS: Prefs = {
   email_split: true,
   email_earnings: true,
   email_ipo: true,
-  daily_digest: false,
+  digest_frequency: "weekly",
 };
 
-const NOTIF_FIELDS: { field: keyof Omit<Prefs, "daily_digest">; label: string; color: string }[] = [
+const NOTIF_FIELDS: { field: keyof Omit<Prefs, "digest_frequency">; label: string; color: string }[] = [
   { field: "email_news",      label: "News",                   color: "#facc15" },
   { field: "email_analyst",   label: "Analyst action",         color: "#f97316" },
   { field: "email_delisting", label: "Delisting / Acquisition",color: "#a855f7" },
@@ -192,8 +192,7 @@ function NotificationsTab({ userId }: { userId: string }) {
     return () => { cancelled = true; };
   }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function toggle(field: keyof Prefs) {
-    const next = { ...prefs, [field]: !prefs[field] };
+  async function savePrefs(next: Prefs) {
     setPrefs(next);
     setSaving(true);
     try {
@@ -208,6 +207,14 @@ function NotificationsTab({ userId }: { userId: string }) {
       });
     } catch { /* silent */ }
     finally { setSaving(false); }
+  }
+
+  function toggle(field: keyof Omit<Prefs, "digest_frequency">) {
+    savePrefs({ ...prefs, [field]: !prefs[field] });
+  }
+
+  function setFrequency(freq: Prefs["digest_frequency"]) {
+    savePrefs({ ...prefs, digest_frequency: freq });
   }
 
   if (loading) {
@@ -236,15 +243,34 @@ function NotificationsTab({ userId }: { userId: string }) {
         </div>
       </Card>
 
-      {/* Daily digest */}
+      {/* Digest frequency */}
       <Card>
-        <Label>Daily digest</Label>
-        <PrefRow
-          label="Send me a daily summary of watchlist activity at market close (4pm ET)"
-          on={prefs.daily_digest}
-          onToggle={() => toggle("daily_digest")}
-          disabled={saving}
-        />
+        <Label>Market close digest</Label>
+        <p style={{ fontSize: 12, color: "#475569", margin: "0 0 12px", lineHeight: 1.5 }}>
+          Summary of your portfolio moves and price alerts at market close (4pm ET).
+        </p>
+        <div style={{ display: "flex", gap: 8 }}>
+          {(["daily", "weekly", "none"] as const).map((opt) => {
+            const active = prefs.digest_frequency === opt;
+            return (
+              <button
+                key={opt}
+                onClick={() => !saving && setFrequency(opt)}
+                disabled={saving}
+                style={{
+                  padding: "6px 16px", borderRadius: 6, fontSize: 12, fontWeight: 500,
+                  cursor: saving ? "default" : "pointer", fontFamily: "inherit",
+                  border: active ? "1px solid rgba(59,130,246,0.5)" : "1px solid rgba(255,255,255,0.08)",
+                  background: active ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.03)",
+                  color: active ? "#60a5fa" : "#475569",
+                  textTransform: "capitalize",
+                }}
+              >
+                {opt}
+              </button>
+            );
+          })}
+        </div>
       </Card>
     </div>
   );
