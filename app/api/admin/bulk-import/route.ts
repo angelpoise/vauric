@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/adminSecret";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { cleanCompanyName, sectorFromPolygon } from "@/lib/tickerLookupUtils";
-import { hydrateSingleTicker } from "@/lib/fundamentalsUtils";
-
-interface PolygonResult {
-  name?: string;
-  sic_code?: string;
-}
 
 // Maps sector display name → ETF ticker used as sector node ID in the graph
 const SECTOR_TO_ETF: Record<string, string> = {
@@ -23,25 +16,6 @@ const SECTOR_TO_ETF: Record<string, string> = {
   "Real Estate":            "XLRE",
   "Utilities":              "XLU",
 };
-
-async function polygonLookup(
-  ticker: string,
-  apiKey: string,
-): Promise<{ name: string | null; sector: string | null }> {
-  try {
-    const res = await fetch(
-      `https://api.polygon.io/v3/reference/tickers/${ticker}?apiKey=${apiKey}`,
-    );
-    if (!res.ok) return { name: null, sector: null };
-    const json = await res.json();
-    const r = json?.results as PolygonResult | undefined;
-    const name   = r?.name   ? cleanCompanyName(r.name)           : null;
-    const sector = sectorFromPolygon(ticker, r?.sic_code ?? null);
-    return { name, sector };
-  } catch {
-    return { name: null, sector: null };
-  }
-}
 
 // Place stock near its sector node with a random spread.
 // Returns normalised x/y (0–1) ready for the DB.
@@ -65,9 +39,6 @@ export async function POST(req: NextRequest) {
   if (!await isAdminRequest(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  const polygonKey = process.env.POLYGON_API_KEY;
-  if (!polygonKey) return NextResponse.json({ error: "POLYGON_API_KEY not set" }, { status: 500 });
 
   const { tickers } = await req.json() as { tickers: string[] };
   if (!Array.isArray(tickers) || tickers.length === 0) {
@@ -105,15 +76,12 @@ export async function POST(req: NextRequest) {
     const batch = toAdd.slice(i, i + CONCURRENCY);
     await Promise.all(
       batch.map(async (ticker) => {
-        const { name, sector } = await polygonLookup(ticker, polygonKey);
-        // Skip if Polygon doesn't recognise the ticker — prevents junk nodes from Claude suggestions
-        if (!name) { failed.push(ticker); return; }
-        const pos = positionNearSector(sector, sectorPositions);
+        const pos = positionNearSector(null, sectorPositions);
         const { error } = await supabaseAdmin.from("admin_nodes").insert({
           node_type:         "stock",
           ticker,
-          company_name:      name   ?? ticker,
-          sector:            sector ?? "",
+          company_name:      ticker,
+          sector:            "",
           x_position:        pos.x,
           y_position:        pos.y,
           analysis_schedule: "weekly",
@@ -123,7 +91,6 @@ export async function POST(req: NextRequest) {
           failed.push(ticker);
         } else {
           added.push(ticker);
-          hydrateSingleTicker(ticker).catch(() => {});
         }
       }),
     );

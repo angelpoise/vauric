@@ -117,7 +117,6 @@ export default function PrivacyPage() {
             <li style={{ marginBottom: 8 }}><strong style={{ color: "#e2e8f0", fontWeight: 500 }}>Clerk</strong> — authentication and user management (clerk.com/privacy)</li>
             <li style={{ marginBottom: 8 }}><strong style={{ color: "#e2e8f0", fontWeight: 500 }}>Supabase</strong> — database and API infrastructure (supabase.com/privacy)</li>
             <li style={{ marginBottom: 8 }}><strong style={{ color: "#e2e8f0", fontWeight: 500 }}>Finnhub</strong> — financial news data (finnhub.io/privacy-policy)</li>
-            <li style={{ marginBottom: 8 }}><strong style={{ color: "#e2e8f0", fontWeight: 500 }}>Polygon.io</strong> — market price data (polygon.io/privacy)</li>
             <li style={{ marginBottom: 8 }}><strong style={{ color: "#e2e8f0", fontWeight: 500 }}>Anthropic</strong> — AI-generated analysis (anthropic.com/privacy)</li>
           </ul>
           <p style={prose}>

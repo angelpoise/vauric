@@ -16,7 +16,6 @@ interface Overview {
   analysis: { withCache: number; total: number };
   users: { total: number; pro: number; plus: number; free: number };
   focusLists: number;
-  polygonConfigured: boolean;
 }
 
 function timeAgo(iso: string | null): string {
@@ -173,7 +172,6 @@ export default function AdminDashboard() {
             {[
               { label: "Articles indexed", value: overview?.news.articles ?? "—" },
               { label: "Last run",         value: timeAgo(overview?.news.lastRunAt ?? null) },
-              { label: "Polygon API",      value: overview?.polygonConfigured ? "Configured" : "Missing key", highlight: overview?.polygonConfigured ? "#22c55e" : "#ef4444" },
             ].map((r) => (
               <div key={r.label} style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 11, color: "#475569" }}>{r.label}</span>
