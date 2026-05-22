@@ -229,7 +229,7 @@ export default function Home() {
             and discover opportunities before the crowd does.
           </p>
 
-          <WaitlistForm />
+          <WaitlistForm bare />
         </section>
 
         {/* ── Stats ───────────────────────────────────────────────────────── */}

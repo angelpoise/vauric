@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 
-export default function WaitlistForm() {
+export default function WaitlistForm({ bare }: { bare?: boolean }) {
   const [email, setEmail] = useState("");
   const sourceRef = useRef<HTMLSelectElement>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -42,17 +42,11 @@ export default function WaitlistForm() {
   if (submitted) {
     return (
       <div className="form-wrap">
-        <div className="form-card">
+        {bare ? (
           <div className="success-state">
             <div className="success-icon">
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path
-                  d="M4 10l4 4 8-8"
-                  stroke="#22c55e"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
+                <path d="M4 10l4 4 8-8" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
             <p className="success-title">You&apos;re on the list.</p>
@@ -62,13 +56,66 @@ export default function WaitlistForm() {
               Expect something worth the wait.
             </p>
           </div>
-        </div>
+        ) : (
+          <div className="form-card">
+            <div className="success-state">
+              <div className="success-icon">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  <path d="M4 10l4 4 8-8" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+              <p className="success-title">You&apos;re on the list.</p>
+              <p className="success-sub">
+                We&apos;ll be in touch when early access opens.
+                <br />
+                Expect something worth the wait.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
   return (
     <div className="form-wrap">
+      {bare ? (
+        <>
+          <div className="field">
+            <label htmlFor="email">Email address</label>
+            <input
+              type="email"
+              id="email"
+              placeholder="you@example.com"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+              style={emailError ? { borderColor: "#ef4444" } : undefined}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="source">How did you find us?</label>
+            <select id="source" ref={sourceRef} defaultValue="">
+              <option value="" disabled hidden>Select an option</option>
+              <option value="tiktok">TikTok</option>
+              <option value="instagram">Instagram</option>
+              <option value="x">X (Twitter)</option>
+              <option value="reddit">Reddit</option>
+              <option value="friend">Friend / word of mouth</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <button className="submit-btn" onClick={handleSubmit} disabled={submitting}>
+            {submitting ? "Joining…" : "Join the waitlist"}
+          </button>
+          {serverError && <p className="form-error">{serverError}</p>}
+          <p style={{ margin: "12px 0 0", fontSize: 12, textAlign: "center", color: "#f59e0b", fontFamily: "inherit" }}>
+            Waitlist members get an exclusive launch discount.
+          </p>
+          <p className="form-note">No spam. Unsubscribe anytime. Expected launch: mid June 2026.</p>
+        </>
+      ) : (
       <div className="form-card">
         <div className="field">
           <label htmlFor="email">Email address</label>
@@ -119,6 +166,7 @@ export default function WaitlistForm() {
           No spam. Unsubscribe anytime. Expected launch: mid June 2026.
         </p>
       </div>
+      )}
     </div>
   );
 }
