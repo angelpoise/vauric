@@ -37,7 +37,7 @@ function Feature({ title, body }: { title: string; body: string }) {
 // ─── Pricing card ────────────────────────────────────────────────────────────
 
 function PricingCard({
-  tier, price, sub, items, cta, ctaHref, highlight, accent,
+  tier, price, sub, items, cta, ctaHref, highlight, accent, badge,
 }: {
   tier: string;
   price: string;
@@ -45,9 +45,9 @@ function PricingCard({
   items: string[];
   cta: string;
   ctaHref: string;
-  highlight?: boolean; // Pro — blue
-  accent?: boolean;    // Plus — bright white/silver
-  // Free — grey (neither flag set)
+  highlight?: boolean;
+  accent?: boolean;
+  badge?: string;
 }) {
   // Colour tokens per tier
   const borderCol = highlight
@@ -75,6 +75,20 @@ function PricingCard({
       display: "flex", flexDirection: "column",
       flex: 1,
     }}>
+
+      {/* Badge */}
+      {badge && (
+        <div style={{ marginBottom: 14 }}>
+          <span style={{
+            fontFamily: DM, fontSize: 10, fontWeight: 600,
+            letterSpacing: "0.1em", textTransform: "uppercase",
+            color: "#fff", background: "var(--blue)",
+            padding: "3px 10px", borderRadius: 20,
+          }}>
+            {badge}
+          </span>
+        </div>
+      )}
 
       {/* Tier label */}
       <p style={{
@@ -394,7 +408,7 @@ export default function Home() {
               <PricingCard
                 tier="Plus"
                 price="$9"
-                sub="Alerts and AI market intelligence on top of the full graph."
+                sub="Automatic alerts and market context, without the analysis."
                 items={[
                   "Everything in Free",
                   "AI market summary — biggest stories each day",
@@ -411,16 +425,17 @@ export default function Home() {
               <PricingCard
                 tier="Pro"
                 price="$15"
-                sub="The complete toolkit for serious investors."
+                sub="Build conviction, size positions, and stay ahead of your holdings."
                 items={[
                   "Everything in Plus",
                   "AI market summary filtered to your watchlist",
-                  "AI analysis on every company page",
                   "Bull, base, and bear scenario modelling",
-                  "Saved focus lists",
+                  "Instant analysis on every company page",
+                  "Track your highest-conviction ideas in saved focus lists",
                   "Portfolio tracking and export",
-                  "Multi-select connection views",
+                  "Trace connections across companies with multi-select views",
                 ]}
+                badge="Recommended"
                 cta="Start Pro"
                 ctaHref="/sign-up?plan=pro"
                 highlight
