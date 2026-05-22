@@ -25,6 +25,7 @@ export interface FundamentalsEntry {
   industry:                     string | null;
   website:                      string | null;
   country:                      string | null;
+  exchange:                     string | null;
   fullTimeEmployees:            number | null;
   // ETF-specific fields (null for stocks)
   totalAssets:                  number | null;
@@ -100,17 +101,18 @@ export async function fetchFundamentalsForTicker(
   try {
     const url =
       `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}` +
-      `?modules=summaryDetail,assetProfile,fundProfile,defaultKeyStatistics&crumb=${encodeURIComponent(session.crumb)}`;
+      `?modules=summaryDetail,assetProfile,fundProfile,defaultKeyStatistics,price&crumb=${encodeURIComponent(session.crumb)}`;
     const res = await fetch(url, {
       headers: { "User-Agent": UA, Cookie: session.cookie },
     });
     if (!res.ok) return null;
     const json = await res.json();
     const result = json?.quoteSummary?.result?.[0] as Record<string, unknown> | null | undefined;
-    const sd  = result?.summaryDetail       as Record<string, unknown> | null | undefined;
-    const ap  = result?.assetProfile        as Record<string, unknown> | null | undefined;
-    const fp  = result?.fundProfile         as Record<string, unknown> | null | undefined;
+    const sd  = result?.summaryDetail        as Record<string, unknown> | null | undefined;
+    const ap  = result?.assetProfile         as Record<string, unknown> | null | undefined;
+    const fp  = result?.fundProfile          as Record<string, unknown> | null | undefined;
     const dks = result?.defaultKeyStatistics as Record<string, unknown> | null | undefined;
+    const pr  = result?.price                as Record<string, unknown> | null | undefined;
     if (!sd) return null;
 
     return {
@@ -135,6 +137,7 @@ export async function fetchFundamentalsForTicker(
       industry:            typeof ap?.industry           === "string" ? ap.industry           : null,
       website:             typeof ap?.website            === "string" ? ap.website            : null,
       country:             typeof ap?.country            === "string" ? ap.country            : null,
+      exchange:            typeof pr?.exchange           === "string" ? pr.exchange           : null,
       fullTimeEmployees:   typeof ap?.fullTimeEmployees  === "number" ? ap.fullTimeEmployees  : null,
       // ETF-specific (populated for ETF tickers, null for stocks)
       totalAssets:       num(sd, "totalAssets"),

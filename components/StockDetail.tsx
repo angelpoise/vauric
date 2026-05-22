@@ -1263,7 +1263,8 @@ export default function StockDetail({ ticker }: { ticker: string }) {
                 <div style={{ fontSize: 16, color: "#475569", fontWeight: 300 }}>
                   {graphStock?.company_name ?? data.name}
                 </div>
-                {fundamentals?.country && fundamentals.country !== "United States" && (
+                {fundamentals?.country && fundamentals.country !== "United States" &&
+                  !["NMS","NGM","NCM","NYQ","PCX","ASE","BTS"].includes(fundamentals.exchange ?? "") && (
                   <span style={{
                     fontSize: 10, fontWeight: 600,
                     padding: "2px 7px",
