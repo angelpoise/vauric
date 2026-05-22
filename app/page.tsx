@@ -74,20 +74,22 @@ function PricingCard({
       padding: "30px 28px",
       display: "flex", flexDirection: "column",
       flex: 1,
+      position: "relative",
     }}>
 
-      {/* Badge */}
+      {/* Badge — floats over the top border, doesn't affect card flow */}
       {badge && (
-        <div style={{ marginBottom: 14 }}>
-          <span style={{
-            fontFamily: DM, fontSize: 10, fontWeight: 600,
-            letterSpacing: "0.1em", textTransform: "uppercase",
-            color: "#fff", background: "var(--blue)",
-            padding: "3px 10px", borderRadius: 20,
-          }}>
-            {badge}
-          </span>
-        </div>
+        <span style={{
+          position: "absolute", top: -13, left: "50%",
+          transform: "translateX(-50%)",
+          fontFamily: DM, fontSize: 10, fontWeight: 600,
+          letterSpacing: "0.1em", textTransform: "uppercase",
+          color: "#fff", background: "var(--blue)",
+          padding: "3px 10px", borderRadius: 20,
+          whiteSpace: "nowrap",
+        }}>
+          {badge}
+        </span>
       )}
 
       {/* Tier label */}
