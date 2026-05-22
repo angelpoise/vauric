@@ -12,6 +12,7 @@ export interface EarningsEntry {
   report_date: string;
   report_time: "pre-market" | "after-hours" | "during-market" | null;
   eps_estimate: number | null;
+  revenue_estimate: number | null;
 }
 
 // ─── Module-level cache (1 hour) ──────────────────────────────────────────────
@@ -69,16 +70,17 @@ async function fetchAndMerge(): Promise<EarningsEntry[]> {
       );
       if (res.ok) {
         const json = await res.json() as {
-          earningsCalendar?: Array<{ symbol: string; date: string; hour?: string; epsEstimate?: number | null }>;
+          earningsCalendar?: Array<{ symbol: string; date: string; hour?: string; epsEstimate?: number | null; revenueEstimate?: number | null }>;
         };
         for (const e of json.earningsCalendar ?? []) {
           if (!knownTickers.has(e.symbol)) continue;
           finnhubRows.push({
-            ticker:       e.symbol,
-            company_name: nameMap[e.symbol] ?? null,
-            report_date:  e.date,
-            report_time:  finnhubHour(e.hour),
-            eps_estimate: e.epsEstimate ?? null,
+            ticker:           e.symbol,
+            company_name:     nameMap[e.symbol] ?? null,
+            report_date:      e.date,
+            report_time:      finnhubHour(e.hour),
+            eps_estimate:     e.epsEstimate ?? null,
+            revenue_estimate: e.revenueEstimate ?? null,
           });
         }
       }
@@ -90,11 +92,12 @@ async function fetchAndMerge(): Promise<EarningsEntry[]> {
 
   for (const row of dbRows ?? []) {
     merged.set(`${row.ticker}|${row.report_date}`, {
-      ticker:       row.ticker,
-      company_name: nameMap[row.ticker] ?? null,
-      report_date:  row.report_date,
-      report_time:  (row.report_time as EarningsEntry["report_time"]) ?? null,
-      eps_estimate: row.eps_estimate ?? null,
+      ticker:           row.ticker,
+      company_name:     nameMap[row.ticker] ?? null,
+      report_date:      row.report_date,
+      report_time:      (row.report_time as EarningsEntry["report_time"]) ?? null,
+      eps_estimate:     row.eps_estimate ?? null,
+      revenue_estimate: null,
     });
   }
 
@@ -138,11 +141,12 @@ export async function GET(req: NextRequest) {
     if (!rows || rows.length === 0) return NextResponse.json([]);
     const row = rows[0];
     return NextResponse.json([{
-      ticker:       row.ticker,
-      company_name: (stockRow as { company_name: string | null } | null)?.company_name ?? null,
-      report_date:  row.report_date,
-      report_time:  (row.report_time as EarningsEntry["report_time"]) ?? null,
-      eps_estimate: row.eps_estimate ?? null,
+      ticker:           row.ticker,
+      company_name:     (stockRow as { company_name: string | null } | null)?.company_name ?? null,
+      report_date:      row.report_date,
+      report_time:      (row.report_time as EarningsEntry["report_time"]) ?? null,
+      eps_estimate:     row.eps_estimate ?? null,
+      revenue_estimate: null,
     }]);
   }
 

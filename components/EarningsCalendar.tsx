@@ -16,6 +16,7 @@ interface EarningsEntry {
   report_date: string;
   report_time: "pre-market" | "after-hours" | "during-market" | null;
   eps_estimate: number | null;
+  revenue_estimate: number | null;
 }
 
 type ReminderState = "idle" | "loading" | "done" | "error";
@@ -31,6 +32,12 @@ function formatDateHeader(isoDate: string): string {
   if (dMid.getTime() === today.getTime())    return `Today · ${d.toLocaleDateString(undefined, { day: "numeric", month: "long" })}`;
   if (dMid.getTime() === tomorrow.getTime()) return `Tomorrow · ${d.toLocaleDateString(undefined, { day: "numeric", month: "long" })}`;
   return d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+}
+
+function formatRevenue(v: number): string {
+  if (Math.abs(v) >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
+  if (Math.abs(v) >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
+  return `$${(v / 1e3).toFixed(0)}K`;
 }
 
 function groupByDate(entries: EarningsEntry[]): { date: string; items: EarningsEntry[] }[] {
@@ -182,6 +189,14 @@ function EntryRow({
         {entry.eps_estimate != null
           ? <>EPS est. <span style={{ color: "#64748b", fontWeight: 500 }}>${entry.eps_estimate.toFixed(2)}</span></>
           : <span style={{ color: "#1e293b" }}>EPS n/a</span>
+        }
+      </div>
+
+      {/* Revenue estimate */}
+      <div style={{ fontSize: 12, color: "#475569", minWidth: 90, textAlign: "right", flexShrink: 0 }}>
+        {entry.revenue_estimate != null
+          ? <>Rev est. <span style={{ color: "#64748b", fontWeight: 500 }}>{formatRevenue(entry.revenue_estimate)}</span></>
+          : <span style={{ color: "#1e293b" }}>Rev n/a</span>
         }
       </div>
 
