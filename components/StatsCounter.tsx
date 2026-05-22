@@ -13,12 +13,13 @@ export default function StatsCounter() {
   const [stocks,      setStocks]      = useState(0);
   const [connections, setConnections] = useState(0);
   const [industries,  setIndustries]  = useState(0);
-  const [targets, setTargets] = useState({ stocks: 1300, connections: 18000, industries: 120 });
+  // Ref so updated values don't re-trigger count-up effects
+  const targets = useRef({ stocks: 1300, connections: 18000, industries: 120 });
 
   useEffect(() => {
     fetch("/api/stats")
       .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (d) setTargets(d); })
+      .then((d) => { if (d) targets.current = d; })
       .catch(() => {});
   }, []);
 
@@ -66,21 +67,21 @@ export default function StatsCounter() {
 
   // 1. Connections — starts on scroll-in, triggers stocks at halfway
   useEffect(() => {
-    if (!started || targets.connections === 0) return;
-    return countUp(targets.connections, 1600, setConnections, () => {}, () => setConnDone(true));
-  }, [started, targets]); // eslint-disable-line
+    if (!started) return;
+    return countUp(targets.current.connections, 1600, setConnections, () => {}, () => setConnDone(true));
+  }, [started]); // eslint-disable-line
 
   // 2. Stocks — starts halfway through connections, triggers industries at its halfway
   useEffect(() => {
-    if (!connDone || targets.stocks === 0) return;
-    return countUp(targets.stocks, 1400, setStocks, () => {}, () => setStocksDone(true));
-  }, [connDone, targets]); // eslint-disable-line
+    if (!connDone) return;
+    return countUp(targets.current.stocks, 1400, setStocks, () => {}, () => setStocksDone(true));
+  }, [connDone]); // eslint-disable-line
 
   // 3. Industries — starts halfway through stocks
   useEffect(() => {
-    if (!stocksDone || targets.industries === 0) return;
-    return countUp(targets.industries, 1000, setIndustries, () => {});
-  }, [stocksDone, targets]); // eslint-disable-line
+    if (!stocksDone) return;
+    return countUp(targets.current.industries, 1000, setIndustries, () => {});
+  }, [stocksDone]); // eslint-disable-line
 
   const fmt = (n: number) => n === 0 ? "0" : n.toLocaleString();
 
