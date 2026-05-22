@@ -182,7 +182,7 @@ export async function GET(req: NextRequest) {
 
     try {
       await resend.emails.send({
-        from:    "Vauric <digest@vauric.com>",
+        from:    "Vauric <digest@vauric.io>",
         to:      userInfo.email,
         subject: `Your market close digest — ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
         html:    digestEmail(userInfo.name, holdings, alerts, appUrl),
