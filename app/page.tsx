@@ -1,6 +1,6 @@
 import Link from "next/link";
+import Image from "next/image";
 import { RadarIcon } from "@/components/Logo";
-import KnowledgeGraph from "@/components/KnowledgeGraph";
 import StatsCounter from "@/components/StatsCounter";
 import RevealOnScroll from "@/components/RevealOnScroll";
 
@@ -280,7 +280,14 @@ export default function Home() {
                 background: "linear-gradient(to top, var(--bg2), transparent)",
                 zIndex: 2, pointerEvents: "none",
               }} />
-              <KnowledgeGraph />
+              <Image
+                src="/graph-preview.jpg"
+                alt="Vauric knowledge graph — live market structure and connections"
+                width={1440}
+                height={810}
+                style={{ width: "100%", height: "auto", display: "block" }}
+                priority
+              />
             </div>
           </RevealOnScroll>
         </section>
